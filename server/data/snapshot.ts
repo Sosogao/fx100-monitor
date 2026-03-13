@@ -892,6 +892,11 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
   const avgOiChange = markets.length > 0 ? markets.reduce((sum, market) => sum + market.oiChange24hPct, 0) / markets.length : 0;
   const activeAlerts = markets.filter((market) => market.alertLevel !== "normal").length;
   const criticalAlerts = markets.filter((market) => market.alertLevel === "l3").length;
+  const oracleDivergenceMarkets = markets.filter((market) => market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5);
+  const maxOracleDivergence = oracleDivergenceMarkets.length > 0 ? Math.max(...oracleDivergenceMarkets.map((market) => market.externalPriceDeviationPct)) : 0;
+  const worstOracleMarket = oracleDivergenceMarkets.length > 0
+    ? oracleDivergenceMarkets.reduce((worst, current) => current.externalPriceDeviationPct > worst.externalPriceDeviationPct ? current : worst)
+    : undefined;
   const stats: DashboardStat[] = [
     {
       label: "Total Open Interest",
@@ -923,6 +928,14 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
       delta: `${markets.filter((market) => market.fundingAprPct > market.externalFundingAprPct).length}/${markets.length} above ${basefx100Sepolia0312.externalVenue.name}`,
       tone: weightedFunding > 20 ? "warning" : "good",
     },
+    {
+      label: "Oracle Divergence",
+      value: oracleDivergenceMarkets.length > 0 ? `${round(maxOracleDivergence, 2)}%` : "0%",
+      delta: oracleDivergenceMarkets.length > 0
+        ? `${oracleDivergenceMarkets.length}/${markets.length} markets flagged · worst ${worstOracleMarket?.symbol} vs ${worstOracleMarket?.externalPriceSource}`
+        : "No live venue divergence above 5%",
+      tone: maxOracleDivergence >= 50 ? "critical" : maxOracleDivergence >= 15 ? "warning" : "good",
+    },
   ];
 
   const notes: DashboardNote[] = [
@@ -943,6 +956,13 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
       title: "Config posture",
       body: `Global max oracle deviation ${basefx100Sepolia0312.globals.maxOracleRefPriceDeviationFactor}, price impact spread ${basefx100Sepolia0312.globals.maxPriceImpactSpread}.`,
       tone: "warning",
+    },
+    {
+      title: "Oracle divergence summary",
+      body: oracleDivergenceMarkets.length > 0
+        ? `Live external reference checks flag ${oracleDivergenceMarkets.length} market(s) above the 5% divergence threshold. Worst case is ${worstOracleMarket?.symbol} at ${round(maxOracleDivergence, 2)}% versus ${basefx100Sepolia0312.externalVenue.name} ${worstOracleMarket?.externalPriceSource}.`
+        : `No markets are currently above the 5% oracle divergence threshold against ${basefx100Sepolia0312.externalVenue.name}.`,
+      tone: maxOracleDivergence >= 50 ? "critical" : maxOracleDivergence >= 15 ? "warning" : "good",
     },
   ];
 
