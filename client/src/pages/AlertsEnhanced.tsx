@@ -25,11 +25,16 @@ export default function AlertsEnhanced() {
   const [tab, setTab] = useState("active");
   const [level, setLevel] = useState("all");
   const [asset, setAsset] = useState("all");
+  const [category, setCategory] = useState("all");
 
   const alerts = snapshot?.alerts ?? [];
   const filteredAlerts = useMemo(
-    () => alerts.filter((alert) => (level === "all" || alert.level === level) && (asset === "all" || alert.assetSymbol === asset)),
-    [alerts, level, asset],
+    () => alerts.filter((alert) =>
+      (level === "all" || alert.level === level)
+      && (asset === "all" || alert.assetSymbol === asset)
+      && (category === "all" || alert.category === category),
+    ),
+    [alerts, level, asset, category],
   );
 
   if (loading && !snapshot) {
@@ -73,7 +78,7 @@ export default function AlertsEnhanced() {
             Filters
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Select value={level} onValueChange={setLevel}>
             <SelectTrigger className="bg-background/50 border-primary/20">
               <SelectValue placeholder="Filter by level" />
@@ -93,6 +98,17 @@ export default function AlertsEnhanced() {
               <SelectItem value="all">All assets</SelectItem>
               {Array.from(new Set(alerts.map((alert) => alert.assetSymbol))).map((symbol) => (
                 <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="bg-background/50 border-primary/20">
+              <SelectValue placeholder="Filter by category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {Array.from(new Set(alerts.map((alert) => alert.category))).sort().map((item) => (
+                <SelectItem key={item} value={item}>{item}</SelectItem>
               ))}
             </SelectContent>
           </Select>

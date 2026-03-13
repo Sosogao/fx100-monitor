@@ -255,3 +255,17 @@ Reason:
 - a single perp mark price is not a strong external truth source for oracle-divergence monitoring
 - using a small aggregate of index, spot, and mark prices produces a more defensible comparison baseline without adding heavy infrastructure
 - explicit source labels keep operator decisions grounded when only one external feed is available
+
+
+### Step 10: expand live runtime usage and surface category/external-price summaries
+
+- reduced `seeded-fallback` usage by treating inferred open-interest utilization, inferred skew, pool balance, orderbook depth, oracle price, and funding parameters as sufficient runtime signal when direct OI token counts are missing
+- current funding APR now falls back to the live runtime funding benchmark instead of remaining hard-zero when base funding is unset
+- alerts page now supports category filtering in addition to severity and asset filtering
+- dashboard now includes per-market external reference detail cards showing aggregate, index, spot, mark, and oracle gap components
+
+Reason:
+
+- the monitor already had enough live protocol state to drive a useful runtime view even when direct OI token counters were absent
+- leaving those markets in `seeded-fallback` understated how much live protocol context was already available
+- alert operators need category-level slicing, and dashboard consumers need the external reference components visible without drilling into the market page

@@ -86,6 +86,31 @@ export default function Dashboard() {
         ))}
       </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        {snapshot.markets.map((market) => (
+          <Card key={`${market.symbol}-external-price`} className="bg-card/50 border-primary/20 tech-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-primary">{market.symbol} External Reference</CardTitle>
+              <CardDescription>{market.externalVenueName} · {market.externalPriceSource}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-xs text-muted-foreground">
+              <div className="grid grid-cols-2 gap-2">
+                <div>Aggregate</div>
+                <div className="text-right text-foreground">${market.externalPriceUsd.toLocaleString()}</div>
+                <div>Index</div>
+                <div className="text-right text-foreground">{market.externalIndexPriceUsd ? `$${market.externalIndexPriceUsd.toLocaleString()}` : "n/a"}</div>
+                <div>Spot</div>
+                <div className="text-right text-foreground">{market.externalSpotPriceUsd ? `$${market.externalSpotPriceUsd.toLocaleString()}` : "n/a"}</div>
+                <div>Mark</div>
+                <div className="text-right text-foreground">{market.externalMarkPriceUsd ? `$${market.externalMarkPriceUsd.toLocaleString()}` : "n/a"}</div>
+                <div>Oracle Gap</div>
+                <div className="text-right text-foreground">{market.externalPriceDeviationPct.toFixed(2)}%</div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2 bg-card/50 border-primary/20 tech-border">
           <CardHeader>
