@@ -157,3 +157,17 @@ Current outcome:
 - market ranking, alert level, VaR/ES proxy, and risk score now come from runtime-derived logic
 - fallback behavior remains explicit for environments where open-interest state is not fully initialized
 - the remaining seeded layer is now mostly limited to venue comparison and synthetic chart shaping, not the primary control signals
+
+### Step 4: reduce seeded venue, oracle, and chart dependencies
+
+- oracle price now attempts a live read from the deployed `Oracle.getPrimaryPrice(indexToken)` contract path
+- price deviation now compares configured reference price against live oracle price when the oracle has an active primary price
+- external funding baseline is no longer taken from a static seed; it is now a runtime-derived funding benchmark based on floor/base/range, skew, and utilization
+- market chart series are no longer shaped from seeded OI-change and oracle-drift values; they are now generated from current runtime metrics and pressure signals
+- alert cards now surface whether the underlying market signal is `runtime` or `fallback`
+
+Reason:
+
+- the previous stage removed seeded risk scoring, but venue-funding comparison, oracle drift, and chart motion still relied on demo-time constants
+- those fields are acceptable as placeholders for a mock UI, but not for an operator console that needs to communicate what is actually live versus inferred
+- this step narrows the remaining static dependency to reference-price fallback only when the oracle state itself is unavailable on the environment

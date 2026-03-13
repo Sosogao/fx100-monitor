@@ -2,6 +2,7 @@ export interface LiveMarketConfig {
   symbol: string;
   displayName: string;
   tier: string;
+  referencePriceUsd: number;
   marketIndex: number;
   indexToken: string;
   collateralToken: string;
@@ -80,6 +81,7 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
       symbol: "ETH",
       displayName: "ETH-USD",
       tier: "Tier 1",
+      referencePriceUsd: 4425,
       marketIndex: 1,
       indexToken: "0x4200000000000000000000000000000000000006",
       collateralToken: "0x460faF939c098112B2C0711706F8c076615f4997",
@@ -97,6 +99,7 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
       symbol: "BTC",
       displayName: "WBTC-USD",
       tier: "Tier 1",
+      referencePriceUsd: 84210,
       marketIndex: 2,
       indexToken: "0xD8a6E3FCA403d79b6AD6216b60527F51cc967D39",
       collateralToken: "0x460faF939c098112B2C0711706F8c076615f4997",

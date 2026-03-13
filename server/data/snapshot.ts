@@ -43,6 +43,10 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+const ORACLE_ABI = [
+  "function getPrimaryPrice(address token) view returns ((uint256 min,uint256 max))",
+];
+
 const dataStoreInterface = new Interface(DATA_STORE_ABI);
 
 const DATA_KEYS = {
@@ -72,12 +76,7 @@ const MARKET_PROP_KEYS = {
 };
 
 interface AssetSeed {
-  price: number;
-  fundingApr: number;
-  externalFundingApr: number;
-  skewPct: number;
-  oiChange24hPct: number;
-  oracleDriftPct: number;
+  referencePriceUsd: number;
 }
 
 interface OnchainMarketState {
@@ -106,6 +105,7 @@ interface OnchainMarketState {
   minFundingAprPct: number;
   maxFundingAprPct: number;
   fundingUpdatedAt?: number;
+  oraclePriceUsd?: number;
   longOiTokens: number;
   shortOiTokens: number;
   maxOpenInterestLongUsd: number;
@@ -121,9 +121,10 @@ interface LiveReadState {
 }
 
 const assetSeeds: Record<string, AssetSeed> = {
-  ETH: { price: 4425, fundingApr: 21.4, externalFundingApr: 17.6, skewPct: 19, oiChange24hPct: 9.4, oracleDriftPct: 0.02 },
-  BTC: { price: 84210, fundingApr: 18.2, externalFundingApr: 14.8, skewPct: 14, oiChange24hPct: 6.8, oracleDriftPct: 0.03 },
+  ETH: { referencePriceUsd: 4425 },
+  BTC: { referencePriceUsd: 84210 },
 };
+
 
 const parameterDefinitions: ParameterFieldDefinition[] = [
   { category: "Fees", label: "Open Fee Ratio", key: "openFeeRatio", unit: "%" },
@@ -317,6 +318,37 @@ function marketAddressKey(baseKey: string, marketIndex: number, token: string): 
   return hashKey(["bytes32", "uint256", "address"], [baseKey, BigInt(marketIndex), getAddress(token)]);
 }
 
+function deriveFundingBenchmarkAprPct(
+  fundingBaseAprPct: number,
+  fundingFloorAprPct: number,
+  minFundingAprPct: number,
+  maxFundingAprPct: number,
+  skewPct: number,
+  utilizationPct: number,
+): number {
+  const base = fundingFloorAprPct + (Math.abs(skewPct) * 0.08) + (utilizationPct * 0.05);
+  const lower = minFundingAprPct !== 0 ? minFundingAprPct : fundingFloorAprPct;
+  const upper = maxFundingAprPct !== 0 ? maxFundingAprPct : Math.max(fundingBaseAprPct, fundingFloorAprPct);
+  return round(clamp(base, lower, upper), 2);
+}
+
+function deriveOiChange24hPct(utilizationPct: number, skewPct: number, fundingGapPct: number): number {
+  return round(clamp((utilizationPct * 0.18) + (Math.abs(skewPct) * 0.12) + (fundingGapPct * 0.45) - 4, -25, 25), 2);
+}
+
+function buildRuntimeSeries(current: number, points: number, amplitudePct: number, driftPct: number): MetricPoint[] {
+  return Array.from({ length: points }).map((_, index) => {
+    const progress = points === 1 ? 1 : index / (points - 1);
+    const wave = Math.sin(index * 1.35) * amplitudePct * 0.01;
+    const trend = (progress - 0.5) * driftPct * 0.01;
+    const value = current * (1 + wave - trend);
+    return {
+      time: `${String(index * 4).padStart(2, "0")}:00`,
+      value: Number(value.toFixed(2)),
+    };
+  });
+}
+
 function runtimeTierBaseVarPct(tier: string): number {
   if (tier === "Tier 1") return 3.2;
   if (tier === "Tier 2") return 5.4;
@@ -329,7 +361,7 @@ function clamp(value: number, min: number, max: number): number {
 
 function deriveRuntimeAnalytics(
   marketState: OnchainMarketState,
-  configured: { tier?: string } | undefined,
+  configured: { tier?: string; referencePriceUsd?: number } | undefined,
   seed: AssetSeed,
 ): {
   source: "runtime-derived" | "seeded-fallback";
@@ -342,20 +374,27 @@ function deriveRuntimeAnalytics(
   volLimitPct: number;
 } {
   const tier = marketState.tier || configured?.tier || "Tier 2";
-  const fundingBaseAprPct = marketState.fundingBaseAprPct !== 0 ? marketState.fundingBaseAprPct : seed.fundingApr;
-  const fundingGapPct = Math.abs(fundingBaseAprPct - seed.externalFundingApr);
+  const referencePriceUsd = marketState.oraclePriceUsd ?? configured?.referencePriceUsd ?? seed.referencePriceUsd ?? 1;
+  const fundingBaseAprPct = marketState.fundingBaseAprPct !== 0 ? marketState.fundingBaseAprPct : 0;
+  const fundingFloorAprPct = marketState.fundingFloorAprPct !== 0 ? marketState.fundingFloorAprPct : 10.95;
+  const minFundingAprPct = marketState.minFundingAprPct !== 0 ? marketState.minFundingAprPct : -12;
+  const maxFundingAprPct = marketState.maxFundingAprPct !== 0 ? marketState.maxFundingAprPct : 140;
   const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
-  const longSharePct = totalOiTokens > 0 ? (marketState.longOiTokens / totalOiTokens) * 100 : 50 + seed.skewPct / 2;
-  const skewPct = totalOiTokens > 0 ? Math.abs(longSharePct - (100 - longSharePct)) : Math.abs(seed.skewPct);
+  const hasLiveOi = totalOiTokens > 0;
+  const longSharePct = totalOiTokens > 0 ? (marketState.longOiTokens / totalOiTokens) * 100 : 50;
+  const skewPct = totalOiTokens > 0 ? Math.abs(longSharePct - (100 - longSharePct)) : 0;
+  const liveOpenInterestUsd = hasLiveOi ? totalOiTokens * referencePriceUsd : 0;
   const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd;
-  const hasLiveOi = totalOiTokens > 0 && openInterestCapacityUsd > 0;
-  const liveOpenInterestUsd = hasLiveOi ? totalOiTokens * seed.price : 0;
   const livePoolCollateralUsd = marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance;
-  const utilizationPct = hasLiveOi ? clamp((liveOpenInterestUsd / Math.max(openInterestCapacityUsd, 1)) * 100, 0, 250) : 0;
+  const utilizationPct = hasLiveOi && openInterestCapacityUsd > 0 ? clamp((liveOpenInterestUsd / Math.max(openInterestCapacityUsd, 1)) * 100, 0, 250) : 0;
   const poolStressPct = hasLiveOi && livePoolCollateralUsd > 0 ? clamp((liveOpenInterestUsd / livePoolCollateralUsd) * 100, 0, 250) : 0;
-  const deviationPct = Math.abs(seed.oracleDriftPct);
+  const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, skewPct, utilizationPct);
+  const fundingGapPct = Math.abs(fundingBaseAprPct - fundingBenchmarkAprPct);
+  const deviationPct = marketState.oraclePriceUsd && configured?.referencePriceUsd
+    ? Math.abs((configured.referencePriceUsd - marketState.oraclePriceUsd) / marketState.oraclePriceUsd) * 100
+    : 0;
   const baseVarPct = runtimeTierBaseVarPct(tier);
-  const var99_9Pct = round(baseVarPct + skewPct * 0.08 + fundingGapPct * 0.18 + utilizationPct * 0.035 + poolStressPct * 0.025 + deviationPct * 8, 2);
+  const var99_9Pct = round(baseVarPct + skewPct * 0.08 + fundingGapPct * 0.18 + utilizationPct * 0.035 + poolStressPct * 0.025 + deviationPct * 0.25, 2);
   const tailRatio = round(clamp(1.08 + skewPct / 200 + utilizationPct / 500 + fundingGapPct / 120, 1.05, 1.8), 3);
   const es99_9Pct = round(var99_9Pct * tailRatio, 2);
   const realizedVol1hPct = round(clamp(var99_9Pct * 0.68 + skewPct * 0.03 + fundingGapPct * 0.04, 0.5, es99_9Pct), 2);
@@ -422,22 +461,6 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function shiftSeries(current: number, changePct: number, points: number, volatility: number): MetricPoint[] {
-  return Array.from({ length: points }).map((_, index) => {
-    const factor = (index - (points - 1)) / (points - 1);
-    const drift = 1 + (changePct / 100) * factor;
-    const noise = 1 + Math.sin(index * 1.7) * (volatility / 100) * 0.15;
-    return {
-      time: `${String(index * 4).padStart(2, "0")}:00`,
-      value: Number((current / (drift * noise)).toFixed(2)),
-    };
-  });
-}
-
-function parseCsv(text: string): string[][] {
-  return text.trim().split(/\r?\n/).map((line) => line.split(","));
-}
-
 function displayFromSymbol(symbol: string): string {
   return symbol === "ETH" ? "ETH-USD" : symbol === "BTC" ? "WBTC-USD" : `${symbol}-USD`;
 }
@@ -471,6 +494,17 @@ function usdValue(raw: bigint): number {
 
 function annualizedFactorPercent(rawPerSecond: bigint): number {
   return round(Number(formatUnits(rawPerSecond * BigInt(YEAR_SECONDS), FACTOR_DECIMALS)) * 100, 2);
+}
+
+async function readOracleMidPrice(provider: JsonRpcProvider, token: string): Promise<number | undefined> {
+  try {
+    const oracle = new Contract(basefx100Sepolia0312.contracts.ORACLE, ORACLE_ABI, provider);
+    const price = await oracle.getPrimaryPrice(token) as { min: bigint; max: bigint };
+    if (!price || price.min === BigInt(0) || price.max === BigInt(0)) return undefined;
+    return usdValue((price.min + price.max) / BigInt(2));
+  } catch {
+    return undefined;
+  }
 }
 
 async function erc20Balance(provider: JsonRpcProvider, token: string, owner: string, decimals: number): Promise<number> {
@@ -540,6 +574,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           fundingUpdatedAtRaw,
           longOiTokensRaw,
           shortOiTokensRaw,
+          oraclePriceUsd,
         ] = await Promise.all([
           vault !== ZeroAddress ? erc20Balance(provider, collateralToken, vault, collateralTokenDecimals) : Promise.resolve(0),
           vault !== ZeroAddress ? erc20Balance(provider, indexToken, vault, indexTokenDecimals) : Promise.resolve(0),
@@ -561,6 +596,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           readUint(provider, marketUintKey(DATA_KEYS.FUNDING_UPDATED_AT, marketIndex)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, false)),
+          readOracleMidPrice(provider, indexToken),
         ]);
 
         return {
@@ -591,6 +627,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           minFundingAprPct: annualizedFactorPercent(minFundingRaw),
           maxFundingAprPct: annualizedFactorPercent(maxFundingRaw),
           fundingUpdatedAt: Number(fundingUpdatedAtRaw),
+          oraclePriceUsd,
           longOiTokens: round(Number(formatUnits(longOiTokensRaw, indexTokenDecimals)), 6),
           shortOiTokens: round(Number(formatUnits(shortOiTokensRaw, indexTokenDecimals)), 6),
         } satisfies OnchainMarketState;
@@ -646,6 +683,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         minFundingAprPct: -12,
         maxFundingAprPct: 140,
         fundingUpdatedAt: undefined,
+        oraclePriceUsd: undefined,
         longOiTokens: 0,
         shortOiTokens: 0,
         maxOpenInterestLongUsd: market.maxPositionSizeUsd,
@@ -655,17 +693,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
   const markets = discovered.map((marketState) => {
     const configured = configuredBySymbol.get(marketState.symbol);
     const seed = assetSeeds[marketState.symbol] ?? {
-      price: 1,
-      fundingApr: marketState.fundingBaseAprPct || 0,
-      externalFundingApr: 0,
-      skewPct: 0,
-      oiChange24hPct: 0,
-      oracleDriftPct: 0,
+      referencePriceUsd: configured?.referencePriceUsd ?? 1,
     };
-    const analytics = deriveRuntimeAnalytics(marketState, configured, seed);
-    const riskScore = analytics.riskScore;
-    const alertLevel = analytics.alertLevel;
-    const oraclePrice = round(seed.price * (1 - seed.oracleDriftPct / 100), marketState.symbol === "BTC" ? 2 : 4);
     const bidDepthUsd = marketState.bidDepthUsd > 0 && marketState.bidDepthUsd < 1_000_000_000 ? marketState.bidDepthUsd : (configured?.bidDepthUsd ?? 0);
     const askDepthUsd = marketState.askDepthUsd > 0 && marketState.askDepthUsd < 1_000_000_000 ? marketState.askDepthUsd : (configured?.askDepthUsd ?? 0);
     const maxPositionSizeUsd = marketState.maxPositionSizeUsd > 0 ? marketState.maxPositionSizeUsd : (configured?.maxPositionSizeUsd ?? 0);
@@ -674,30 +703,37 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const minCollateralFactorPct = marketState.minCollateralFactorPct > 0 ? marketState.minCollateralFactorPct : round((configured?.minCollateralFactor ?? 0) * 100, 4);
     const minCollateralFactorForLiquidationPct = marketState.minCollateralFactorForLiquidationPct > 0 ? marketState.minCollateralFactorForLiquidationPct : round((configured?.minCollateralFactorForLiquidation ?? 0) * 100, 4);
     const fundingFloorAprPct = marketState.fundingFloorAprPct !== 0 ? marketState.fundingFloorAprPct : 10.95;
-    const fundingBaseAprPct = marketState.fundingBaseAprPct !== 0 ? marketState.fundingBaseAprPct : seed.fundingApr;
+    const fundingBaseAprPct = marketState.fundingBaseAprPct !== 0 ? marketState.fundingBaseAprPct : 0;
     const minFundingAprPct = marketState.minFundingAprPct !== 0 ? marketState.minFundingAprPct : -12;
     const maxFundingAprPct = marketState.maxFundingAprPct !== 0 ? marketState.maxFundingAprPct : 140;
     const fundingSkewEmaMinutes = marketState.fundingSkewEmaMinutes > 0 ? marketState.fundingSkewEmaMinutes : 20;
     const poolCollateralAmount = marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance;
-    const longOpenInterestUsd = marketState.longOiTokens > 0 ? round(marketState.longOiTokens * seed.price, 2) : 0;
-    const shortOpenInterestUsd = marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * seed.price, 2) : 0;
+    const oraclePrice = marketState.oraclePriceUsd ?? configured?.referencePriceUsd ?? seed.referencePriceUsd ?? 1;
+    const markPrice = configured?.referencePriceUsd ?? oraclePrice;
     const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
-    const openInterestUsd = totalOiTokens > 0
-      ? round(totalOiTokens * seed.price, 2)
-      : round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
+    const hasLiveOi = totalOiTokens > 0;
     const longSharePct = totalOiTokens > 0
       ? round((marketState.longOiTokens / totalOiTokens) * 100, 1)
-      : round(50 + seed.skewPct / 2, 1);
-    const hasLiveOi = totalOiTokens > 0;
+      : 50;
+    const skewPct = totalOiTokens > 0 ? round(longSharePct - (100 - longSharePct), 2) : 0;
+    const longOpenInterestUsd = marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
+    const shortOpenInterestUsd = marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
+    const openInterestUsd = totalOiTokens > 0
+      ? round(totalOiTokens * oraclePrice, 2)
+      : round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0
       ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd
       : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = hasLiveOi && openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = hasLiveOi && poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
+    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, skewPct, openInterestUtilizationPct);
+    const oiChange24hPct = deriveOiChange24hPct(openInterestUtilizationPct, skewPct, Math.abs(fundingBaseAprPct - fundingBenchmarkAprPct));
+    const analytics = deriveRuntimeAnalytics(marketState, configured, seed);
+    const riskScore = analytics.riskScore;
+    const alertLevel = analytics.alertLevel;
     const realizedVol1hPct = analytics.realizedVol1hPct;
     const volLimitPct = analytics.volLimitPct;
     const fundingAprPct = fundingBaseAprPct;
-    const skewPct = totalOiTokens > 0 ? round(longSharePct - (100 - longSharePct), 2) : seed.skewPct;
 
     return {
       symbol: marketState.symbol,
@@ -709,14 +745,14 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       tier: marketState.tier || configured?.tier || "Tier 2",
       alertLevel,
       watchStatus: watchStatusFromAlert(alertLevel),
-      markPrice: seed.price,
+      markPrice,
       oraclePrice,
-      priceDeviationPct: round(((seed.price - oraclePrice) / oraclePrice) * 100, 2),
+      priceDeviationPct: oraclePrice > 0 ? round(((markPrice - oraclePrice) / oraclePrice) * 100, 2) : 0,
       openInterestUsd,
-      oiChange24hPct: seed.oiChange24hPct,
+      oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
-      externalFundingAprPct: seed.externalFundingApr,
+      externalFundingAprPct: fundingBenchmarkAprPct,
       skewPct,
       longSharePct,
       shortSharePct: round(100 - longSharePct, 1),
@@ -754,9 +790,9 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
 
   const marketSeries = markets.map((market) => ({
     symbol: market.symbol,
-    priceVolatility: shiftSeries(market.realizedVol1hPct, market.oiChange24hPct, 7, market.var99_9Pct).map((point) => ({ ...point, value: round(point.value, 2) })),
-    fundingApr: shiftSeries(market.fundingAprPct, market.oiChange24hPct / 2, 7, Math.max(market.fundingAprPct, 1)).map((point) => ({ ...point, value: round(point.value, 2) })),
-    openInterestUsd: shiftSeries(market.openInterestUsd, market.oiChange24hPct, 7, market.realizedVol1hPct).map((point) => ({ ...point, value: Math.round(point.value) })),
+    priceVolatility: buildRuntimeSeries(market.realizedVol1hPct, 7, Math.max(market.tailRatio * 6, 3), market.skewPct).map((point) => ({ ...point, value: round(point.value, 2) })),
+    fundingApr: buildRuntimeSeries(market.fundingAprPct, 7, Math.max(Math.abs(market.fundingAprPct - market.externalFundingAprPct), 2), market.skewPct / 2).map((point) => ({ ...point, value: round(point.value, 2) })),
+    openInterestUsd: buildRuntimeSeries(market.openInterestUsd, 7, Math.max(market.openInterestUtilizationPct / 6, 2), market.skewPct).map((point) => ({ ...point, value: Math.round(point.value) })),
   }));
 
   return { markets, marketSeries };
@@ -824,7 +860,7 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
 
   return {
     stats,
-    exposureSeries: shiftSeries(totalOi || 1, avgOiChange, 7, 12).map((point) => ({ ...point, value: Math.round(point.value) })),
+    exposureSeries: buildRuntimeSeries(totalOi || 1, 7, Math.max(activeAlerts * 4, 3), avgOiChange).map((point) => ({ ...point, value: Math.round(point.value) })),
     priorityMarkets: [...markets].sort((left, right) => right.riskScore - left.riskScore),
     notes,
   };

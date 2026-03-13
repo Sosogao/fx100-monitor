@@ -14,6 +14,12 @@ function levelBadge(level: string) {
   return "bg-primary/20 text-primary border-primary/30";
 }
 
+function analyticsBadge(source: string) {
+  return source === "runtime-derived"
+    ? "bg-primary/20 text-primary border-primary/30"
+    : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
+}
+
 export default function AlertsEnhanced() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const [tab, setTab] = useState("active");
@@ -117,6 +123,7 @@ export default function AlertsEnhanced() {
                   <div className="flex gap-2">
                     <Badge className={levelBadge(alert.level)}>{alert.level.toUpperCase()}</Badge>
                     <Badge variant="outline" className="border-primary/30 text-primary">{alert.status}</Badge>
+                    <Badge variant="outline" className={analyticsBadge(snapshot.markets.find((market) => market.symbol === alert.assetSymbol)?.analyticsSource ?? "seeded-fallback")}>{(snapshot.markets.find((market) => market.symbol === alert.assetSymbol)?.analyticsSource ?? "seeded-fallback") === "runtime-derived" ? "runtime signal" : "fallback signal"}</Badge>
                   </div>
                 </div>
               </CardHeader>
