@@ -3,6 +3,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { buildMonitoringSnapshot } from "./data/snapshot.ts";
+import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,14 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  let cachedSnapshot = null as Awaited<ReturnType<typeof buildMonitoringSnapshot>> | null;
+
+  async function refreshSnapshot() {
+    const snapshot = await buildMonitoringSnapshot();
+    const history = await appendHistoryPoint(snapshot.environment.name, snapshotToHistoryPoint(snapshot));
+    cachedSnapshot = applyHistoricalSeries(snapshot, history);
+    return cachedSnapshot;
+  }
 
   const staticPath =
     process.env.NODE_ENV === "production"
@@ -24,9 +33,20 @@ async function startServer() {
 
   app.get("/api/monitoring/snapshot", async (_req, res, next) => {
     try {
-      const snapshot = await buildMonitoringSnapshot();
+      const snapshot = cachedSnapshot ?? await refreshSnapshot();
       res.setHeader("Cache-Control", "no-store");
       res.json(snapshot);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/monitoring/history", async (_req, res, next) => {
+    try {
+      const snapshot = cachedSnapshot ?? await refreshSnapshot();
+      const history = await loadHistory(snapshot.environment.name);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, environment: snapshot.environment.name, points: history });
     } catch (error) {
       next(error);
     }
@@ -42,6 +62,11 @@ async function startServer() {
     console.error(error);
     res.status(500).json({ ok: false, error: "internal_server_error" });
   });
+
+  await refreshSnapshot();
+  setInterval(() => {
+    void refreshSnapshot().catch((error) => console.error("snapshot refresh failed", error));
+  }, Math.max((cachedSnapshot?.environment.refreshIntervalSec ?? 30) * 1000, 15_000));
 
   const port = Number(process.env.PORT || 3000);
   server.listen(port, () => {

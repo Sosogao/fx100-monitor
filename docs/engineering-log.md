@@ -171,3 +171,18 @@ Reason:
 - the previous stage removed seeded risk scoring, but venue-funding comparison, oracle drift, and chart motion still relied on demo-time constants
 - those fields are acceptable as placeholders for a mock UI, but not for an operator console that needs to communicate what is actually live versus inferred
 - this step narrows the remaining static dependency to reference-price fallback only when the oracle state itself is unavailable on the environment
+
+### Step 5: add historical snapshot storage for real time-series data
+
+- added file-backed history storage in `server/data/history.ts`
+- the server now persists a compact time-series sample on each snapshot refresh under `server/.data/`
+- server startup now warms the first snapshot and continues refreshing on an interval based on the environment refresh cadence
+- `/api/monitoring/snapshot` now returns chart series reconstructed from stored history when enough points exist
+- added `/api/monitoring/history` for raw history inspection and later tooling
+- `server/.data/` is ignored from git because it is runtime state, not source
+
+Reason:
+
+- previous chart data was still procedurally generated from current values, which is acceptable for UI scaffolding but not for monitoring
+- a monitor needs durable samples so chart movement reflects actual observations over time
+- file-backed storage is the minimal pragmatic persistence layer before introducing a database or queue

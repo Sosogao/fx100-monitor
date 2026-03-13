@@ -172,6 +172,17 @@ export interface ParameterSnapshot {
   recommendedSources: ParameterSourceSet;
 }
 
+export interface MonitoringHistoryPoint {
+  timestamp: string;
+  totalOpenInterestUsd: number;
+  markets: Array<{
+    symbol: string;
+    fundingAprPct: number;
+    openInterestUsd: number;
+    realizedVol1hPct: number;
+  }>;
+}
+
 export interface MonitoringSnapshot {
   generatedAt: string;
   environment: EnvironmentInfo;
