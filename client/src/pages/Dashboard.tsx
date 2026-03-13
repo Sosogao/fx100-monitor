@@ -20,6 +20,12 @@ function alertBadge(level: string) {
   return "bg-primary/20 text-primary border-primary/30";
 }
 
+function analyticsBadge(source: string) {
+  return source === "runtime-derived"
+    ? "bg-primary/20 text-primary border-primary/30"
+    : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
+}
+
 export default function Dashboard() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const priority = useMemo(() => snapshot?.dashboard.priorityMarkets ?? [], [snapshot]);
@@ -131,7 +137,10 @@ export default function Dashboard() {
                       {market.tier} · funding {market.fundingAprPct.toFixed(1)}% APR · skew {market.skewPct.toFixed(1)}%
                     </div>
                   </div>
-                  <Badge className={alertBadge(market.alertLevel)}>{market.watchStatus}</Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge className={alertBadge(market.alertLevel)}>{market.watchStatus}</Badge>
+                    <Badge variant="outline" className={analyticsBadge(market.analyticsSource)}>{market.analyticsSource === "runtime-derived" ? "runtime risk" : "fallback risk"}</Badge>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                   <div>Risk Score</div>

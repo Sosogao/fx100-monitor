@@ -71,17 +71,6 @@ const MARKET_PROP_KEYS = {
   COLLATERAL_TOKEN: keyFromString("COLLATERAL_TOKEN"),
 };
 
-interface RiskCsvRow {
-  symbol: string;
-  Current_Tier: string;
-  VaR_P99_9: string;
-  ES_P99_9: string;
-  ES_VaR_Ratio_P99_9: string;
-  Risk_Score: string;
-  Recommended_Tier: string;
-  Alert_Level: string;
-}
-
 interface AssetSeed {
   price: number;
   fundingApr: number;
@@ -94,6 +83,7 @@ interface AssetSeed {
 interface OnchainMarketState {
   symbol: string;
   displayName: string;
+  tier: string;
   marketIndex: number;
   vault: string;
   indexToken: string;
@@ -327,6 +317,79 @@ function marketAddressKey(baseKey: string, marketIndex: number, token: string): 
   return hashKey(["bytes32", "uint256", "address"], [baseKey, BigInt(marketIndex), getAddress(token)]);
 }
 
+function runtimeTierBaseVarPct(tier: string): number {
+  if (tier === "Tier 1") return 3.2;
+  if (tier === "Tier 2") return 5.4;
+  return 8.5;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function deriveRuntimeAnalytics(
+  marketState: OnchainMarketState,
+  configured: { tier?: string } | undefined,
+  seed: AssetSeed,
+): {
+  source: "runtime-derived" | "seeded-fallback";
+  riskScore: number;
+  alertLevel: AlertLevel;
+  var99_9Pct: number;
+  es99_9Pct: number;
+  tailRatio: number;
+  realizedVol1hPct: number;
+  volLimitPct: number;
+} {
+  const tier = marketState.tier || configured?.tier || "Tier 2";
+  const fundingBaseAprPct = marketState.fundingBaseAprPct !== 0 ? marketState.fundingBaseAprPct : seed.fundingApr;
+  const fundingGapPct = Math.abs(fundingBaseAprPct - seed.externalFundingApr);
+  const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
+  const longSharePct = totalOiTokens > 0 ? (marketState.longOiTokens / totalOiTokens) * 100 : 50 + seed.skewPct / 2;
+  const skewPct = totalOiTokens > 0 ? Math.abs(longSharePct - (100 - longSharePct)) : Math.abs(seed.skewPct);
+  const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd;
+  const hasLiveOi = totalOiTokens > 0 && openInterestCapacityUsd > 0;
+  const liveOpenInterestUsd = hasLiveOi ? totalOiTokens * seed.price : 0;
+  const livePoolCollateralUsd = marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance;
+  const utilizationPct = hasLiveOi ? clamp((liveOpenInterestUsd / Math.max(openInterestCapacityUsd, 1)) * 100, 0, 250) : 0;
+  const poolStressPct = hasLiveOi && livePoolCollateralUsd > 0 ? clamp((liveOpenInterestUsd / livePoolCollateralUsd) * 100, 0, 250) : 0;
+  const deviationPct = Math.abs(seed.oracleDriftPct);
+  const baseVarPct = runtimeTierBaseVarPct(tier);
+  const var99_9Pct = round(baseVarPct + skewPct * 0.08 + fundingGapPct * 0.18 + utilizationPct * 0.035 + poolStressPct * 0.025 + deviationPct * 8, 2);
+  const tailRatio = round(clamp(1.08 + skewPct / 200 + utilizationPct / 500 + fundingGapPct / 120, 1.05, 1.8), 3);
+  const es99_9Pct = round(var99_9Pct * tailRatio, 2);
+  const realizedVol1hPct = round(clamp(var99_9Pct * 0.68 + skewPct * 0.03 + fundingGapPct * 0.04, 0.5, es99_9Pct), 2);
+  const volLimitPct = round(var99_9Pct * 1.35, 2);
+  const scoreRaw =
+    (var99_9Pct / 2.4) * 0.34 +
+    (es99_9Pct / 3.1) * 0.24 +
+    (fundingGapPct / 3.5) * 0.14 +
+    (skewPct / 18) * 0.12 +
+    (utilizationPct / 55) * 0.10 +
+    (poolStressPct / 65) * 0.06;
+  const riskScore = round(clamp(scoreRaw, 0, 10), 2);
+
+  let alertLevel: AlertLevel = "normal";
+  if (poolStressPct >= 90 || utilizationPct >= 85 || riskScore >= 8.2) {
+    alertLevel = "l3";
+  } else if (poolStressPct >= 75 || utilizationPct >= 65 || fundingGapPct >= 8 || riskScore >= 6.2) {
+    alertLevel = "l2";
+  } else if (fundingGapPct >= 4 || skewPct >= 18 || riskScore >= 4.2) {
+    alertLevel = "l1";
+  }
+
+  return {
+    source: hasLiveOi ? "runtime-derived" : "seeded-fallback",
+    riskScore,
+    alertLevel,
+    var99_9Pct,
+    es99_9Pct,
+    tailRatio,
+    realizedVol1hPct,
+    volLimitPct,
+  };
+}
+
 function normalizeAlertLevel(value: string): AlertLevel {
   if (value.startsWith("L3")) return "l3";
   if (value.startsWith("L2")) return "l2";
@@ -373,22 +436,6 @@ function shiftSeries(current: number, changePct: number, points: number, volatil
 
 function parseCsv(text: string): string[][] {
   return text.trim().split(/\r?\n/).map((line) => line.split(","));
-}
-
-async function loadRiskRows(): Promise<RiskCsvRow[]> {
-  const filePath = path.join(projectRoot, "docs", "risk_score_all_assets.csv");
-  const raw = await fs.readFile(filePath, "utf8");
-  const [header, ...rows] = parseCsv(raw);
-  return rows.map((row) => ({
-    symbol: row[header.indexOf("symbol")],
-    Current_Tier: row[header.indexOf("Current_Tier")],
-    VaR_P99_9: row[header.indexOf("VaR_P99.9")],
-    ES_P99_9: row[header.indexOf("ES_P99.9")],
-    ES_VaR_Ratio_P99_9: row[header.indexOf("ES_VaR_Ratio_P99.9")],
-    Risk_Score: row[header.indexOf("Risk_Score")],
-    Recommended_Tier: row[header.indexOf("Recommended_Tier")],
-    Alert_Level: row[header.indexOf("Alert_Level")],
-  }));
 }
 
 function displayFromSymbol(symbol: string): string {
@@ -519,6 +566,7 @@ async function loadLiveState(): Promise<LiveReadState> {
         return {
           symbol,
           displayName,
+          tier: basefx100Sepolia0312.markets.find((market) => market.marketIndex === marketIndex)?.tier ?? "Tier 2",
           marketIndex,
           vault,
           indexToken,
@@ -568,14 +616,14 @@ async function loadLiveState(): Promise<LiveReadState> {
   }
 }
 
-function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { markets: MarketSnapshot[]; marketSeries: MarketSeries[] } {
-  const riskBySymbol = new Map(riskRows.map((row) => [row.symbol, row]));
+function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; marketSeries: MarketSeries[] } {
   const configuredBySymbol = new Map(basefx100Sepolia0312.markets.map((market) => [market.symbol, market]));
   const discovered = liveState.onchainMarkets.length > 0
     ? liveState.onchainMarkets
     : basefx100Sepolia0312.markets.map((market) => ({
         symbol: market.symbol,
         displayName: market.displayName,
+        tier: market.tier,
         marketIndex: market.marketIndex,
         vault: market.vault,
         indexToken: market.indexToken,
@@ -605,7 +653,6 @@ function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { marke
       }));
 
   const markets = discovered.map((marketState) => {
-    const risk = riskBySymbol.get(marketState.symbol);
     const configured = configuredBySymbol.get(marketState.symbol);
     const seed = assetSeeds[marketState.symbol] ?? {
       price: 1,
@@ -615,8 +662,9 @@ function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { marke
       oiChange24hPct: 0,
       oracleDriftPct: 0,
     };
-    const riskScore = Number(risk?.Risk_Score ?? 5);
-    const alertLevel = normalizeAlertLevel(risk?.Alert_Level ?? "Normal");
+    const analytics = deriveRuntimeAnalytics(marketState, configured, seed);
+    const riskScore = analytics.riskScore;
+    const alertLevel = analytics.alertLevel;
     const oraclePrice = round(seed.price * (1 - seed.oracleDriftPct / 100), marketState.symbol === "BTC" ? 2 : 4);
     const bidDepthUsd = marketState.bidDepthUsd > 0 && marketState.bidDepthUsd < 1_000_000_000 ? marketState.bidDepthUsd : (configured?.bidDepthUsd ?? 0);
     const askDepthUsd = marketState.askDepthUsd > 0 && marketState.askDepthUsd < 1_000_000_000 ? marketState.askDepthUsd : (configured?.askDepthUsd ?? 0);
@@ -646,8 +694,8 @@ function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { marke
       : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = hasLiveOi && openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = hasLiveOi && poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
-    const realizedVol1hPct = round(Number(risk?.VaR_P99_9 ?? 0.06) * 62, 2);
-    const volLimitPct = round(Number(risk?.VaR_P99_9 ?? 0.06) * 82, 2);
+    const realizedVol1hPct = analytics.realizedVol1hPct;
+    const volLimitPct = analytics.volLimitPct;
     const fundingAprPct = fundingBaseAprPct;
     const skewPct = totalOiTokens > 0 ? round(longSharePct - (100 - longSharePct), 2) : seed.skewPct;
 
@@ -658,7 +706,7 @@ function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { marke
       vault: marketState.vault,
       indexToken: marketState.indexToken,
       collateralToken: marketState.collateralToken,
-      tier: risk?.Recommended_Tier || risk?.Current_Tier || "Tier 2",
+      tier: marketState.tier || configured?.tier || "Tier 2",
       alertLevel,
       watchStatus: watchStatusFromAlert(alertLevel),
       markPrice: seed.price,
@@ -675,9 +723,10 @@ function buildMarkets(riskRows: RiskCsvRow[], liveState: LiveReadState): { marke
       realizedVol1hPct,
       volLimitPct,
       riskScore: round(riskScore, 2),
-      var99_9Pct: round(Number(risk?.VaR_P99_9 ?? 0.06) * 100, 2),
-      es99_9Pct: round(Number(risk?.ES_P99_9 ?? 0.06) * 100, 2),
-      tailRatio: round(Number(risk?.ES_VaR_Ratio_P99_9 ?? 1), 3),
+      var99_9Pct: analytics.var99_9Pct,
+      es99_9Pct: analytics.es99_9Pct,
+      tailRatio: analytics.tailRatio,
+      analyticsSource: analytics.source,
       collateralVaultBalance: marketState.collateralVaultBalance,
       indexVaultBalance: marketState.indexVaultBalance,
       poolCollateralAmount,
@@ -763,7 +812,7 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
       body:
         liveState.readStatus === "fallback"
           ? "RPC reads failed, so the monitor fell back to deterministic static values for runtime balances and market metadata."
-          : `RPC live reads are active at block ${liveState.blockNumber}. Markets, vault balances, open interest, pool collateral, and key DataStore parameters are onchain values; VaR/ES analytics remain seeded.`,
+          : `RPC live reads are active at block ${liveState.blockNumber}. Markets, vault balances, open interest, pool collateral, key DataStore parameters, and runtime risk analytics are live; fallback remains explicit when OI state is incomplete.`,
       tone: liveState.readStatus === "fallback" ? "warning" : "good",
     },
     {
@@ -780,6 +829,7 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
     notes,
   };
 }
+
 
 function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; actions: ActionRecord[]; recovery: RecoveryRecord[] } {
   const alerts = markets.map((market, index) => {
@@ -974,8 +1024,8 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
 }
 
 export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
-  const [riskRows, liveState] = await Promise.all([loadRiskRows(), loadLiveState()]);
-  const { markets, marketSeries } = buildMarkets(riskRows, liveState);
+  const liveState = await loadLiveState();
+  const { markets, marketSeries } = buildMarkets(liveState);
   const dashboard = buildDashboard(markets, liveState);
   const { alerts, actions, recovery } = buildAlerts(markets);
   const parameters = buildParameters(markets, liveState);
@@ -1008,3 +1058,4 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
     parameters,
   };
 }
+

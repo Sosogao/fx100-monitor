@@ -130,3 +130,30 @@ Reason:
 - parameter numbers without provenance are not actionable in a mixed-data monitor
 - developers need to know whether a value is safe to trust as deployed state or only a fallback / analytical placeholder
 - this also makes later replacement of seeded fields incremental, since the UI contract already encodes data trust level per field
+
+### Step 3: replace seeded VaR / ES / risk score with runtime-derived analytics
+
+- removed the risk CSV as the primary source for `riskScore`, `VaR`, `ES`, `tailRatio`, and alert level generation
+- snapshot generation now derives risk analytics from protocol runtime state and deployed config:
+  - funding divergence
+  - skew
+  - open-interest capacity pressure
+  - pool concentration
+  - environment-specific tier baselines
+- added `tier` directly to the deployed market config so risk baselines do not depend on external CSV metadata
+- added `analyticsSource` to each market:
+  - `runtime-derived` when live open-interest state is available
+  - `seeded-fallback` when the environment is missing enough runtime OI to calculate a full live signal
+- dashboard and monitoring pages now show whether displayed risk metrics are runtime-derived or fallback-backed
+
+Reason:
+
+- the previous risk layer still depended on offline CSV outputs, which made the monitor look live while hiding a static analytics dependency
+- onchain systems do not expose historical return distributions directly, so a pragmatic monitor should surface a runtime risk proxy first and label it honestly
+- the new model keeps the UI stable while removing the most misleading seeded dependency from the incident and ranking layers
+
+Current outcome:
+
+- market ranking, alert level, VaR/ES proxy, and risk score now come from runtime-derived logic
+- fallback behavior remains explicit for environments where open-interest state is not fully initialized
+- the remaining seeded layer is now mostly limited to venue comparison and synthetic chart shaping, not the primary control signals

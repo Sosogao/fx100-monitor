@@ -48,6 +48,7 @@ export interface MarketSnapshot {
   var99_9Pct: number;
   es99_9Pct: number;
   tailRatio: number;
+  analyticsSource: MarketAnalyticsSource;
   collateralVaultBalance: number;
   indexVaultBalance: number;
   poolCollateralAmount: number;
@@ -153,6 +154,7 @@ export interface ParameterValueSet {
 }
 
 export type ParameterValueSource = "onchain" | "config-fallback" | "seeded-analytics" | "template" | "derived";
+export type MarketAnalyticsSource = "runtime-derived" | "seeded-fallback";
 
 export interface ParameterSourceSet {
   [key: string]: ParameterValueSource;

@@ -15,6 +15,12 @@ function alertBadge(level: string) {
   return "bg-primary/20 text-primary border-primary/30";
 }
 
+function analyticsBadge(source: string) {
+  return source === "runtime-derived"
+    ? "bg-primary/20 text-primary border-primary/30"
+    : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
+}
+
 export default function MonitoringEnhanced() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const [activeTab, setActiveTab] = useState("overview");
@@ -139,11 +145,14 @@ export default function MonitoringEnhanced() {
                         <Badge variant="outline" className="border-primary/30 text-primary">{market.tier}</Badge>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} · funding {market.fundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}%
+                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} · funding {market.fundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={alertBadge(market.alertLevel)}>{market.watchStatus}</Badge>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className={alertBadge(market.alertLevel)}>{market.watchStatus}</Badge>
+                        <Badge variant="outline" className={analyticsBadge(market.analyticsSource)}>{market.analyticsSource === "runtime-derived" ? "runtime risk" : "fallback risk"}</Badge>
+                      </div>
                       <span
                         className={`rounded border p-1 ${isPinned ? "border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
                         onClick={(event) => {
