@@ -199,3 +199,23 @@ Reason:
 - the README had fallen behind the actual implementation and still described the monitor as a mostly seeded transition step
 - developers need one current document that matches the API surface and the data provenance rules now used by the UI
 - top-level runtime artifacts should stay out of source control for the same reason as `server/.data/`: they are environment state, not code
+
+
+### Step 7: add external venue price and funding benchmarks
+
+- added external venue configuration for Binance Futures in `server/config/fx100.ts`
+- snapshot generation now attempts live venue reads for per-market price and funding using the configured perp symbols
+- protocol markets now expose:
+  - `externalVenueName`
+  - `externalPriceUsd`
+  - `externalPriceDeviationPct`
+  - `externalPriceSource`
+  - `externalFundingSource`
+- when venue reads are unavailable, funding falls back to the runtime benchmark and price falls back to oracle or config reference data
+- dashboard, market monitoring, and alerts pages now surface venue comparison context instead of treating the external benchmark as an unnamed synthetic number
+
+Reason:
+
+- operators need to know whether protocol pricing and funding are aligned with an actual external venue, not just an inferred benchmark
+- naming the venue and source status makes the comparison defensible and easier to debug when external connectivity fails
+- explicit fallback rules preserve reliability without pretending that every environment always has live venue data

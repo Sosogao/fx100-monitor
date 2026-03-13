@@ -134,7 +134,7 @@ export default function Dashboard() {
                   <div>
                     <div className="font-semibold">{market.displayName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {market.tier} · funding {market.fundingAprPct.toFixed(1)}% APR · skew {market.skewPct.toFixed(1)}%
+                      {market.tier} · funding {market.fundingAprPct.toFixed(1)}% APR vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · skew {market.skewPct.toFixed(1)}%
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -149,6 +149,8 @@ export default function Dashboard() {
                   <div className="text-right text-foreground">${Intl.NumberFormat("en-US").format(market.openInterestUsd)}</div>
                   <div>1h Vol / Limit</div>
                   <div className="text-right text-foreground">{market.realizedVol1hPct.toFixed(2)}% / {market.volLimitPct.toFixed(2)}%</div>
+                  <div>Venue Price Gap</div>
+                  <div className="text-right text-foreground">{market.externalPriceDeviationPct.toFixed(2)}%</div>
                 </div>
               </div>
             ))}

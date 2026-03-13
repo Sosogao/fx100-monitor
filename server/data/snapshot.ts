@@ -112,12 +112,20 @@ interface OnchainMarketState {
   maxOpenInterestShortUsd: number;
 }
 
+interface ExternalVenueMarketState {
+  symbol: string;
+  priceUsd?: number;
+  fundingAprPct?: number;
+  source: "live-venue" | "runtime-benchmark";
+}
+
 interface LiveReadState {
   chainId?: number;
   blockNumber?: number;
   lpVaultUsdcBalance?: number;
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
+  externalVenueMarkets: Record<string, ExternalVenueMarketState>;
 }
 
 const assetSeeds: Record<string, AssetSeed> = {
@@ -316,6 +324,40 @@ function marketBoolKey(baseKey: string, marketIndex: number, isLong: boolean): s
 
 function marketAddressKey(baseKey: string, marketIndex: number, token: string): string {
   return hashKey(["bytes32", "uint256", "address"], [baseKey, BigInt(marketIndex), getAddress(token)]);
+}
+
+async function fetchJson<T>(url: string): Promise<T | undefined> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(url, { signal: controller.signal, headers: { accept: "application/json" } });
+    if (!response.ok) return undefined;
+    return (await response.json()) as T;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function loadExternalVenueMarkets(): Promise<Record<string, ExternalVenueMarketState>> {
+  const venue = basefx100Sepolia0312.externalVenue;
+  const entries = await Promise.all(
+    venue.markets.map(async (market) => {
+      const premium = await fetchJson<{ markPrice?: string; lastFundingRate?: string }>(
+        `${venue.restBaseUrl}/fapi/v1/premiumIndex?symbol=${market.perpSymbol}`,
+      );
+      const priceUsd = premium?.markPrice ? Number(premium.markPrice) : undefined;
+      const fundingAprPct = premium?.lastFundingRate ? round(Number(premium.lastFundingRate) * 3 * 365 * 100, 2) : undefined;
+      return [market.symbol, {
+        symbol: market.symbol,
+        priceUsd,
+        fundingAprPct,
+        source: priceUsd !== undefined || fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark",
+      } satisfies ExternalVenueMarketState] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
 }
 
 function deriveFundingBenchmarkAprPct(
@@ -530,11 +572,13 @@ async function readAddress(provider: JsonRpcProvider, key: string): Promise<stri
 async function loadLiveState(): Promise<LiveReadState> {
   const state: LiveReadState = {
     onchainMarkets: [],
+    externalVenueMarkets: {},
     readStatus: "fallback",
   };
 
   try {
     const provider = new JsonRpcProvider(basefx100Sepolia0312.rpcUrl, undefined, { staticNetwork: false });
+    state.externalVenueMarkets = await loadExternalVenueMarkets();
     const chainId = await provider.getNetwork();
     const blockNumber = await provider.getBlockNumber();
     const count = Number(await dataStoreCall<bigint>(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
@@ -649,6 +693,7 @@ async function loadLiveState(): Promise<LiveReadState> {
     return state;
   } catch (error) {
     console.warn("live monitor reads unavailable, using fallback snapshot", error);
+    state.externalVenueMarkets = await loadExternalVenueMarkets();
     return state;
   }
 }
@@ -727,7 +772,12 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const openInterestUtilizationPct = hasLiveOi && openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = hasLiveOi && poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
     const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, skewPct, openInterestUtilizationPct);
-    const oiChange24hPct = deriveOiChange24hPct(openInterestUtilizationPct, skewPct, Math.abs(fundingBaseAprPct - fundingBenchmarkAprPct));
+    const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
+    const externalFundingAprPct = externalVenue?.fundingAprPct ?? fundingBenchmarkAprPct;
+    const externalFundingSource = externalVenue?.fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark";
+    const externalPriceUsd = externalVenue?.priceUsd ?? oraclePrice;
+    const externalPriceSource = externalVenue?.priceUsd !== undefined ? "live-venue" : (marketState.oraclePriceUsd !== undefined ? "oracle-fallback" : "config-reference");
+    const oiChange24hPct = deriveOiChange24hPct(openInterestUtilizationPct, skewPct, Math.abs(fundingBaseAprPct - externalFundingAprPct));
     const analytics = deriveRuntimeAnalytics(marketState, configured, seed);
     const riskScore = analytics.riskScore;
     const alertLevel = analytics.alertLevel;
@@ -748,11 +798,16 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       markPrice,
       oraclePrice,
       priceDeviationPct: oraclePrice > 0 ? round(((markPrice - oraclePrice) / oraclePrice) * 100, 2) : 0,
+      externalVenueName: basefx100Sepolia0312.externalVenue.name,
+      externalPriceUsd,
+      externalPriceDeviationPct: externalPriceUsd > 0 ? round(((oraclePrice - externalPriceUsd) / externalPriceUsd) * 100, 2) : 0,
+      externalPriceSource,
       openInterestUsd,
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
-      externalFundingAprPct: fundingBenchmarkAprPct,
+      externalFundingAprPct,
+      externalFundingSource,
       skewPct,
       longSharePct,
       shortSharePct: round(100 - longSharePct, 1),
@@ -832,7 +887,7 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
     {
       label: "Weighted Funding APR",
       value: `${round(weightedFunding, 1)}%`,
-      delta: `${markets.filter((market) => market.fundingAprPct > market.externalFundingAprPct).length}/${markets.length} above venue`,
+      delta: `${markets.filter((market) => market.fundingAprPct > market.externalFundingAprPct).length}/${markets.length} above ${basefx100Sepolia0312.externalVenue.name}`,
       tone: weightedFunding > 20 ? "warning" : "good",
     },
   ];
@@ -847,8 +902,8 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
       title: "Live read status",
       body:
         liveState.readStatus === "fallback"
-          ? "RPC reads failed, so the monitor fell back to deterministic static values for runtime balances and market metadata."
-          : `RPC live reads are active at block ${liveState.blockNumber}. Markets, vault balances, open interest, pool collateral, key DataStore parameters, and runtime risk analytics are live; fallback remains explicit when OI state is incomplete.`,
+          ? "RPC reads failed, so the monitor fell back to deterministic static values for runtime balances and market metadata. External venue reads are attempted separately and may still be live."
+          : `RPC live reads are active at block ${liveState.blockNumber}. Markets, vault balances, open interest, pool collateral, key DataStore parameters, and runtime risk analytics are live; external venue price and funding benchmarks come from ${basefx100Sepolia0312.externalVenue.name} when reachable, otherwise they fall back explicitly.`,
       tone: liveState.readStatus === "fallback" ? "warning" : "good",
     },
     {
@@ -874,7 +929,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
     const poolStress = market.poolUtilizationPct;
 
     let category = "Funding divergence";
-    let description = `Funding APR at ${round(market.fundingAprPct, 1)}% is ${fundingSpread >= 0 ? "above" : "below"} venue baseline ${round(market.externalFundingAprPct, 1)}%.`;
+    let description = `Funding APR at ${round(market.fundingAprPct, 1)}% is ${fundingSpread >= 0 ? "above" : "below"} ${market.externalVenueName} baseline ${round(market.externalFundingAprPct, 1)}% (${market.externalFundingSource === "live-venue" ? "live venue" : "runtime benchmark"}).`;
     let metricValue = Math.abs(fundingSpread);
     let thresholdValue = 5;
     let actionSummary = "Validate oracle / venue spread and review funding coefficients";
@@ -1076,8 +1131,8 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
       network: basefx100Sepolia0312.network,
       mode: liveState.readStatus === "fallback" ? "demo-backed-api" : "live-read-only",
       source: hasLiveMarkets
-        ? "rpc live reads + DataStore market discovery + seeded analytics fallback"
-        : "embedded market config + fallback seeded metrics",
+        ? `rpc live reads + DataStore market discovery + ${basefx100Sepolia0312.externalVenue.name} venue benchmarks + explicit analytics fallback`
+        : `embedded market config + ${basefx100Sepolia0312.externalVenue.name} venue attempts + fallback metrics`,
       updatedAt: generatedAt,
       refreshIntervalSec: 30,
       chainId: liveState.chainId,

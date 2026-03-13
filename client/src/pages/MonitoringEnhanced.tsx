@@ -145,7 +145,7 @@ export default function MonitoringEnhanced() {
                         <Badge variant="outline" className="border-primary/30 text-primary">{market.tier}</Badge>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} · funding {market.fundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
+                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -167,8 +167,12 @@ export default function MonitoringEnhanced() {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground md:grid-cols-4">
                     <div>Mark / Oracle</div>
                     <div className="text-right text-foreground">${market.markPrice.toLocaleString()} / ${market.oraclePrice.toLocaleString()}</div>
-                    <div>Deviation</div>
+                    <div>Protocol Deviation</div>
                     <div className="text-right text-foreground">{market.priceDeviationPct.toFixed(2)}%</div>
+                    <div>Venue / Source</div>
+                    <div className="text-right text-foreground">${market.externalPriceUsd.toLocaleString()} / {market.externalPriceSource === "live-venue" ? "venue" : "fallback"}</div>
+                    <div>Venue Gap</div>
+                    <div className="text-right text-foreground">{market.externalPriceDeviationPct.toFixed(2)}%</div>
                     <div>Skew</div>
                     <div className="text-right text-foreground">{market.skewPct.toFixed(1)}%</div>
                     <div>Risk Score</div>
@@ -212,6 +216,14 @@ export default function MonitoringEnhanced() {
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Venue Funding Gap</div>
                     <div className="mt-1 text-lg font-semibold">{(selected.fundingAprPct - selected.externalFundingAprPct).toFixed(1)}%</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Venue Price Gap</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.externalPriceDeviationPct.toFixed(2)}%</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Funding Source</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.externalFundingSource === "live-venue" ? selected.externalVenueName : "runtime benchmark"}</div>
                   </div>
                 </div>
 

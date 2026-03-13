@@ -17,11 +17,21 @@ export interface LiveMarketConfig {
   minCollateralFactorForLiquidation: number;
 }
 
+export interface ExternalVenueMarketConfig {
+  symbol: string;
+  perpSymbol: string;
+}
+
 export interface LiveEnvironmentConfig {
   name: string;
   network: string;
   rpcUrl: string;
   wssUrl: string;
+  externalVenue: {
+    name: string;
+    restBaseUrl: string;
+    markets: ExternalVenueMarketConfig[];
+  };
   contracts: {
     DATA_STORE: string;
     EVENT_EMITTER: string;
@@ -53,6 +63,14 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
   network: "Tenderly Virtual TestNet (Base Sepolia)",
   rpcUrl: "https://virtual.base-sepolia.eu.rpc.tenderly.co/f40c9f2d-814b-4105-8dbb-651e05345f3b",
   wssUrl: "wss://virtual.base-sepolia.eu.rpc.tenderly.co/5fea2708-18f0-44de-9966-f181650e0565",
+  externalVenue: {
+    name: "Binance Futures",
+    restBaseUrl: "https://fapi.binance.com",
+    markets: [
+      { symbol: "ETH", perpSymbol: "ETHUSDT" },
+      { symbol: "BTC", perpSymbol: "BTCUSDT" },
+    ],
+  },
   contracts: {
     DATA_STORE: "0xEd54a245b22d4F7Ac15E8Cf584BD82Cc1b1CbaB1",
     EVENT_EMITTER: "0x0DD5521fD9d5442F058D7f1e0B230C479322db59",

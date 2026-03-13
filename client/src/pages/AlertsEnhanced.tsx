@@ -129,6 +129,7 @@ export default function AlertsEnhanced() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p className="text-muted-foreground">{alert.description}</p>
+                <div className="text-xs text-muted-foreground">Comparison source: {snapshot.markets.find((market) => market.symbol === alert.assetSymbol)?.externalFundingSource === "live-venue" ? snapshot.markets.find((market) => market.symbol === alert.assetSymbol)?.externalVenueName : "runtime benchmark"}</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Metric</div>

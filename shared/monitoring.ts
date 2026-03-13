@@ -34,11 +34,16 @@ export interface MarketSnapshot {
   markPrice: number;
   oraclePrice: number;
   priceDeviationPct: number;
+  externalVenueName: string;
+  externalPriceUsd: number;
+  externalPriceDeviationPct: number;
+  externalPriceSource: ExternalPriceSource;
   openInterestUsd: number;
   oiChange24hPct: number;
   fundingRateHourlyPct: number;
   fundingAprPct: number;
   externalFundingAprPct: number;
+  externalFundingSource: ExternalFundingSource;
   skewPct: number;
   longSharePct: number;
   shortSharePct: number;
@@ -155,6 +160,8 @@ export interface ParameterValueSet {
 
 export type ParameterValueSource = "onchain" | "config-fallback" | "seeded-analytics" | "template" | "derived";
 export type MarketAnalyticsSource = "runtime-derived" | "seeded-fallback";
+export type ExternalPriceSource = "live-venue" | "oracle-fallback" | "config-reference";
+export type ExternalFundingSource = "live-venue" | "runtime-benchmark";
 
 export interface ParameterSourceSet {
   [key: string]: ParameterValueSource;
