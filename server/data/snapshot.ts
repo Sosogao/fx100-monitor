@@ -114,9 +114,12 @@ interface OnchainMarketState {
 
 interface ExternalVenueMarketState {
   symbol: string;
-  priceUsd?: number;
+  referencePriceUsd?: number;
+  indexPriceUsd?: number;
+  spotPriceUsd?: number;
+  markPriceUsd?: number;
   fundingAprPct?: number;
-  source: "live-venue" | "runtime-benchmark";
+  source?: "live-aggregate" | "live-index" | "live-spot" | "live-mark";
 }
 
 interface LiveReadState {
@@ -344,16 +347,35 @@ async function loadExternalVenueMarkets(): Promise<Record<string, ExternalVenueM
   const venue = basefx100Sepolia0312.externalVenue;
   const entries = await Promise.all(
     venue.markets.map(async (market) => {
-      const premium = await fetchJson<{ markPrice?: string; lastFundingRate?: string }>(
-        `${venue.restBaseUrl}/fapi/v1/premiumIndex?symbol=${market.perpSymbol}`,
-      );
-      const priceUsd = premium?.markPrice ? Number(premium.markPrice) : undefined;
+      const [premium, spot] = await Promise.all([
+        fetchJson<{ markPrice?: string; indexPrice?: string; lastFundingRate?: string }>(
+          `${venue.restBaseUrl}/fapi/v1/premiumIndex?symbol=${market.perpSymbol}`,
+        ),
+        fetchJson<{ price?: string }>(`https://api.binance.com/api/v3/ticker/price?symbol=${market.spotSymbol}`),
+      ]);
+      const markPriceUsd = premium?.markPrice ? Number(premium.markPrice) : undefined;
+      const indexPriceUsd = premium?.indexPrice ? Number(premium.indexPrice) : undefined;
+      const spotPriceUsd = spot?.price ? Number(spot.price) : undefined;
       const fundingAprPct = premium?.lastFundingRate ? round(Number(premium.lastFundingRate) * 3 * 365 * 100, 2) : undefined;
+      const livePrices = [indexPriceUsd, spotPriceUsd, markPriceUsd].filter((value): value is number => value !== undefined);
+      const referencePriceUsd = livePrices.length >= 2 ? median(livePrices) : (indexPriceUsd ?? spotPriceUsd ?? markPriceUsd);
+      const source = livePrices.length >= 2
+        ? "live-aggregate"
+        : indexPriceUsd !== undefined
+          ? "live-index"
+          : spotPriceUsd !== undefined
+            ? "live-spot"
+            : markPriceUsd !== undefined
+              ? "live-mark"
+              : undefined;
       return [market.symbol, {
         symbol: market.symbol,
-        priceUsd,
+        referencePriceUsd,
+        indexPriceUsd,
+        spotPriceUsd,
+        markPriceUsd,
         fundingAprPct,
-        source: priceUsd !== undefined || fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark",
+        source,
       } satisfies ExternalVenueMarketState] as const;
     }),
   );
@@ -399,6 +421,14 @@ function runtimeTierBaseVarPct(tier: string): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function median(values: number[]): number | undefined {
+  if (values.length === 0) return undefined;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle];
+  return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 function deriveRuntimeAnalytics(
@@ -775,8 +805,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
     const externalFundingAprPct = externalVenue?.fundingAprPct ?? fundingBenchmarkAprPct;
     const externalFundingSource = externalVenue?.fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark";
-    const externalPriceUsd = externalVenue?.priceUsd ?? oraclePrice;
-    const externalPriceSource = externalVenue?.priceUsd !== undefined ? "live-venue" : (marketState.oraclePriceUsd !== undefined ? "oracle-fallback" : "config-reference");
+    const externalPriceUsd = externalVenue?.referencePriceUsd ?? oraclePrice;
+    const externalPriceSource = externalVenue?.referencePriceUsd !== undefined ? (externalVenue.source ?? "live-mark") : (marketState.oraclePriceUsd !== undefined ? "oracle-fallback" : "config-reference");
     const oiChange24hPct = deriveOiChange24hPct(openInterestUtilizationPct, skewPct, Math.abs(fundingBaseAprPct - externalFundingAprPct));
     const analytics = deriveRuntimeAnalytics(marketState, configured, seed);
     const riskScore = analytics.riskScore;
@@ -800,6 +830,9 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       priceDeviationPct: oraclePrice > 0 ? round(((markPrice - oraclePrice) / oraclePrice) * 100, 2) : 0,
       externalVenueName: basefx100Sepolia0312.externalVenue.name,
       externalPriceUsd,
+      externalIndexPriceUsd: externalVenue?.indexPriceUsd,
+      externalSpotPriceUsd: externalVenue?.spotPriceUsd,
+      externalMarkPriceUsd: externalVenue?.markPriceUsd,
       externalPriceDeviationPct: externalPriceUsd > 0 ? round(((oraclePrice - externalPriceUsd) / externalPriceUsd) * 100, 2) : 0,
       externalPriceSource,
       openInterestUsd,
@@ -977,7 +1010,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
     } satisfies AlertRecord;
 
     const extraAlerts: AlertRecord[] = [];
-    if (market.externalPriceSource === "live-venue" && market.externalPriceDeviationPct >= 5) {
+    if (market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5) {
       const oracleLevel: AlertLevel = market.externalPriceDeviationPct >= 50 ? "l3" : market.externalPriceDeviationPct >= 15 ? "l2" : "l1";
       extraAlerts.push({
         id: `alert-${market.symbol.toLowerCase()}-oracle-divergence`,
@@ -1162,8 +1195,8 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
       network: basefx100Sepolia0312.network,
       mode: liveState.readStatus === "fallback" ? "demo-backed-api" : "live-read-only",
       source: hasLiveMarkets
-        ? `rpc live reads + DataStore market discovery + ${basefx100Sepolia0312.externalVenue.name} venue benchmarks + explicit analytics fallback`
-        : `embedded market config + ${basefx100Sepolia0312.externalVenue.name} venue attempts + fallback metrics`,
+        ? `rpc live reads + DataStore market discovery + ${basefx100Sepolia0312.externalVenue.name} index/spot/mark reference + explicit analytics fallback`
+        : `embedded market config + ${basefx100Sepolia0312.externalVenue.name} reference attempts + fallback metrics`,
       updatedAt: generatedAt,
       refreshIntervalSec: 30,
       chainId: liveState.chainId,

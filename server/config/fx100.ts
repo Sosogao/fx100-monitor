@@ -20,6 +20,7 @@ export interface LiveMarketConfig {
 export interface ExternalVenueMarketConfig {
   symbol: string;
   perpSymbol: string;
+  spotSymbol: string;
 }
 
 export interface LiveEnvironmentConfig {
@@ -67,8 +68,8 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
     name: "Binance Futures",
     restBaseUrl: "https://fapi.binance.com",
     markets: [
-      { symbol: "ETH", perpSymbol: "ETHUSDT" },
-      { symbol: "BTC", perpSymbol: "BTCUSDT" },
+      { symbol: "ETH", perpSymbol: "ETHUSDT", spotSymbol: "ETHUSDT" },
+      { symbol: "BTC", perpSymbol: "BTCUSDT", spotSymbol: "BTCUSDT" },
     ],
   },
   contracts: {

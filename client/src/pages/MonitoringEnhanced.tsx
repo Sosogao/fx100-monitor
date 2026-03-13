@@ -170,7 +170,7 @@ export default function MonitoringEnhanced() {
                     <div>Protocol Deviation</div>
                     <div className="text-right text-foreground">{market.priceDeviationPct.toFixed(2)}%</div>
                     <div>Venue / Source</div>
-                    <div className="text-right text-foreground">${market.externalPriceUsd.toLocaleString()} / {market.externalPriceSource === "live-venue" ? "venue" : "fallback"}</div>
+                    <div className="text-right text-foreground">${market.externalPriceUsd.toLocaleString()} / {market.externalPriceSource}</div>
                     <div>Venue Gap</div>
                     <div className="text-right text-foreground">{market.externalPriceDeviationPct.toFixed(2)}%</div>
                     <div>Skew</div>

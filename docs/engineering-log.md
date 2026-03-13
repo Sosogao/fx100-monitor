@@ -236,3 +236,22 @@ Reason:
 - funding divergence and oracle divergence are not the same failure mode and should not share a single alert bucket
 - the current fork environment shows a very large ETH oracle-to-venue gap, which should be visible as its own incident class
 - explicit signal provenance improves operator trust and makes alert interpretation faster
+
+
+### Step 9: upgrade external price reference from single mark price to aggregate reference
+
+- external venue reads now pull Binance Futures `indexPrice`, Binance Futures `markPrice`, and Binance Spot ticker price
+- the monitor now derives a reference price from the median of available live prices when at least two sources are available
+- external price provenance is now explicit:
+  - `live-aggregate`
+  - `live-index`
+  - `live-spot`
+  - `live-mark`
+  - existing fallback modes remain for oracle/config fallback
+- market snapshots now retain the individual external components (`index`, `spot`, `mark`) in addition to the chosen reference price
+
+Reason:
+
+- a single perp mark price is not a strong external truth source for oracle-divergence monitoring
+- using a small aggregate of index, spot, and mark prices produces a more defensible comparison baseline without adding heavy infrastructure
+- explicit source labels keep operator decisions grounded when only one external feed is available
