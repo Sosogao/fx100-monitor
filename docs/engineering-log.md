@@ -186,3 +186,16 @@ Reason:
 - previous chart data was still procedurally generated from current values, which is acceptable for UI scaffolding but not for monitoring
 - a monitor needs durable samples so chart movement reflects actual observations over time
 - file-backed storage is the minimal pragmatic persistence layer before introducing a database or queue
+
+
+### Step 6: align repo hygiene and top-level documentation
+
+- ignored top-level `.data/` in addition to `server/.data/` so local runtime files do not leak into git status
+- rewrote `README.md` to reflect the current system, not the original demo-transition state
+- documented the live/fallback data model, history endpoint, storage path, and current runtime limitations
+
+Reason:
+
+- the README had fallen behind the actual implementation and still described the monitor as a mostly seeded transition step
+- developers need one current document that matches the API surface and the data provenance rules now used by the UI
+- top-level runtime artifacts should stay out of source control for the same reason as `server/.data/`: they are environment state, not code
