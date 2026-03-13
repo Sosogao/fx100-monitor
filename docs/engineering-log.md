@@ -219,3 +219,20 @@ Reason:
 - operators need to know whether protocol pricing and funding are aligned with an actual external venue, not just an inferred benchmark
 - naming the venue and source status makes the comparison defensible and easier to debug when external connectivity fails
 - explicit fallback rules preserve reliability without pretending that every environment always has live venue data
+
+
+### Step 8: add dedicated oracle-divergence alerts
+
+- alert generation now emits a separate `Oracle divergence` incident when protocol oracle price differs materially from the external venue price
+- oracle-divergence severity is explicit:
+  - `L1` at 5%+
+  - `L2` at 15%+
+  - `L3` at 50%+
+- alert records now carry `signalSource` so the UI can show whether the incident came from protocol runtime, runtime analytics, or an external venue
+- alert ordering is now severity-first so operator attention is not buried behind lower-priority incidents
+
+Reason:
+
+- funding divergence and oracle divergence are not the same failure mode and should not share a single alert bucket
+- the current fork environment shows a very large ETH oracle-to-venue gap, which should be visible as its own incident class
+- explicit signal provenance improves operator trust and makes alert interpretation faster

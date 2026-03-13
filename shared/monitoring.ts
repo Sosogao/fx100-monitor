@@ -121,6 +121,7 @@ export interface AlertRecord {
   triggeredAt: string;
   metricValue: number;
   thresholdValue: number;
+  signalSource: string;
   actionSummary: string;
 }
 

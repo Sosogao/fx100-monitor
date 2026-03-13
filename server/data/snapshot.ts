@@ -923,7 +923,7 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
 
 
 function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; actions: ActionRecord[]; recovery: RecoveryRecord[] } {
-  const alerts = markets.map((market, index) => {
+  const alerts = markets.flatMap((market, index) => {
     const fundingSpread = round(market.fundingAprPct - market.externalFundingAprPct, 2);
     const capacityStress = market.openInterestUtilizationPct;
     const poolStress = market.poolUtilizationPct;
@@ -932,6 +932,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
     let description = `Funding APR at ${round(market.fundingAprPct, 1)}% is ${fundingSpread >= 0 ? "above" : "below"} ${market.externalVenueName} baseline ${round(market.externalFundingAprPct, 1)}% (${market.externalFundingSource === "live-venue" ? "live venue" : "runtime benchmark"}).`;
     let metricValue = Math.abs(fundingSpread);
     let thresholdValue = 5;
+    let signalSource = market.externalFundingSource === "live-venue" ? market.externalVenueName : "runtime benchmark";
     let actionSummary = "Validate oracle / venue spread and review funding coefficients";
 
     if (capacityStress >= 75) {
@@ -939,23 +940,26 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
       description = `Open interest is using ${capacityStress.toFixed(1)}% of configured capacity (${formatCurrency(market.openInterestUsd)} / ${formatCurrency(market.openInterestCapacityUsd)}).`;
       metricValue = capacityStress;
       thresholdValue = 75;
+      signalSource = "protocol runtime";
       actionSummary = "Tighten OI caps, review leverage limits, and monitor queue pressure";
     } else if (poolStress >= 80) {
       category = "Pool concentration";
       description = `Open interest is ${poolStress.toFixed(1)}% of collateral pool backing (${formatCurrency(market.openInterestUsd)} / ${formatCurrency(market.poolCollateralAmount)}).`;
       metricValue = poolStress;
       thresholdValue = 80;
+      signalSource = "protocol runtime";
       actionSummary = "Increase pool depth or reduce market caps before additional flow is accepted";
     } else if (market.realizedVol1hPct >= market.volLimitPct * 0.9) {
       category = "Volatility breach";
       description = `Realized 1h volatility at ${market.realizedVol1hPct}% is near the guard rail of ${market.volLimitPct}%.`;
       metricValue = market.realizedVol1hPct;
       thresholdValue = market.volLimitPct;
+      signalSource = market.analyticsSource === "runtime-derived" ? "runtime risk model" : "fallback risk model";
       actionSummary = "Increase observation cadence and validate venue spread";
     }
 
-    return {
-      id: `alert-${market.symbol.toLowerCase()}`,
+    const baseAlert = {
+      id: `alert-${market.symbol.toLowerCase()}-primary`,
       level: market.alertLevel,
       status: market.alertLevel === "l3" ? "active" : market.alertLevel === "l2" ? "investigating" : "monitoring",
       category,
@@ -965,11 +969,38 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
       triggeredAt: `${(index + 1) * 8}m ago`,
       metricValue,
       thresholdValue,
+      signalSource,
       actionSummary:
         market.alertLevel === "l3"
           ? "Cut leverage, tighten OI caps, raise emergency impact curve"
           : actionSummary,
     } satisfies AlertRecord;
+
+    const extraAlerts: AlertRecord[] = [];
+    if (market.externalPriceSource === "live-venue" && market.externalPriceDeviationPct >= 5) {
+      const oracleLevel: AlertLevel = market.externalPriceDeviationPct >= 50 ? "l3" : market.externalPriceDeviationPct >= 15 ? "l2" : "l1";
+      extraAlerts.push({
+        id: `alert-${market.symbol.toLowerCase()}-oracle-divergence`,
+        level: oracleLevel,
+        status: oracleLevel === "l3" ? "active" : oracleLevel === "l2" ? "investigating" : "monitoring",
+        category: "Oracle divergence",
+        assetSymbol: market.symbol,
+        title: `${market.symbol} Oracle Divergence`,
+        description: `Protocol oracle at ${round(market.oraclePrice, 2)} differs from ${market.externalVenueName} price ${round(market.externalPriceUsd, 2)} by ${market.externalPriceDeviationPct.toFixed(2)}%.`,
+        triggeredAt: `${(index + 1) * 8 + 2}m ago`,
+        metricValue: market.externalPriceDeviationPct,
+        thresholdValue: 5,
+        signalSource: market.externalVenueName,
+        actionSummary: oracleLevel === "l3"
+          ? "Freeze or constrain market, verify oracle source, and inspect price pipeline immediately"
+          : "Validate oracle source, compare index composition, and confirm whether the test environment uses synthetic pricing",
+      });
+    }
+
+    return [baseAlert, ...extraAlerts];
+  }).sort((left, right) => {
+    const severity = { l3: 3, l2: 2, l1: 1, normal: 0 };
+    return severity[right.level] - severity[left.level];
   });
 
   const actions = alerts.map((alert, index) => ({
