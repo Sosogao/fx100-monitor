@@ -1,4 +1,4 @@
-import { getSnapshotPayload } from "../../server/api";
+import { getSnapshotPayload } from "../../dist/server-api.js";
 
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;

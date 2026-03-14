@@ -5,13 +5,14 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite --host",
-    "build": "pnpm build:client && pnpm build:server",
+    "build": "pnpm build:client && pnpm build:server && pnpm build:server-api",
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "build:client": "vite build",
-    "build:server": "esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist"
+    "build:server": "esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:server-api": "esbuild server/api.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server-api.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
