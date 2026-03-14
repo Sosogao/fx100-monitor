@@ -26,6 +26,12 @@ function analyticsBadge(source: string) {
     : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
 }
 
+function confidenceBadge(tone: "good" | "warning" | "critical") {
+  if (tone === "critical") return "bg-destructive/20 text-destructive border-destructive/40";
+  if (tone === "warning") return "bg-yellow-500/20 text-yellow-500 border-yellow-500/40";
+  return "bg-primary/20 text-primary border-primary/30";
+}
+
 export default function Dashboard() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const priority = useMemo(() => snapshot?.dashboard.priorityMarkets ?? [], [snapshot]);
@@ -37,6 +43,36 @@ export default function Dashboard() {
     liveFunding: snapshot?.markets.filter((market) => market.fundingSignalSource === "live-funding-state").length ?? 0,
     total: snapshot?.markets.length ?? 0,
   }), [snapshot]);
+  const confidenceMatrix = useMemo(() => snapshot?.markets.map((market) => ({
+    symbol: market.symbol,
+    cells: [
+      {
+        label: "Risk",
+        value: market.analyticsSource === "runtime-derived" ? "runtime-derived" : "seeded-fallback",
+        tone: market.analyticsSource === "runtime-derived" ? "good" : "warning",
+      },
+      {
+        label: "OI",
+        value: market.oiSource === "live-position-counters" ? "live counters" : market.oiCounterStatus,
+        tone: market.oiSource === "live-position-counters" ? "good" : market.oiCounterStatus === "dust" ? "warning" : "critical",
+      },
+      {
+        label: "Funding",
+        value: market.fundingSignalSource === "live-funding-state" ? "protocol live" : "benchmark",
+        tone: market.fundingSignalSource === "live-funding-state" ? "good" : "warning",
+      },
+      {
+        label: "Oracle",
+        value: market.externalPriceDeviationPct >= 50 ? "severe gap" : market.externalPriceDeviationPct >= 15 ? "elevated gap" : "tracked",
+        tone: market.externalPriceDeviationPct >= 50 ? "critical" : market.externalPriceDeviationPct >= 15 ? "warning" : "good",
+      },
+      {
+        label: "Venue",
+        value: market.externalPriceSource,
+        tone: market.externalPriceSource.startsWith("live-") ? "good" : "warning",
+      },
+    ] as Array<{ label: string; value: string; tone: "good" | "warning" | "critical" }>,
+  })) ?? [], [snapshot]);
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading monitoring snapshot...</div>;
@@ -148,6 +184,30 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Data Confidence Matrix</CardTitle>
+          <CardDescription>Per-market source quality for risk, OI, funding, oracle divergence, and external venue reference.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {confidenceMatrix.map((row) => (
+            <div key={`${row.symbol}-confidence`} className="rounded border border-border bg-background/40 p-3">
+              <div className="mb-3 font-semibold text-primary">{row.symbol}</div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+                {row.cells.map((cell) => (
+                  <div key={`${row.symbol}-${cell.label}`} className="rounded border border-border bg-card/40 p-3">
+                    <div className="text-xs text-muted-foreground">{cell.label}</div>
+                    <div className="mt-2">
+                      <Badge variant="outline" className={confidenceBadge(cell.tone)}>{cell.value}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2 bg-card/50 border-primary/20 tech-border">

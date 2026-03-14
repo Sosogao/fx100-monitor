@@ -371,3 +371,18 @@ Reason:
 Reason:
 
 - once the alert stream contains multiple protocol-health categories, operators need a fast way to isolate one class of incident without opening the select menu each time
+
+
+### Step 17: add dashboard data-confidence matrix
+
+- dashboard now includes a per-market data-confidence matrix covering:
+  - risk source quality
+  - OI source quality
+  - funding source quality
+  - oracle divergence posture
+  - external venue reference source
+
+Reason:
+
+- operators need one place to judge how trustworthy each monitor dimension is before acting on any headline metric
+- this is especially important in fork environments where funding may be live while OI is still inferred and oracle divergence remains intentionally synthetic
