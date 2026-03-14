@@ -1,10 +1,53 @@
+import type { MonitoringSnapshot } from "../shared/monitoring.ts";
 import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history.ts";
 import { buildMonitoringSnapshot } from "./data/snapshot.ts";
+import { basefx100Sepolia0312 } from "./config/fx100.ts";
 
 const SNAPSHOT_TTL_MS = 15_000;
 
 let cachedSnapshot: Awaited<ReturnType<typeof buildMonitoringSnapshot>> | null = null;
 let cachedAt = 0;
+
+function buildDegradedSnapshot(error: unknown): MonitoringSnapshot {
+  const generatedAt = new Date().toISOString();
+  const message = error instanceof Error ? error.message : "unknown_error";
+
+  return {
+    generatedAt,
+    environment: {
+      name: basefx100Sepolia0312.name,
+      network: basefx100Sepolia0312.network,
+      mode: "demo-backed-api",
+      source: `degraded snapshot fallback: ${message}`,
+      updatedAt: generatedAt,
+      refreshIntervalSec: 30,
+      readStatus: "fallback",
+    },
+    dashboard: {
+      stats: [
+        { label: "Markets", value: String(basefx100Sepolia0312.markets.length), tone: "warning" },
+        { label: "Snapshot Mode", value: "Fallback", tone: "warning" },
+        { label: "Live RPC", value: "Unavailable", tone: "critical" },
+      ],
+      exposureSeries: [],
+      priorityMarkets: [],
+      notes: [
+        {
+          title: "Snapshot degraded",
+          body: `The serverless runtime could not build the live monitoring snapshot. Returned fallback payload so the UI stays available. Error: ${message}`,
+          tone: "critical",
+        },
+      ],
+    },
+    markets: [],
+    marketSeries: [],
+    alerts: [],
+    actions: [],
+    recovery: [],
+    parameterDefinitions: [],
+    parameters: [],
+  };
+}
 
 async function refreshSnapshot(force = false) {
   const now = Date.now();
@@ -12,11 +55,18 @@ async function refreshSnapshot(force = false) {
     return cachedSnapshot;
   }
 
-  const snapshot = await buildMonitoringSnapshot();
-  const history = await appendHistoryPoint(snapshot.environment.name, snapshotToHistoryPoint(snapshot));
-  cachedSnapshot = applyHistoricalSeries(snapshot, history);
-  cachedAt = now;
-  return cachedSnapshot;
+  try {
+    const snapshot = await buildMonitoringSnapshot();
+    const history = await appendHistoryPoint(snapshot.environment.name, snapshotToHistoryPoint(snapshot));
+    cachedSnapshot = applyHistoricalSeries(snapshot, history);
+    cachedAt = now;
+    return cachedSnapshot;
+  } catch (error) {
+    console.error("snapshot build failed", error);
+    cachedSnapshot = buildDegradedSnapshot(error);
+    cachedAt = now;
+    return cachedSnapshot;
+  }
 }
 
 export async function getSnapshotPayload(force = false) {
