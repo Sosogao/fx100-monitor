@@ -783,8 +783,9 @@ async function loadLiveState(): Promise<LiveReadState> {
           shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
           shortPositiveFundingFeePerSizePct: factorToPercentSigned(shortPositiveFundingFeePerSizeRaw),
           oraclePriceUsd,
-          longOiTokens: round(Number(formatUnits(longOiTokensRaw, indexTokenDecimals)), 6),
-          shortOiTokens: round(Number(formatUnits(shortOiTokensRaw, indexTokenDecimals)), 6),
+          // OPEN_INTEREST_IN_TOKENS is stored as whole token counts, not token wei units.
+          longOiTokens: Number(longOiTokensRaw),
+          shortOiTokens: Number(shortOiTokensRaw),
         } satisfies OnchainMarketState;
       }),
     );

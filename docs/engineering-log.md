@@ -534,3 +534,16 @@ Reason:
 - continuing to describe `missing` or `dust` counters as a broad environment problem would be misleading once the fork has validated live OI flows
 - the UI should distinguish between protocol capability and current market occupancy
 
+### Step 25: fix live OI counter scaling in monitor snapshot
+
+- corrected live OI reads in `server/data/snapshot.ts` so `OPEN_INTEREST_IN_TOKENS` is treated as a whole-token counter instead of being scaled down by token decimals
+- verified against the shared fresh Base fork that the monitor now reports live counters instead of inferred OI:
+  - ETH: `12 long / 1 short`, `oiSource = live-position-counters`
+  - BTC: `5 long / 1 short`, `oiSource = live-position-counters`
+- this brings monitor-side OI reads into line with the validated fork regression scripts and onchain `ForkReadOI.s.sol` output
+
+Reason:
+
+- the protocol stores `OPEN_INTEREST_IN_TOKENS` as token counts, not token wei units
+- monitor was incorrectly applying `formatUnits(..., indexTokenDecimals)`, which collapsed materially populated counters to near-zero and forced an unnecessary inferred OI fallback
+- with the scaling corrected, the monitor now reflects the actual fresh-fork OI state already validated by isolated ETH/BTC regression flows
