@@ -292,3 +292,21 @@ Reason:
 - the previous implementation still left protocol funding partially opaque even though the chain already exposed the relevant state
 - reading signed funding factors as unsigned values is incorrect and weakens the monitor’s claim of being live-backed
 - surfacing protocol funding freshness and accumulators gives operators a way to judge whether funding behavior is coming from real protocol state or monitor-side approximation
+
+
+### Step 12: add funding freshness alerts and market source coverage summary
+
+- added a dedicated `Funding stale` alert category when protocol funding state exists but has not updated for a sustained period
+- funding-staleness severity is explicit:
+  - `L1` at 120m+
+  - `L2` at 240m+
+  - `L3` at 720m+
+- the market monitoring page now shows source coverage counters for:
+  - runtime-derived risk
+  - live OI coverage
+  - live funding coverage
+
+Reason:
+
+- once protocol funding state is visible, operators need a direct signal for stale funding updates instead of inferring the problem from unrelated divergence alerts
+- source coverage counters make the remaining live-data gaps obvious without forcing a market-by-market inspection

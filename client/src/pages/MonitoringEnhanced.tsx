@@ -56,6 +56,12 @@ export default function MonitoringEnhanced() {
       });
   }, [markets, pins, searchQuery, tierFilter]);
 
+  const sourceSummary = useMemo(() => ({
+    runtimeRisk: markets.filter((market) => market.analyticsSource === "runtime-derived").length,
+    liveOi: markets.filter((market) => market.oiSource === "live-position-counters").length,
+    liveFunding: markets.filter((market) => market.fundingSignalSource === "live-funding-state").length,
+  }), [markets]);
+
   const togglePin = (symbol: string) => {
     setPins((current) => (current.includes(symbol) ? current.filter((value) => value !== symbol) : [...current, symbol]));
   };
@@ -118,6 +124,36 @@ export default function MonitoringEnhanced() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Runtime Risk Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceSummary.runtimeRisk}/{markets.length}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets currently driven by runtime-derived risk instead of seeded fallback.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Live OI Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceSummary.liveOi}/{markets.length}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets using protocol position counters instead of pool/depth inference.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Live Funding Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceSummary.liveFunding}/{markets.length}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets backed by protocol funding state instead of the runtime benchmark path.</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="bg-card/50 border-primary/20 tech-border">

@@ -1187,6 +1187,26 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
       });
     }
 
+    if (market.fundingSignalSource === "live-funding-state" && market.fundingUpdatedAgoMinutes !== undefined && market.fundingUpdatedAgoMinutes >= 120) {
+      const staleLevel: AlertLevel = market.fundingUpdatedAgoMinutes >= 720 ? "l3" : market.fundingUpdatedAgoMinutes >= 240 ? "l2" : "l1";
+      extraAlerts.push({
+        id: `alert-${market.symbol.toLowerCase()}-funding-stale`,
+        level: staleLevel,
+        status: staleLevel === "l3" ? "active" : staleLevel === "l2" ? "investigating" : "monitoring",
+        category: "Funding stale",
+        assetSymbol: market.symbol,
+        title: `${market.symbol} Funding State Stale`,
+        description: `Funding state has not updated for ${market.fundingUpdatedAgoMinutes.toFixed(1)} minutes. Current funding base is ${round(market.fundingBaseAprPct, 2)}% APR with skew EMA ${market.fundingSkewEmaPct.toFixed(2)}%.`,
+        triggeredAt: `${(index + 1) * 8 + 4}m ago`,
+        metricValue: market.fundingUpdatedAgoMinutes,
+        thresholdValue: 120,
+        signalSource: "protocol live state",
+        actionSummary: staleLevel === "l3"
+          ? "Check keeper/oracle liveness immediately and verify funding update path"
+          : "Verify market activity, funding keeper execution, and oracle update cadence",
+      });
+    }
+
     return [baseAlert, ...extraAlerts];
   }).sort((left, right) => {
     const severity = { l3: 3, l2: 2, l1: 1, normal: 0 };
