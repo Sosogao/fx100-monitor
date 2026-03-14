@@ -42,12 +42,16 @@ export interface MarketSnapshot {
   externalPriceDeviationPct: number;
   externalPriceSource: ExternalPriceSource;
   openInterestUsd: number;
+  oiSource: "live-position-counters" | "pool-depth-inferred";
   oiChange24hPct: number;
   fundingRateHourlyPct: number;
   fundingAprPct: number;
+  fundingSignalSource: "live-funding-state" | "runtime-benchmark";
   externalFundingAprPct: number;
   externalFundingSource: ExternalFundingSource;
   skewPct: number;
+  fundingSkewEmaPct: number;
+  fundingSkewSampleIntervalMinutes: number;
   longSharePct: number;
   shortSharePct: number;
   realizedVol1hPct: number;
@@ -78,6 +82,11 @@ export interface MarketSnapshot {
   minFundingAprPct: number;
   maxFundingAprPct: number;
   fundingUpdatedAt?: number;
+  fundingUpdatedAgoMinutes?: number;
+  longNegativeFundingFeePerSizePct: number;
+  longPositiveFundingFeePerSizePct: number;
+  shortNegativeFundingFeePerSizePct: number;
+  shortPositiveFundingFeePerSizePct: number;
   pinned: boolean;
 }
 

@@ -33,6 +33,8 @@ const USD_DECIMALS = 30;
 
 const DATA_STORE_ABI = [
   "function getUint(bytes32 key) view returns (uint256)",
+  "function getInt(bytes32 key) view returns (int256)",
+  "function getBytes32(bytes32 key) view returns (bytes32)",
   "function getAddress(bytes32 key) view returns (address)",
   "function getUintCount(bytes32 setKey) view returns (uint256)",
   "function getUintValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (uint256[])",
@@ -58,6 +60,8 @@ const DATA_KEYS = {
   OPEN_INTEREST_IN_TOKENS: keyFromString("OPEN_INTEREST_IN_TOKENS"),
   POOL_AMOUNT: keyFromString("POOL_AMOUNT"),
   MAX_OPEN_INTEREST: keyFromString("MAX_OPEN_INTEREST"),
+  NEGATIVE_FUNDING_FEE_PER_SIZE: keyFromString("NEGATIVE_FUNDING_FEE_PER_SIZE"),
+  POSITIVE_FUNDING_FEE_PER_SIZE: keyFromString("POSITIVE_FUNDING_FEE_PER_SIZE"),
   FUNDING_SKEW_EMA: keyFromString("FUNDING_SKEW_EMA"),
   FUNDING_FLOOR_FACTOR: keyFromString("FUNDING_FLOOR_FACTOR"),
   FUNDING_BASE_FACTOR: keyFromString("FUNDING_BASE_FACTOR"),
@@ -100,11 +104,18 @@ interface OnchainMarketState {
   minCollateralFactorForLiquidationPct: number;
   maxPositionSizeUsd: number;
   fundingSkewEmaMinutes: number;
+  fundingSkewEmaPct: number;
+  fundingSkewSampleIntervalMinutes: number;
   fundingFloorAprPct: number;
   fundingBaseAprPct: number;
   minFundingAprPct: number;
   maxFundingAprPct: number;
   fundingUpdatedAt?: number;
+  fundingUpdatedAgoMinutes?: number;
+  longNegativeFundingFeePerSizePct: number;
+  longPositiveFundingFeePerSizePct: number;
+  shortNegativeFundingFeePerSizePct: number;
+  shortPositiveFundingFeePerSizePct: number;
   oraclePriceUsd?: number;
   longOiTokens: number;
   shortOiTokens: number;
@@ -125,6 +136,7 @@ interface ExternalVenueMarketState {
 interface LiveReadState {
   chainId?: number;
   blockNumber?: number;
+  blockTimestamp?: number;
   lpVaultUsdcBalance?: number;
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
@@ -569,6 +581,47 @@ function annualizedFactorPercent(rawPerSecond: bigint): number {
   return round(Number(formatUnits(rawPerSecond * BigInt(YEAR_SECONDS), FACTOR_DECIMALS)) * 100, 2);
 }
 
+function factorToPercentSigned(raw: bigint): number {
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS)) * 100, 4);
+}
+
+function decodeUintBits(word: bigint, offset: number, bits: number): bigint {
+  const mask = (BigInt(1) << BigInt(bits)) - BigInt(1);
+  return (word >> BigInt(offset)) & mask;
+}
+
+function decodeIntBits(word: bigint, offset: number, bits: number): bigint {
+  return BigInt.asIntN(bits, decodeUintBits(word, offset, bits));
+}
+
+function decodeFundingSkewEma(raw: string, blockTimestamp?: number): { sampleIntervalMinutes: number; emaPct: number } {
+  if (!raw || raw === ZeroAddress) {
+    return { sampleIntervalMinutes: 0, emaPct: 0 };
+  }
+
+  const word = BigInt(raw);
+  const lastTime = Number(decodeUintBits(word, 0, 40));
+  const sampleInterval = Number(decodeUintBits(word, 40, 24));
+  const lastValue = Number(decodeIntBits(word, 64, 96)) / 1e18;
+  const lastEmaValue = Number(decodeIntBits(word, 160, 96)) / 1e18;
+
+  if (sampleInterval === 0) {
+    return { sampleIntervalMinutes: 0, emaPct: round(lastEmaValue * 100, 2) };
+  }
+
+  let currentEma = lastEmaValue;
+  if (blockTimestamp && lastTime > 0 && blockTimestamp > lastTime) {
+    const dt = blockTimestamp - lastTime;
+    const e = dt / sampleInterval;
+    currentEma = e > 41 ? lastValue : (lastValue * (1 - Math.exp(-e))) + (lastEmaValue * Math.exp(-e));
+  }
+
+  return {
+    sampleIntervalMinutes: round(sampleInterval / 60, 2),
+    emaPct: round(currentEma * 100, 2),
+  };
+}
+
 async function readOracleMidPrice(provider: JsonRpcProvider, token: string): Promise<number | undefined> {
   try {
     const oracle = new Contract(basefx100Sepolia0312.contracts.ORACLE, ORACLE_ABI, provider);
@@ -596,6 +649,14 @@ async function readUint(provider: JsonRpcProvider, key: string): Promise<bigint>
   return dataStoreCall<bigint>(provider, "getUint", [key]);
 }
 
+async function readInt(provider: JsonRpcProvider, key: string): Promise<bigint> {
+  return dataStoreCall<bigint>(provider, "getInt", [key]);
+}
+
+async function readBytes32(provider: JsonRpcProvider, key: string): Promise<string> {
+  return dataStoreCall<string>(provider, "getBytes32", [key]);
+}
+
 async function readAddress(provider: JsonRpcProvider, key: string): Promise<string> {
   return dataStoreCall<string>(provider, "getAddress", [key]);
 }
@@ -612,6 +673,7 @@ async function loadLiveState(): Promise<LiveReadState> {
     state.externalVenueMarkets = await loadExternalVenueMarkets();
     const chainId = await provider.getNetwork();
     const blockNumber = await provider.getBlockNumber();
+    const block = await provider.getBlock(blockNumber);
     const count = Number(await dataStoreCall<bigint>(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
     const marketIndices = count > 0 ? ((await dataStoreCall<bigint[]>(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value))) : [];
 
@@ -647,6 +709,10 @@ async function loadLiveState(): Promise<LiveReadState> {
           minFundingRaw,
           maxFundingRaw,
           fundingUpdatedAtRaw,
+          longNegativeFundingFeePerSizeRaw,
+          longPositiveFundingFeePerSizeRaw,
+          shortNegativeFundingFeePerSizeRaw,
+          shortPositiveFundingFeePerSizeRaw,
           longOiTokensRaw,
           shortOiTokensRaw,
           oraclePriceUsd,
@@ -663,16 +729,21 @@ async function loadLiveState(): Promise<LiveReadState> {
           readUint(provider, marketUintKey(DATA_KEYS.MIN_COLLATERAL_FACTOR, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.MIN_COLLATERAL_FACTOR_FOR_LIQUIDATION, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.MAX_POSITION_SIZE_USD, marketIndex)),
-          readUint(provider, marketUintKey(DATA_KEYS.FUNDING_SKEW_EMA, marketIndex)),
-          readUint(provider, marketUintKey(DATA_KEYS.FUNDING_FLOOR_FACTOR, marketIndex)),
-          readUint(provider, marketUintKey(DATA_KEYS.FUNDING_BASE_FACTOR, marketIndex)),
-          readUint(provider, marketUintKey(DATA_KEYS.MIN_FUNDING_FACTOR_PER_SECOND, marketIndex)),
-          readUint(provider, marketUintKey(DATA_KEYS.MAX_FUNDING_FACTOR_PER_SECOND, marketIndex)),
+          readBytes32(provider, marketUintKey(DATA_KEYS.FUNDING_SKEW_EMA, marketIndex)),
+          readInt(provider, marketUintKey(DATA_KEYS.FUNDING_FLOOR_FACTOR, marketIndex)),
+          readInt(provider, marketUintKey(DATA_KEYS.FUNDING_BASE_FACTOR, marketIndex)),
+          readInt(provider, marketUintKey(DATA_KEYS.MIN_FUNDING_FACTOR_PER_SECOND, marketIndex)),
+          readInt(provider, marketUintKey(DATA_KEYS.MAX_FUNDING_FACTOR_PER_SECOND, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.FUNDING_UPDATED_AT, marketIndex)),
+          readUint(provider, marketBoolKey(DATA_KEYS.NEGATIVE_FUNDING_FEE_PER_SIZE, marketIndex, true)),
+          readUint(provider, marketBoolKey(DATA_KEYS.POSITIVE_FUNDING_FEE_PER_SIZE, marketIndex, true)),
+          readUint(provider, marketBoolKey(DATA_KEYS.NEGATIVE_FUNDING_FEE_PER_SIZE, marketIndex, false)),
+          readUint(provider, marketBoolKey(DATA_KEYS.POSITIVE_FUNDING_FEE_PER_SIZE, marketIndex, false)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, false)),
           readOracleMidPrice(provider, indexToken),
         ]);
+        const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
 
         return {
           symbol,
@@ -696,12 +767,21 @@ async function loadLiveState(): Promise<LiveReadState> {
           minCollateralFactorPct: factorToPercent(minCollateralFactorRaw),
           minCollateralFactorForLiquidationPct: factorToPercent(minCollateralFactorForLiquidationRaw),
           maxPositionSizeUsd: usdValue(maxPositionSizeUsdRaw),
-          fundingSkewEmaMinutes: round(Number(fundingSkewEmaRaw) / 60, 2),
+          fundingSkewEmaMinutes: skewEma.sampleIntervalMinutes,
+          fundingSkewEmaPct: skewEma.emaPct,
+          fundingSkewSampleIntervalMinutes: skewEma.sampleIntervalMinutes,
           fundingFloorAprPct: annualizedFactorPercent(fundingFloorRaw),
           fundingBaseAprPct: annualizedFactorPercent(fundingBaseRaw),
           minFundingAprPct: annualizedFactorPercent(minFundingRaw),
           maxFundingAprPct: annualizedFactorPercent(maxFundingRaw),
           fundingUpdatedAt: Number(fundingUpdatedAtRaw),
+          fundingUpdatedAgoMinutes: block?.timestamp && Number(fundingUpdatedAtRaw) > 0
+            ? round((block.timestamp - Number(fundingUpdatedAtRaw)) / 60, 2)
+            : undefined,
+          longNegativeFundingFeePerSizePct: factorToPercentSigned(longNegativeFundingFeePerSizeRaw),
+          longPositiveFundingFeePerSizePct: factorToPercentSigned(longPositiveFundingFeePerSizeRaw),
+          shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
+          shortPositiveFundingFeePerSizePct: factorToPercentSigned(shortPositiveFundingFeePerSizeRaw),
           oraclePriceUsd,
           longOiTokens: round(Number(formatUnits(longOiTokensRaw, indexTokenDecimals)), 6),
           shortOiTokens: round(Number(formatUnits(shortOiTokensRaw, indexTokenDecimals)), 6),
@@ -718,6 +798,7 @@ async function loadLiveState(): Promise<LiveReadState> {
 
     state.chainId = Number(chainId.chainId);
     state.blockNumber = blockNumber;
+    state.blockTimestamp = block?.timestamp;
     state.lpVaultUsdcBalance = lpVaultUsdcBalance;
     state.onchainMarkets = onchainMarkets;
     state.readStatus = onchainMarkets.length > 0 ? "mixed" : "live";
@@ -754,11 +835,18 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         minCollateralFactorForLiquidationPct: round(market.minCollateralFactorForLiquidation * 100, 4),
         maxPositionSizeUsd: market.maxPositionSizeUsd,
         fundingSkewEmaMinutes: 20,
+        fundingSkewEmaPct: 0,
+        fundingSkewSampleIntervalMinutes: 20,
         fundingFloorAprPct: 10.95,
         fundingBaseAprPct: 28,
         minFundingAprPct: -12,
         maxFundingAprPct: 140,
         fundingUpdatedAt: undefined,
+        fundingUpdatedAgoMinutes: undefined,
+        longNegativeFundingFeePerSizePct: 0,
+        longPositiveFundingFeePerSizePct: 0,
+        shortNegativeFundingFeePerSizePct: 0,
+        shortPositiveFundingFeePerSizePct: 0,
         oraclePriceUsd: undefined,
         longOiTokens: 0,
         shortOiTokens: 0,
@@ -783,6 +871,10 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const minFundingAprPct = marketState.minFundingAprPct !== 0 ? marketState.minFundingAprPct : -12;
     const maxFundingAprPct = marketState.maxFundingAprPct !== 0 ? marketState.maxFundingAprPct : 140;
     const fundingSkewEmaMinutes = marketState.fundingSkewEmaMinutes > 0 ? marketState.fundingSkewEmaMinutes : 20;
+    const fundingSkewEmaPct = marketState.fundingSkewEmaPct;
+    const fundingSkewSampleIntervalMinutes = marketState.fundingSkewSampleIntervalMinutes > 0
+      ? marketState.fundingSkewSampleIntervalMinutes
+      : fundingSkewEmaMinutes;
     const poolCollateralAmount = marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance;
     const oraclePrice = marketState.oraclePriceUsd ?? configured?.referencePriceUsd ?? seed.referencePriceUsd ?? 1;
     const markPrice = configured?.referencePriceUsd ?? oraclePrice;
@@ -795,7 +887,9 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0
       ? round(((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd)) * 100, 2)
       : 0;
-    const effectiveSkewPct = hasLiveOi ? skewPct : inferredSkewPct;
+    const effectiveSkewPct = hasLiveOi
+      ? skewPct
+      : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct);
     const longOpenInterestUsd = marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
     const shortOpenInterestUsd = marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
@@ -814,11 +908,21 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const externalPriceUsd = externalVenue?.referencePriceUsd ?? oraclePrice;
     const externalPriceSource = externalVenue?.referencePriceUsd !== undefined ? (externalVenue.source ?? "live-mark") : (marketState.oraclePriceUsd !== undefined ? "oracle-fallback" : "config-reference");
     const oiChange24hPct = deriveOiChange24hPct(openInterestUtilizationPct, effectiveSkewPct, Math.abs(fundingBaseAprPct - externalFundingAprPct));
+    const hasLiveFundingState = (marketState.fundingUpdatedAt ?? 0) > 0
+      || Math.abs(fundingFloorAprPct) > 0
+      || Math.abs(fundingBaseAprPct) > 0
+      || Math.abs(minFundingAprPct) > 0
+      || Math.abs(maxFundingAprPct) > 0
+      || Math.abs(fundingSkewEmaPct) > 0
+      || Math.abs(marketState.longNegativeFundingFeePerSizePct) > 0
+      || Math.abs(marketState.longPositiveFundingFeePerSizePct) > 0
+      || Math.abs(marketState.shortNegativeFundingFeePerSizePct) > 0
+      || Math.abs(marketState.shortPositiveFundingFeePerSizePct) > 0;
     const hasRuntimeProtocolSignal = oraclePrice > 0
       && poolCollateralAmount > 0
       && openInterestCapacityUsd > 0
       && (bidDepthUsd > 0 || askDepthUsd > 0)
-      && (fundingFloorAprPct !== 0 || fundingBaseAprPct !== 0 || maxFundingAprPct !== 0);
+      && hasLiveFundingState;
     const analytics = deriveRuntimeAnalytics({
       tier: marketState.tier || configured?.tier || "Tier 2",
       oraclePriceUsd: oraclePrice,
@@ -860,12 +964,16 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       externalPriceDeviationPct: externalPriceUsd > 0 ? round(((oraclePrice - externalPriceUsd) / externalPriceUsd) * 100, 2) : 0,
       externalPriceSource,
       openInterestUsd,
+      oiSource: hasLiveOi ? "live-position-counters" : "pool-depth-inferred",
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
+      fundingSignalSource: hasLiveFundingState ? "live-funding-state" : "runtime-benchmark",
       externalFundingAprPct,
       externalFundingSource,
       skewPct: effectiveSkewPct,
+      fundingSkewEmaPct,
+      fundingSkewSampleIntervalMinutes,
       longSharePct,
       shortSharePct: round(100 - longSharePct, 1),
       realizedVol1hPct,
@@ -896,6 +1004,11 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       minFundingAprPct,
       maxFundingAprPct,
       fundingUpdatedAt: marketState.fundingUpdatedAt,
+      fundingUpdatedAgoMinutes: marketState.fundingUpdatedAgoMinutes,
+      longNegativeFundingFeePerSizePct: marketState.longNegativeFundingFeePerSizePct,
+      longPositiveFundingFeePerSizePct: marketState.longPositiveFundingFeePerSizePct,
+      shortNegativeFundingFeePerSizePct: marketState.shortNegativeFundingFeePerSizePct,
+      shortPositiveFundingFeePerSizePct: marketState.shortPositiveFundingFeePerSizePct,
       pinned: true,
     } satisfies MarketSnapshot;
   });
@@ -1257,4 +1370,3 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
     parameters,
   };
 }
-

@@ -269,3 +269,26 @@ Reason:
 - the monitor already had enough live protocol state to drive a useful runtime view even when direct OI token counters were absent
 - leaving those markets in `seeded-fallback` understated how much live protocol context was already available
 - alert operators need category-level slicing, and dashboard consumers need the external reference components visible without drilling into the market page
+
+
+### Step 11: correct signed funding reads and expose protocol funding state in the market view
+
+- corrected live funding reads to use signed `DataStore.getInt(...)` for funding floor/base/min/max factors instead of reading those keys as unsigned values
+- corrected `fundingSkewEma` reads to use `DataStore.getBytes32(...)` and decode the EMA storage payload, exposing both:
+  - current skew EMA percentage
+  - EMA sample interval in minutes
+- added live funding accumulator reads for:
+  - negative funding fee per size (long / short)
+  - positive funding fee per size (long / short)
+- market monitoring now shows:
+  - whether OI is coming from live position counters or pool/depth inference
+  - whether funding is coming from protocol live state or runtime benchmark
+  - funding update age
+  - funding skew EMA
+  - long / short funding accrual components
+
+Reason:
+
+- the previous implementation still left protocol funding partially opaque even though the chain already exposed the relevant state
+- reading signed funding factors as unsigned values is incorrect and weakens the monitor’s claim of being live-backed
+- surfacing protocol funding freshness and accumulators gives operators a way to judge whether funding behavior is coming from real protocol state or monitor-side approximation

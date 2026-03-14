@@ -145,7 +145,7 @@ export default function MonitoringEnhanced() {
                         <Badge variant="outline" className="border-primary/30 text-primary">{market.tier}</Badge>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
+                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} ({market.oiSource === "live-position-counters" ? "live counters" : "inferred"}) · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -223,7 +223,27 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Funding Source</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.externalFundingSource === "live-venue" ? selected.externalVenueName : "runtime benchmark"}</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "live-funding-state" ? "protocol live state" : "runtime benchmark"}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">OI Source</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.oiSource === "live-position-counters" ? "live position counters" : "pool/depth inferred"}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Funding Updated</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingUpdatedAgoMinutes !== undefined ? `${selected.fundingUpdatedAgoMinutes.toFixed(1)} min ago` : "unavailable"}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Funding Skew EMA</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSkewEmaPct.toFixed(2)}% / {selected.fundingSkewSampleIntervalMinutes.toFixed(0)} min</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Long Funding Accrual</div>
+                    <div className="mt-1 text-lg font-semibold">-{selected.longNegativeFundingFeePerSizePct.toFixed(4)}% / +{selected.longPositiveFundingFeePerSizePct.toFixed(4)}%</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Short Funding Accrual</div>
+                    <div className="mt-1 text-lg font-semibold">-{selected.shortNegativeFundingFeePerSizePct.toFixed(4)}% / +{selected.shortPositiveFundingFeePerSizePct.toFixed(4)}%</div>
                   </div>
                 </div>
 
