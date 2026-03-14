@@ -43,6 +43,10 @@ export interface MarketSnapshot {
   externalPriceSource: ExternalPriceSource;
   openInterestUsd: number;
   oiSource: "live-position-counters" | "pool-depth-inferred";
+  oiCounterStatus: "usable" | "dust" | "missing";
+  oiCounterReason: string;
+  longOpenInterestTokens: number;
+  shortOpenInterestTokens: number;
   oiChange24hPct: number;
   fundingRateHourlyPct: number;
   fundingAprPct: number;

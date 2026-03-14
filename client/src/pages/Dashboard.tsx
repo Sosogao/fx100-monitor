@@ -32,6 +32,8 @@ export default function Dashboard() {
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
     liveOi: snapshot?.markets.filter((market) => market.oiSource === "live-position-counters").length ?? 0,
+    dustOi: snapshot?.markets.filter((market) => market.oiCounterStatus === "dust").length ?? 0,
+    missingOi: snapshot?.markets.filter((market) => market.oiCounterStatus === "missing").length ?? 0,
     liveFunding: snapshot?.markets.filter((market) => market.fundingSignalSource === "live-funding-state").length ?? 0,
     total: snapshot?.markets.length ?? 0,
   }), [snapshot]);
@@ -108,7 +110,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{sourceCoverage.liveOi}/{sourceCoverage.total}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Markets using protocol position counters instead of pool/depth inference.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Markets using protocol position counters instead of pool/depth inference. {sourceCoverage.dustOi} dust / {sourceCoverage.missingOi} missing.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">

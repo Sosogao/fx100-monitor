@@ -323,3 +323,21 @@ Reason:
 
 - the top-level dashboard should show how much of the monitor is genuinely protocol-backed before an operator drills into any specific market
 - in the current fork, live funding coverage is complete while live OI coverage is still zero, and that gap is important enough to surface immediately
+
+
+### Step 14: add OI counter dust/missing diagnostics
+
+- the monitor now classifies protocol OI counters per market as:
+  - `usable`
+  - `dust`
+  - `missing`
+- market snapshots now carry:
+  - raw long/short OI token counters
+  - a diagnostic reason string explaining whether monitor OI is trusted or inferred
+- the market monitoring page now shows the OI diagnosis directly in the selected-market panel
+- dashboard source coverage now distinguishes `dust` and `missing` OI coverage when live OI is unavailable
+
+Reason:
+
+- the current fork does expose non-zero ETH OI counters, but they are dust-sized and not reliable enough to treat as real market OI
+- operators need to see why live OI coverage remains zero even though some raw counter values exist onchain

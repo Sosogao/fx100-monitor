@@ -181,7 +181,7 @@ export default function MonitoringEnhanced() {
                         <Badge variant="outline" className="border-primary/30 text-primary">{market.tier}</Badge>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} ({market.oiSource === "live-position-counters" ? "live counters" : "inferred"}) · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
+                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} ({market.oiSource === "live-position-counters" ? "live counters" : market.oiCounterStatus}) · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -263,7 +263,12 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Source</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.oiSource === "live-position-counters" ? "live position counters" : "pool/depth inferred"}</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.oiSource === "live-position-counters" ? "live position counters" : `pool/depth inferred (${selected.oiCounterStatus})`}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3 col-span-2">
+                    <div className="text-xs text-muted-foreground">OI Counter Diagnosis</div>
+                    <div className="mt-1 text-sm font-semibold">{selected.longOpenInterestTokens.toFixed(6)} long / {selected.shortOpenInterestTokens.toFixed(6)} short</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.oiCounterReason}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Funding Updated</div>

@@ -880,6 +880,16 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const markPrice = configured?.referencePriceUsd ?? oraclePrice;
     const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
     const hasLiveOi = totalOiTokens > 0;
+    const oiCounterStatus = totalOiTokens === 0
+      ? "missing"
+      : totalOiTokens <= 3
+        ? "dust"
+        : "usable";
+    const oiCounterReason = totalOiTokens === 0
+      ? "Protocol position counters are zero on this market, so monitor OI falls back to pool/depth inference."
+      : totalOiTokens <= 3
+        ? `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain dust-sized, so monitor OI still uses pool/depth inference.`
+        : "Protocol position counters are materially populated and used as the primary OI source.";
     const longSharePct = totalOiTokens > 0
       ? round((marketState.longOiTokens / totalOiTokens) * 100, 1)
       : 50;
@@ -964,7 +974,11 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       externalPriceDeviationPct: externalPriceUsd > 0 ? round(((oraclePrice - externalPriceUsd) / externalPriceUsd) * 100, 2) : 0,
       externalPriceSource,
       openInterestUsd,
-      oiSource: hasLiveOi ? "live-position-counters" : "pool-depth-inferred",
+      oiSource: oiCounterStatus === "usable" ? "live-position-counters" : "pool-depth-inferred",
+      oiCounterStatus,
+      oiCounterReason,
+      longOpenInterestTokens: marketState.longOiTokens,
+      shortOpenInterestTokens: marketState.shortOiTokens,
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
