@@ -442,3 +442,19 @@ Reason:
 Reason:
 
 - once the incident model is split across multiple categories and severities, operators need a fast count view before drilling into the filtered list
+
+
+### Step 22: add market-level diagnostics summary bar
+
+- market monitoring now includes a compact diagnostics summary bar in the selected-market panel
+- the summary bar compresses the operator-relevant source and trust signals for the chosen market into five dimensions:
+  - risk
+  - OI
+  - funding
+  - oracle
+  - venue
+
+Reason:
+
+- once dashboard-level diagnostics exist, operators still need the same trust signals at the point where they inspect a single market in detail
+- this reduces context switching between dashboard and monitoring when triaging one market at a time

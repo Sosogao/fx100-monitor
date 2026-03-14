@@ -22,6 +22,76 @@ function analyticsBadge(source: string) {
     : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
 }
 
+function diagnosticsBadge(tone: "good" | "warning" | "critical" | "neutral") {
+  if (tone === "good") return "bg-primary/20 text-primary border-primary/30";
+  if (tone === "warning") return "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
+  if (tone === "critical") return "bg-destructive/20 text-destructive border-destructive/40";
+  return "bg-muted/20 text-muted-foreground border-border";
+}
+
+function buildDiagnostics(selected: {
+  analyticsSource: string;
+  var99_9Pct: number;
+  riskScore: number;
+  oiSource: string;
+  oiCounterStatus: string;
+  oiCounterReason: string;
+  fundingSignalSource: string;
+  fundingUpdatedAgoMinutes?: number;
+  externalPriceDeviationPct: number;
+  oraclePrice: number;
+  externalVenueName: string;
+  externalPriceUsd: number;
+  externalPriceSource: string;
+  externalFundingAprPct: number;
+}) {
+  const oracleTone = selected.externalPriceDeviationPct >= 50 ? "critical" : selected.externalPriceDeviationPct >= 5 ? "warning" : "good";
+  const fundingAge = selected.fundingUpdatedAgoMinutes ?? 0;
+  const fundingTone = selected.fundingSignalSource === "live-funding-state"
+    ? (fundingAge >= 720 ? "critical" : fundingAge >= 120 ? "warning" : "good")
+    : "warning";
+  const oiTone = selected.oiSource === "live-position-counters"
+    ? "good"
+    : selected.oiCounterStatus === "dust"
+      ? "warning"
+      : "critical";
+
+  return [
+    {
+      label: "Risk",
+      value: selected.analyticsSource === "runtime-derived" ? "runtime-derived" : "seeded fallback",
+      tone: selected.analyticsSource === "runtime-derived" ? "good" : "warning",
+      detail: ,
+    },
+    {
+      label: "OI",
+      value: selected.oiSource === "live-position-counters" ? "live counters" : ,
+      tone: oiTone,
+      detail: selected.oiCounterReason,
+    },
+    {
+      label: "Funding",
+      value: selected.fundingSignalSource === "live-funding-state" ? "protocol live" : "runtime benchmark",
+      tone: fundingTone,
+      detail: selected.fundingUpdatedAgoMinutes !== undefined
+        ? 
+        : "funding freshness unavailable",
+    },
+    {
+      label: "Oracle",
+      value: ,
+      tone: oracleTone,
+      detail: ,
+    },
+    {
+      label: "Venue",
+      value: selected.externalPriceSource,
+      tone: selected.externalPriceSource === "live-aggregate" ? "good" : selected.externalPriceSource.startsWith("live-") ? "warning" : "critical",
+      detail: ,
+    },
+  ] as const;
+}
+
 export default function MonitoringEnhanced() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const [activeTab, setActiveTab] = useState("overview");
@@ -229,6 +299,18 @@ export default function MonitoringEnhanced() {
           <CardContent className="space-y-4">
             {selected ? (
               <>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                  {buildDiagnostics(selected).map((item) => (
+                    <div key={item.label} className="rounded border border-border bg-background/40 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs text-muted-foreground">{item.label}</div>
+                        <Badge variant="outline" className={diagnosticsBadge(item.tone)}>{item.value}</Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">{item.detail}</div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long / Short Split</div>
