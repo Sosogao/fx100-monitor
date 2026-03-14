@@ -73,6 +73,15 @@ export default function Dashboard() {
       },
     ] as Array<{ label: string; value: string; tone: "good" | "warning" | "critical" }>,
   })) ?? [], [snapshot]);
+  const alertCategorySummary = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const alert of snapshot?.alerts ?? []) {
+      counts.set(alert.category, (counts.get(alert.category) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((left, right) => right.count - left.count);
+  }, [snapshot]);
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading monitoring snapshot...</div>;
@@ -184,6 +193,21 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Alert Category Summary</CardTitle>
+          <CardDescription>Current incident mix across the live alert stream.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {alertCategorySummary.map((item) => (
+            <div key={item.category} className="rounded border border-border bg-background/40 p-3">
+              <div className="text-xs text-muted-foreground">{item.category}</div>
+              <div className="mt-2 text-2xl font-bold text-primary">{item.count}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card className="bg-card/50 border-primary/20 tech-border">
         <CardHeader>

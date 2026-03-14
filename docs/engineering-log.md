@@ -386,3 +386,17 @@ Reason:
 
 - operators need one place to judge how trustworthy each monitor dimension is before acting on any headline metric
 - this is especially important in fork environments where funding may be live while OI is still inferred and oracle divergence remains intentionally synthetic
+
+
+### Step 18: add dashboard alert-category summary
+
+- dashboard now includes an alert-category summary card that counts current incidents by category
+- the summary is driven directly from the live alert stream, so it stays aligned with:
+  - oracle divergence
+  - funding divergence
+  - funding stale
+  - OI counter missing
+
+Reason:
+
+- once the alert model has several distinct protocol-health categories, operators need a top-level count view before drilling into the full alerts page
