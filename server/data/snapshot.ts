@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { AbiCoder, Contract, Interface, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, keccak256, toBeHex } from "ethers";
 import type {
   ActionRecord,
@@ -22,9 +21,7 @@ import type {
 } from "../../shared/monitoring";
 import { basefx100Sepolia0312 } from "../config/fx100";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "..", "..");
+const projectRoot = process.cwd();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const YEAR_SECONDS = 365 * 24 * 60 * 60;
