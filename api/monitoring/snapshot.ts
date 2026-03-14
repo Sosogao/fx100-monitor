@@ -1,5 +1,3 @@
-import { getSnapshotPayload } from "../../server/api";
-
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -50,7 +48,8 @@ function degradedSnapshot(error: unknown) {
 
 export default async function handler(_req: any, res: any) {
   try {
-    const payload = await getSnapshotPayload();
+    const mod = await import("../../server/api");
+    const payload = await mod.getSnapshotPayload();
     sendJson(res, 200, payload);
   } catch (error) {
     console.error("snapshot route failed", error);
