@@ -61,11 +61,11 @@ function buildDiagnostics(selected: {
       label: "Risk",
       value: selected.analyticsSource === "runtime-derived" ? "runtime-derived" : "seeded fallback",
       tone: selected.analyticsSource === "runtime-derived" ? "good" : "warning",
-      detail: ,
+      detail: "VaR 99.9 " + selected.var99_9Pct.toFixed(2) + "% · score " + selected.riskScore.toFixed(2),
     },
     {
       label: "OI",
-      value: selected.oiSource === "live-position-counters" ? "live counters" : ,
+      value: selected.oiSource === "live-position-counters" ? "live counters" : selected.oiCounterStatus + " / inferred",
       tone: oiTone,
       detail: selected.oiCounterReason,
     },
@@ -74,20 +74,20 @@ function buildDiagnostics(selected: {
       value: selected.fundingSignalSource === "live-funding-state" ? "protocol live" : "runtime benchmark",
       tone: fundingTone,
       detail: selected.fundingUpdatedAgoMinutes !== undefined
-        ? 
+        ? "updated " + selected.fundingUpdatedAgoMinutes.toFixed(1) + " min ago"
         : "funding freshness unavailable",
     },
     {
       label: "Oracle",
-      value: ,
+      value: selected.externalPriceDeviationPct.toFixed(2) + "% gap",
       tone: oracleTone,
-      detail: ,
+      detail: "protocol " + selected.oraclePrice.toLocaleString() + " vs " + selected.externalVenueName + " " + selected.externalPriceUsd.toLocaleString(),
     },
     {
       label: "Venue",
       value: selected.externalPriceSource,
       tone: selected.externalPriceSource === "live-aggregate" ? "good" : selected.externalPriceSource.startsWith("live-") ? "warning" : "critical",
-      detail: ,
+      detail: selected.externalVenueName + " funding " + selected.externalFundingAprPct.toFixed(2) + "%",
     },
   ] as const;
 }
