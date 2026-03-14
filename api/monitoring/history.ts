@@ -1,3 +1,5 @@
+import { getHistoryPayload } from "../../server/api";
+
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -7,8 +9,7 @@ function sendJson(res: any, status: number, payload: unknown) {
 
 export default async function handler(_req: any, res: any) {
   try {
-    const mod = await import("../../server/api");
-    const payload = await mod.getHistoryPayload();
+    const payload = await getHistoryPayload();
     sendJson(res, 200, payload);
   } catch (error) {
     console.error("history route failed", error);
