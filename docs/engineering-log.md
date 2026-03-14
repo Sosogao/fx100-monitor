@@ -413,3 +413,18 @@ Reason:
 Reason:
 
 - once the monitor exposes several distinct incident classes, operators should be able to pivot from a market state screen directly into the relevant filtered alert stream
+
+
+### Step 20: add dashboard environment diagnostics
+
+- dashboard now includes an `Environment Diagnostics` panel summarizing the current fork-level operating constraints
+- diagnostics currently cover:
+  - read-path status
+  - oracle divergence posture
+  - OI counter availability
+  - funding freshness
+
+Reason:
+
+- operators need a concise environment-level explanation of what is wrong with the fork before interpreting any single market metric
+- this reduces the need to manually reconstruct the current state from multiple cards and alert categories

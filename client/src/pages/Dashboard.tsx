@@ -82,6 +82,49 @@ export default function Dashboard() {
       .map(([category, count]) => ({ category, count }))
       .sort((left, right) => right.count - left.count);
   }, [snapshot]);
+  const environmentDiagnostics = useMemo(() => {
+    const items: Array<{ title: string; detail: string; tone: "good" | "warning" | "critical" }> = [];
+    const severeOracleMarkets = snapshot?.markets.filter((market) => market.externalPriceDeviationPct >= 50) ?? [];
+    const elevatedOracleMarkets = snapshot?.markets.filter((market) => market.externalPriceDeviationPct >= 15) ?? [];
+    const missingOiMarkets = snapshot?.markets.filter((market) => market.oiCounterStatus === "missing") ?? [];
+    const staleFundingMarkets = snapshot?.markets.filter((market) => (market.fundingUpdatedAgoMinutes ?? 0) >= 120) ?? [];
+
+    items.push({
+      title: "Read Path",
+      detail: snapshot?.environment.readStatus === "fallback"
+        ? "RPC live reads are unavailable; monitor is operating on fallback values."
+        : `RPC live reads are active on chain ${snapshot?.environment.chainId ?? "unknown"} at block ${snapshot?.environment.blockNumber ?? "unknown"}.`,
+      tone: snapshot?.environment.readStatus === "fallback" ? "critical" : snapshot?.environment.readStatus === "mixed" ? "warning" : "good",
+    });
+
+    items.push({
+      title: "Oracle Divergence",
+      detail: severeOracleMarkets.length > 0
+        ? `${severeOracleMarkets.map((market) => `${market.symbol} ${market.externalPriceDeviationPct.toFixed(2)}%`).join(", ")} are in severe divergence against external venue references.`
+        : elevatedOracleMarkets.length > 0
+          ? `${elevatedOracleMarkets.map((market) => `${market.symbol} ${market.externalPriceDeviationPct.toFixed(2)}%`).join(", ")} show elevated oracle divergence.`
+          : "No markets currently exceed the elevated oracle divergence threshold.",
+      tone: severeOracleMarkets.length > 0 ? "critical" : elevatedOracleMarkets.length > 0 ? "warning" : "good",
+    });
+
+    items.push({
+      title: "OI Counters",
+      detail: missingOiMarkets.length > 0
+        ? `${missingOiMarkets.map((market) => market.symbol).join(", ")} have missing protocol OI counters; OI remains inferred from pool/depth.`
+        : "All monitored markets have usable live OI counters.",
+      tone: missingOiMarkets.length > 0 ? "critical" : "good",
+    });
+
+    items.push({
+      title: "Funding Freshness",
+      detail: staleFundingMarkets.length > 0
+        ? `${staleFundingMarkets.map((market) => `${market.symbol} ${market.fundingUpdatedAgoMinutes?.toFixed(1)}m`).join(", ")} have stale funding updates.`
+        : "No markets currently show stale funding state.",
+      tone: staleFundingMarkets.length > 0 ? "warning" : "good",
+    });
+
+    return items;
+  }, [snapshot]);
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading monitoring snapshot...</div>;
@@ -204,6 +247,23 @@ export default function Dashboard() {
             <div key={item.category} className="rounded border border-border bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">{item.category}</div>
               <div className="mt-2 text-2xl font-bold text-primary">{item.count}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Environment Diagnostics</CardTitle>
+          <CardDescription>Current fork-level issues and monitor data limits summarized for operators.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {environmentDiagnostics.map((item) => (
+            <div key={item.title} className="rounded border border-border bg-background/40 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Badge variant="outline" className={confidenceBadge(item.tone)}>{item.title}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{item.detail}</p>
             </div>
           ))}
         </CardContent>
