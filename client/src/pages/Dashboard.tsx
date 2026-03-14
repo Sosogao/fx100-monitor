@@ -29,6 +29,12 @@ function analyticsBadge(source: string) {
 export default function Dashboard() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const priority = useMemo(() => snapshot?.dashboard.priorityMarkets ?? [], [snapshot]);
+  const sourceCoverage = useMemo(() => ({
+    runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
+    liveOi: snapshot?.markets.filter((market) => market.oiSource === "live-position-counters").length ?? 0,
+    liveFunding: snapshot?.markets.filter((market) => market.fundingSignalSource === "live-funding-state").length ?? 0,
+    total: snapshot?.markets.length ?? 0,
+  }), [snapshot]);
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading monitoring snapshot...</div>;
@@ -84,6 +90,36 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Runtime Risk Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceCoverage.runtimeRisk}/{sourceCoverage.total}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets currently driven by protocol/runtime analytics instead of seeded fallback.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Live OI Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceCoverage.liveOi}/{sourceCoverage.total}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets using protocol position counters instead of pool/depth inference.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Live Funding Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{sourceCoverage.liveFunding}/{sourceCoverage.total}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets backed by protocol funding state instead of runtime benchmark fallback.</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">

@@ -310,3 +310,16 @@ Reason:
 
 - once protocol funding state is visible, operators need a direct signal for stale funding updates instead of inferring the problem from unrelated divergence alerts
 - source coverage counters make the remaining live-data gaps obvious without forcing a market-by-market inspection
+
+
+### Step 13: add dashboard source coverage summary
+
+- the dashboard now exposes the same source-coverage view that was added to the market monitoring page:
+  - runtime-derived risk coverage
+  - live OI coverage
+  - live funding coverage
+
+Reason:
+
+- the top-level dashboard should show how much of the monitor is genuinely protocol-backed before an operator drills into any specific market
+- in the current fork, live funding coverage is complete while live OI coverage is still zero, and that gap is important enough to surface immediately
