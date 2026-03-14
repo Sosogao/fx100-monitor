@@ -1221,6 +1221,26 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
       });
     }
 
+    if (market.oiCounterStatus !== "usable") {
+      const oiLevel: AlertLevel = market.oiCounterStatus === "missing" ? "l2" : "l1";
+      extraAlerts.push({
+        id: `alert-${market.symbol.toLowerCase()}-oi-counter-${market.oiCounterStatus}`,
+        level: oiLevel,
+        status: oiLevel === "l2" ? "investigating" : "monitoring",
+        category: "OI counter missing",
+        assetSymbol: market.symbol,
+        title: `${market.symbol} OI Counter ${market.oiCounterStatus === "missing" ? "Missing" : "Dust"}`,
+        description: market.oiCounterReason,
+        triggeredAt: `${(index + 1) * 8 + 6}m ago`,
+        metricValue: market.longOpenInterestTokens + market.shortOpenInterestTokens,
+        thresholdValue: 3,
+        signalSource: "protocol position counters",
+        actionSummary: market.oiCounterStatus === "missing"
+          ? "Open a small test position or inspect order execution flow before trusting live OI counters"
+          : "Wait for material position flow before switching the monitor from inferred OI to live counters",
+      });
+    }
+
     return [baseAlert, ...extraAlerts];
   }).sort((left, right) => {
     const severity = { l3: 3, l2: 2, l1: 1, normal: 0 };

@@ -341,3 +341,17 @@ Reason:
 
 - the current fork does expose non-zero ETH OI counters, but they are dust-sized and not reliable enough to treat as real market OI
 - operators need to see why live OI coverage remains zero even though some raw counter values exist onchain
+
+
+### Step 15: add OI counter missing incidents
+
+- added a dedicated `OI counter missing` alert category when protocol position counters are not usable
+- the alert now fires for both:
+  - `missing` counters
+  - `dust` counters
+- alert descriptions reuse the same diagnostic reason shown in market monitoring
+
+Reason:
+
+- source coverage cards show that live OI is unavailable, but operators still need an incident-level explanation in the alert stream
+- this makes the monitor explicit about why OI remains inferred even when other runtime signals are live
