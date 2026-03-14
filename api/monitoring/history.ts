@@ -8,7 +8,7 @@ function sendJson(res: any, status: number, payload: unknown) {
 export default async function handler(_req: any, res: any) {
   try {
     // @ts-ignore runtime-built server bundle
-    const mod = await import("../../dist/server-api.js");
+    const mod = await import("../_lib/server-api.js");
     const payload = await mod.getHistoryPayload();
     sendJson(res, 200, payload);
   } catch (error) {
