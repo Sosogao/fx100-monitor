@@ -458,3 +458,17 @@ Reason:
 
 - once dashboard-level diagnostics exist, operators still need the same trust signals at the point where they inspect a single market in detail
 - this reduces context switching between dashboard and monitoring when triaging one market at a time
+
+
+### Step 23: switch monitor environment to fresh Base fork 49b34c09
+
+- monitoring now points at the fresh Base fork deployment documented in `Fresh fork 全量部署结果`
+- switched live config to:
+  - rpc `49b34c09-5fb0-4814-9440-4231f0018ac5`
+  - fresh full-core addresses for DataStore / Oracle / OrderHandler / MarketFactory / LP vault / mock oracle provider
+  - fresh mock token addresses for USDC / WBTC
+
+Reason:
+
+- the older Base Sepolia fork was running stale contract code and produced inconsistent behavior between protocol testing and monitoring
+- monitor and fork testing now need to share the same fresh deployment so protocol-state debugging is done against one environment
