@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Filter, RefreshCw, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,16 @@ export default function AlertsEnhanced() {
     ),
     [alerts, level, asset, category],
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const levelParam = params.get("level");
+    const assetParam = params.get("asset");
+    const categoryParam = params.get("category");
+    if (levelParam) setLevel(levelParam);
+    if (assetParam) setAsset(assetParam);
+    if (categoryParam) setCategory(categoryParam);
+  }, []);
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading alerts...</div>;

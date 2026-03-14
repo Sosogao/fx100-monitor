@@ -400,3 +400,16 @@ Reason:
 Reason:
 
 - once the alert model has several distinct protocol-health categories, operators need a top-level count view before drilling into the full alerts page
+
+
+### Step 19: add monitoring-to-alerts deep links
+
+- selected-market view in market monitoring now includes one-click links to:
+  - oracle alerts for that market
+  - funding alerts for that market
+  - OI alerts for that market
+- alerts page now reads query parameters on load so category and asset filters can be pre-applied from deep links
+
+Reason:
+
+- once the monitor exposes several distinct incident classes, operators should be able to pivot from a market state screen directly into the relevant filtered alert stream

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Activity, Pin, RefreshCw, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -340,6 +341,24 @@ export default function MonitoringEnhanced() {
                     </div>
                   </TabsContent>
                 </Tabs>
+
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <Link href={`/alerts?asset=${selected.symbol}&category=group:oracle`}>
+                    <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+                      View Oracle Alerts
+                    </Button>
+                  </Link>
+                  <Link href={`/alerts?asset=${selected.symbol}&category=group:funding`}>
+                    <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+                      View Funding Alerts
+                    </Button>
+                  </Link>
+                  <Link href={`/alerts?asset=${selected.symbol}&category=group:oi`}>
+                    <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+                      View OI Alerts
+                    </Button>
+                  </Link>
+                </div>
               </>
             ) : null}
           </CardContent>
