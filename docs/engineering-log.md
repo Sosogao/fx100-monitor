@@ -355,3 +355,19 @@ Reason:
 
 - source coverage cards show that live OI is unavailable, but operators still need an incident-level explanation in the alert stream
 - this makes the monitor explicit about why OI remains inferred even when other runtime signals are live
+
+
+### Step 16: add alert quick-category filters
+
+- alerts page now has one-click category shortcuts for:
+  - `All`
+  - `Oracle`
+  - `Funding`
+  - `OI`
+- quick filters work as grouped category selectors:
+  - `Funding` includes both divergence and stale incidents
+  - `OI` includes the OI counter diagnosis incidents
+
+Reason:
+
+- once the alert stream contains multiple protocol-health categories, operators need a fast way to isolate one class of incident without opening the select menu each time

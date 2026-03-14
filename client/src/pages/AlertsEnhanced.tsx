@@ -28,11 +28,27 @@ export default function AlertsEnhanced() {
   const [category, setCategory] = useState("all");
 
   const alerts = snapshot?.alerts ?? [];
+  const categoryQuickFilters = [
+    { key: "all", label: "All", match: (_category: string) => true },
+    { key: "oracle", label: "Oracle", match: (item: string) => item.toLowerCase().includes("oracle") },
+    { key: "funding", label: "Funding", match: (item: string) => item.toLowerCase().includes("funding") },
+    { key: "oi", label: "OI", match: (item: string) => item.toLowerCase().includes("oi") },
+  ];
+  const quickFilterCounts = useMemo(
+    () => Object.fromEntries(categoryQuickFilters.map((filter) => [filter.key, alerts.filter((alert) => filter.match(alert.category)).length])),
+    [alerts],
+  );
   const filteredAlerts = useMemo(
     () => alerts.filter((alert) =>
       (level === "all" || alert.level === level)
       && (asset === "all" || alert.assetSymbol === asset)
-      && (category === "all" || alert.category === category),
+      && (
+        category === "all"
+        || category === alert.category
+        || (category === "group:oracle" && alert.category.toLowerCase().includes("oracle"))
+        || (category === "group:funding" && alert.category.toLowerCase().includes("funding"))
+        || (category === "group:oi" && alert.category.toLowerCase().includes("oi"))
+      ),
     ),
     [alerts, level, asset, category],
   );
@@ -114,6 +130,36 @@ export default function AlertsEnhanced() {
           </Select>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap gap-2">
+        {categoryQuickFilters.map((filter) => {
+          const active = filter.key === "all"
+            ? category === "all"
+            : category === `group:${filter.key}`;
+          return (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => setCategory(
+                filter.key === "all"
+                  ? "all"
+                  : filter.key === "oracle"
+                    ? "group:oracle"
+                    : filter.key === "funding"
+                      ? "group:funding"
+                      : "group:oi",
+              )}
+              className={`rounded border px-3 py-2 text-sm transition-all ${
+                active
+                  ? "border-primary/50 bg-primary/20 text-primary"
+                  : "border-primary/20 bg-background/50 text-muted-foreground hover:border-primary/30"
+              }`}
+            >
+              {filter.label} ({quickFilterCounts[filter.key] ?? 0})
+            </button>
+          );
+        })}
+      </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="bg-card/50 border border-primary/20">
