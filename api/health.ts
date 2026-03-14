@@ -1,4 +1,4 @@
-import { getHealthPayload } from "../server/api.ts";
+import { getHealthPayload } from "../server/api";
 
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;

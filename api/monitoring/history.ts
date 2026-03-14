@@ -1,4 +1,4 @@
-import { getHistoryPayload } from "../../server/api.ts";
+import { getHistoryPayload } from "../../server/api";
 
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;

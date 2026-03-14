@@ -1,7 +1,7 @@
-import type { MonitoringSnapshot } from "../shared/monitoring.ts";
-import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history.ts";
-import { buildMonitoringSnapshot } from "./data/snapshot.ts";
-import { basefx100Sepolia0312 } from "./config/fx100.ts";
+import type { MonitoringSnapshot } from "../shared/monitoring";
+import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history";
+import { buildMonitoringSnapshot } from "./data/snapshot";
+import { basefx100Sepolia0312 } from "./config/fx100";
 
 const SNAPSHOT_TTL_MS = 15_000;
 

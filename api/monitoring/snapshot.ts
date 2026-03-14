@@ -1,4 +1,4 @@
-import { getSnapshotPayload } from "../../server/api.ts";
+import { getSnapshotPayload } from "../../server/api";
 
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;

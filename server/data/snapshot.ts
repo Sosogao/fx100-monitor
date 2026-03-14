@@ -19,8 +19,8 @@ import type {
   ParameterSourceSet,
   ParameterValueSet,
   RecoveryRecord,
-} from "../../shared/monitoring.ts";
-import { basefx100Sepolia0312 } from "../config/fx100.ts";
+} from "../../shared/monitoring";
+import { basefx100Sepolia0312 } from "../config/fx100";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
