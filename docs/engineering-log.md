@@ -428,3 +428,17 @@ Reason:
 
 - operators need a concise environment-level explanation of what is wrong with the fork before interpreting any single market metric
 - this reduces the need to manually reconstruct the current state from multiple cards and alert categories
+
+
+### Step 21: add alerts severity and category summaries
+
+- alerts page now includes top-level severity summary cards for:
+  - `L3`
+  - `L2`
+  - `L1`
+  - total active incidents
+- alerts page also includes a live category breakdown card driven by the current incident stream
+
+Reason:
+
+- once the incident model is split across multiple categories and severities, operators need a fast count view before drilling into the filtered list

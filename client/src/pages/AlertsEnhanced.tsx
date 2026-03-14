@@ -38,6 +38,19 @@ export default function AlertsEnhanced() {
     () => Object.fromEntries(categoryQuickFilters.map((filter) => [filter.key, alerts.filter((alert) => filter.match(alert.category)).length])),
     [alerts],
   );
+  const levelSummary = useMemo(() => ({
+    l3: alerts.filter((alert) => alert.level === "l3").length,
+    l2: alerts.filter((alert) => alert.level === "l2").length,
+    l1: alerts.filter((alert) => alert.level === "l1").length,
+    active: alerts.filter((alert) => alert.status !== "resolved").length,
+  }), [alerts]);
+  const categorySummary = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const alert of alerts) counts.set(alert.category, (counts.get(alert.category) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count);
+  }, [alerts]);
   const filteredAlerts = useMemo(
     () => alerts.filter((alert) =>
       (level === "all" || alert.level === level)
@@ -170,6 +183,60 @@ export default function AlertsEnhanced() {
           );
         })}
       </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Critical</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{levelSummary.l3}</div>
+            <p className="mt-1 text-xs text-muted-foreground">L3 incidents</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">High</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-500">{levelSummary.l2}</div>
+            <p className="mt-1 text-xs text-muted-foreground">L2 incidents</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Advisory</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-500">{levelSummary.l1}</div>
+            <p className="mt-1 text-xs text-muted-foreground">L1 incidents</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{levelSummary.active}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Non-resolved incidents</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Category Breakdown</CardTitle>
+          <CardDescription>Live incident counts grouped by category.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {categorySummary.map((item) => (
+            <div key={item.name} className="rounded border border-border bg-background/40 p-3">
+              <div className="text-xs text-muted-foreground">{item.name}</div>
+              <div className="mt-2 text-2xl font-bold text-primary">{item.count}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="bg-card/50 border border-primary/20">
