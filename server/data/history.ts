@@ -43,8 +43,14 @@ export async function appendHistoryPoint(environment: string, point: MonitoringH
   const deduped = points.filter((item) => item.timestamp !== point.timestamp);
   deduped.push(point);
   const trimmed = deduped.slice(-HISTORY_LIMIT);
-  await fs.mkdir(historyDir, { recursive: true });
-  await fs.writeFile(historyPath(environment), JSON.stringify({ environment, points: trimmed }, null, 2));
+
+  try {
+    await fs.mkdir(historyDir, { recursive: true });
+    await fs.writeFile(historyPath(environment), JSON.stringify({ environment, points: trimmed }, null, 2));
+  } catch {
+    // Vercel functions do not provide durable writable storage; return the in-memory series instead.
+  }
+
   return trimmed;
 }
 

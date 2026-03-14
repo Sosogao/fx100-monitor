@@ -472,3 +472,26 @@ Reason:
 
 - the older Base Sepolia fork was running stale contract code and produced inconsistent behavior between protocol testing and monitoring
 - monitor and fork testing now need to share the same fresh deployment so protocol-state debugging is done against one environment
+
+
+### Step 24: add Vercel-compatible deployment path
+
+- added Vercel serverless API routes under `api/` for:
+  - `/api/health`
+  - `/api/monitoring/snapshot`
+  - `/api/monitoring/history`
+- extracted shared API payload builders into `server/api.ts`
+- kept the existing Express server for local long-running mode, but rewired it to use the same shared API logic as the Vercel handlers
+- added `vercel.json` with:
+  - frontend build output `dist/public`
+  - Node 20 serverless runtime for API routes
+  - SPA fallback rewrite for non-API routes
+- split build scripts so Vercel can use `pnpm build:client` while local Node mode still uses `pnpm build`
+- made history storage tolerant of serverless runtime constraints by falling back when local disk writes are unavailable
+- updated `README.md` to document the Vercel deployment model and the limitation around durable history on serverless infrastructure
+
+Reason:
+
+- the monitor now needs a deployment path that matches the target hosting platform instead of assuming a long-running Node server
+- Vercel requires static frontend output plus serverless API handlers; the old Express-only deployment model was not a clean fit
+- local file-backed history is acceptable for local development, but must degrade safely on Vercel where writable disk is not durable

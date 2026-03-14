@@ -76,6 +76,30 @@ Chart series now come from stored monitoring samples once enough real points exi
 
 If there are not yet enough real samples, the UI will temporarily use bootstrap series. Once the server has collected enough points, charts automatically switch to real observed history.
 
+## Vercel deployment
+
+The repo now supports Vercel deployment with serverless API routes under `api/`.
+
+- frontend build output: `dist/public`
+- API routes: `api/health.ts`, `api/monitoring/snapshot.ts`, `api/monitoring/history.ts`
+- Vercel config: `vercel.json`
+
+Use Node 20 on Vercel. The project is configured to build the frontend with:
+
+```bash
+pnpm build:client
+```
+
+### Important runtime constraint
+
+Vercel functions do not provide durable local disk storage. That means:
+
+- `/api/monitoring/snapshot` works normally
+- `/api/monitoring/history` works, but persistent history falls back to request-time data unless an external store is added
+- local long-running history collection remains available when using `pnpm start` with the Node server
+
+If durable historical series are required on Vercel, the next step is to move history storage to an external database or blob store.
+
 ## Development
 
 Use Node 20.

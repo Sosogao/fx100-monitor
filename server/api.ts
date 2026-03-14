@@ -1,0 +1,42 @@
+import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history.ts";
+import { buildMonitoringSnapshot } from "./data/snapshot.ts";
+
+const SNAPSHOT_TTL_MS = 15_000;
+
+let cachedSnapshot: Awaited<ReturnType<typeof buildMonitoringSnapshot>> | null = null;
+let cachedAt = 0;
+
+async function refreshSnapshot(force = false) {
+  const now = Date.now();
+  if (!force && cachedSnapshot && now - cachedAt < SNAPSHOT_TTL_MS) {
+    return cachedSnapshot;
+  }
+
+  const snapshot = await buildMonitoringSnapshot();
+  const history = await appendHistoryPoint(snapshot.environment.name, snapshotToHistoryPoint(snapshot));
+  cachedSnapshot = applyHistoricalSeries(snapshot, history);
+  cachedAt = now;
+  return cachedSnapshot;
+}
+
+export async function getSnapshotPayload(force = false) {
+  return refreshSnapshot(force);
+}
+
+export async function getHistoryPayload() {
+  const snapshot = await refreshSnapshot();
+  const history = await loadHistory(snapshot.environment.name);
+  return {
+    ok: true,
+    environment: snapshot.environment.name,
+    points: history.length > 0 ? history : [snapshotToHistoryPoint(snapshot)],
+  };
+}
+
+export function getHealthPayload() {
+  return {
+    ok: true,
+    service: "fx100-monitor",
+    mode: process.env.VERCEL ? "vercel-read-only" : "read-only",
+  };
+}
