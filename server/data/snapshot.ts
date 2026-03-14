@@ -880,15 +880,20 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const markPrice = configured?.referencePriceUsd ?? oraclePrice;
     const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
     const hasLiveOi = totalOiTokens > 0;
+    const environmentHasValidatedOiPath = basefx100Sepolia0312.globals.verifiedLiveOiPath === true;
     const oiCounterStatus = totalOiTokens === 0
       ? "missing"
       : totalOiTokens <= 3
         ? "dust"
         : "usable";
     const oiCounterReason = totalOiTokens === 0
-      ? "Protocol position counters are zero on this market, so monitor OI falls back to pool/depth inference."
+      ? environmentHasValidatedOiPath
+        ? "Protocol position counters are currently zero on this market. The fresh fork OI path has been validated with isolated traders, so monitor falls back only for this market snapshot."
+        : "Protocol position counters are zero on this market, so monitor OI falls back to pool/depth inference."
       : totalOiTokens <= 3
-        ? `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain dust-sized, so monitor OI still uses pool/depth inference.`
+        ? environmentHasValidatedOiPath
+          ? `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain too small for this snapshot. The environment OI path is validated, so monitor keeps using pool/depth inference until counters become material.`
+          : `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain dust-sized, so monitor OI still uses pool/depth inference.`
         : "Protocol position counters are materially populated and used as the primary OI source.";
     const longSharePct = totalOiTokens > 0
       ? round((marketState.longOiTokens / totalOiTokens) * 100, 1)

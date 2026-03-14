@@ -55,6 +55,7 @@ export interface LiveEnvironmentConfig {
     minSkewImpact: number;
     maxSkewImpact: number;
     mockProviderEnabled: boolean;
+    verifiedLiveOiPath?: boolean;
   };
   markets: LiveMarketConfig[];
 }
@@ -94,6 +95,7 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
     minSkewImpact: 0,
     maxSkewImpact: 0.005,
     mockProviderEnabled: true,
+    verifiedLiveOiPath: true,
   },
   markets: [
     {

@@ -346,7 +346,7 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Source</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.oiSource === "live-position-counters" ? "live position counters" : `pool/depth inferred (${selected.oiCounterStatus})`}</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.oiSource === "live-position-counters" ? "live position counters" : `current snapshot inferred (${selected.oiCounterStatus})`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3 col-span-2">
                     <div className="text-xs text-muted-foreground">OI Counter Diagnosis</div>

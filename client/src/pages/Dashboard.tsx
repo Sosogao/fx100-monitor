@@ -110,8 +110,8 @@ export default function Dashboard() {
     items.push({
       title: "OI Counters",
       detail: missingOiMarkets.length > 0
-        ? `${missingOiMarkets.map((market) => market.symbol).join(", ")} have missing protocol OI counters; OI remains inferred from pool/depth.`
-        : "All monitored markets have usable live OI counters.",
+        ? `${missingOiMarkets.map((market) => market.symbol).join(", ")} currently have missing protocol OI counters; the fresh-fork OI path is validated, so OI remains inferred only for the current snapshot.`
+        : "All monitored markets currently have usable live OI counters.",
       tone: missingOiMarkets.length > 0 ? "critical" : "good",
     });
 

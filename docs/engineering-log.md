@@ -521,3 +521,16 @@ Reason:
 - isolated-trader verification removes those confounders and establishes that the deployed protocol version on the fresh Base fork does update OI correctly
 - monitor-side OI trust decisions for the fresh Base fork should now be based on environment state, not on the older broken probe path
 
+### Step 24: make fresh-fork OI messaging state-driven
+
+- added `verifiedLiveOiPath` to the fresh Base fork environment config
+- updated OI counter reason text so `missing` / `dust` statuses are described as current-market snapshot conditions, not as an environment-wide protocol failure
+- updated Dashboard environment diagnostics to state that the fresh-fork OI path is validated and inference only applies when the current market snapshot does not yet have material counters
+- updated Monitoring selected-market copy from generic `pool/depth inferred` wording to `current snapshot inferred`, so operators do not confuse temporary market state with a broken deployment path
+
+Reason:
+
+- ETH and BTC isolated-trader regressions already proved that the deployed fresh Base fork updates position state and market OI correctly
+- continuing to describe `missing` or `dust` counters as a broad environment problem would be misleading once the fork has validated live OI flows
+- the UI should distinguish between protocol capability and current market occupancy
+
