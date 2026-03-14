@@ -495,3 +495,29 @@ Reason:
 - the monitor now needs a deployment path that matches the target hosting platform instead of assuming a long-running Node server
 - Vercel requires static frontend output plus serverless API handlers; the old Express-only deployment model was not a clean fit
 - local file-backed history is acceptable for local development, but must degrade safely on Vercel where writable disk is not durable
+
+## 2026-03-14
+
+### Step 23: validate live OI on fresh Base fork with isolated traders
+
+- aligned protocol testing and monitor assumptions to the same fresh Base fork environment:
+  - `https://virtual.base.eu.rpc.tenderly.co/49b34c09-5fb0-4814-9440-4231f0018ac5`
+- validated protocol-side live OI using isolated trader flows instead of reusing the deployer account
+- confirmed ETH market path:
+  - isolated open succeeds
+  - funding reset clears stale funding blockers
+  - isolated increase updates both trader position and market OI
+- confirmed BTC market path:
+  - isolated open succeeds when the probe uses the correct market token/oracle environment
+  - funding reset is required before increase to avoid `InsufficientCollateralAmount`
+  - isolated increase updates both trader position and market OI
+- practical validated state on fresh Base fork:
+  - ETH: open + increase causes `sizeInUsd`, `sizeInTokens`, and `OI(long)` to grow together
+  - BTC: open + increase causes `sizeInUsd`, `sizeInTokens`, and `OI(long)` to grow together
+
+Reason:
+
+- previous monitor diagnostics showed `OI missing / inferred` because earlier probe runs mixed stale fork state, wrong order-key selection, wrong token/oracle env vars, and deployer account residue
+- isolated-trader verification removes those confounders and establishes that the deployed protocol version on the fresh Base fork does update OI correctly
+- monitor-side OI trust decisions for the fresh Base fork should now be based on environment state, not on the older broken probe path
+
