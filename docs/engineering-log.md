@@ -667,3 +667,21 @@ Reason:
 
 - reserve and skew controls are core market risk knobs; hiding them while already reading them would keep the page artificially incomplete
 - showing long/short reserve factors explicitly also avoids collapsing asymmetric configuration into a single averaged number without context
+
+### Step 34: add the remaining first-pass market risk keys to the parameters view
+
+- extended the live parameter coverage again so the parameters page now includes additional market risk keys from `FX100Keys`:
+  - `POSITION_IMPACT_FACTOR` (+ / -)
+  - `POSITION_IMPACT_EXPONENT_FACTOR` (+ / -)
+  - `MAX_POSITION_IMPACT_FACTOR` (+ / -)
+  - `LIQUIDATION_FEE_FACTOR`
+  - `MAX_OPEN_INTEREST_FACTOR` (long / short)
+  - `MIN_COLLATERAL_FACTOR_FOR_OPEN_INTEREST_MULTIPLIER` (long / short)
+  - `MIN_COLLATERAL_USD`
+- wired those values into the current parameter matrix with `onchain` source labels when live reads are available
+- kept template defaults only as baseline comparison values rather than silently substituting them for current onchain values
+
+Reason:
+
+- after adding reserve/skew coverage, the biggest remaining gap in the market parameter view was the position-impact and collateral-threshold family of risk controls
+- these are operator-relevant knobs and belong on the same page as price impact, reserve, and funding controls if the goal is to audit live market configuration
