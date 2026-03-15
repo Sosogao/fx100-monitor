@@ -133,6 +133,33 @@ Several monitor fields intentionally expose whether a value is live or derived. 
 
 Operators should read these source labels as data-provenance markers, not as UI decoration.
 
+## Generating demo sample data
+
+For the shared fresh Base fork environment, the monitor can be fed with additional realistic ETH/BTC positions from the contracts repo. This is the fastest way to make the dashboard, monitoring view, and alerts look like an active market instead of a nearly empty fork.
+
+Use the companion repo command:
+
+```bash
+cd ../fx100-contracts_fork
+FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base49b34c09.env \
+  scripts/fork/run_monitor_sample_book.sh
+```
+
+What it does:
+
+- creates 4 isolated traders
+- funds each trader with ETH and mock USDC
+- opens ETH and BTC positions across multiple accounts
+- applies funding reset before selected increases
+- verifies resulting position and OI growth onchain
+
+Latest verified post-run OI on the shared fresh Base fork:
+
+- ETH: `25 long / 1 short`
+- BTC: `9 long / 1 short`
+
+This script is intended for fork demo realism, monitor verification, and regression sampling. It should not be treated as a protocol deployment step.
+
 ## Development
 
 Use Node 20.

@@ -592,3 +592,16 @@ Reason:
 
 - once the monitor started exposing mixed live and derived alert signals, the alerts page still required repo context to interpret source labels correctly
 - operators need the incident semantics directly on the page when triaging problems
+
+### Step 29: document fork sample-book flow for monitor realism
+
+- documented the companion `fx100-contracts_fork` sample-book command in `README.md` so operators and developers can quickly seed the shared fresh Base fork with realistic ETH/BTC activity
+- documented that the sample flow uses 4 isolated traders, funds them, opens/increases positions, and is meant to create representative monitor state rather than perform deployment
+- recorded the latest verified post-run OI after the sample-book execution:
+  - ETH: `25 long / 1 short`
+  - BTC: `9 long / 1 short`
+
+Reason:
+
+- once the monitor moved to live OI and live protocol reads, an almost-empty fork underutilized the UI and alert surfaces
+- a documented sample-book flow makes it easy to rehydrate the shared demo fork into a more realistic state for verification, screenshots, and operator walkthroughs
