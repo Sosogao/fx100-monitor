@@ -17427,6 +17427,16 @@ var basefx100Sepolia0312 = {
     mockProviderEnabled: true,
     verifiedLiveOiPath: true
   },
+  distributionAddressProbes: [
+    { name: "FEE_DISTRIBUTOR_VAULT", label: "Fee Distributor Vault" },
+    { name: "KEEPER_READER", label: "Keeper Reader" },
+    { name: "DEPLOYER", label: "Deployer" },
+    { name: "ORDER_KEEPER", label: "Order Keeper" },
+    { name: "MOCK_ORACLE_PROVIDER", label: "Mock Oracle Provider" },
+    { name: "FEE_DISTRIBUTOR_VAULT", label: "Fee Distributor Vault (Current Chain)", perChain: true },
+    { name: "KEEPER_READER", label: "Keeper Reader (Current Chain)", perChain: true },
+    { name: "ORDER_KEEPER", label: "Order Keeper (Current Chain)", perChain: true }
+  ],
   markets: [
     {
       symbol: "ETH",
@@ -18526,6 +18536,11 @@ async function loadLiveState() {
           source: "onchain",
           detail: `target=${round(Number(formatUnits(keeperCostTargetsRaw[index] ?? 0, 18)), 4)} WNT, v2=${keeperCostV2Raw[index] ? "true" : "false"}`
         }))
+      },
+      {
+        title: "Fee Distributor Address Probes",
+        description: "Configured probes for FEE_DISTRIBUTOR_ADDRESS_INFO and FEE_DISTRIBUTOR_ADDRESS_INFO_FOR_CHAIN. Names remain configurable because the mapping is not enumerable onchain.",
+        rows: []
       }
     ];
     state.distributionOpsCurrent = {

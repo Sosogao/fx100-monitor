@@ -61,6 +61,7 @@ export interface LiveEnvironmentConfig {
     mockProviderEnabled: boolean;
     verifiedLiveOiPath?: boolean;
   };
+  distributionAddressProbes: Array<{ name: string; label: string; perChain?: boolean }>;
   markets: LiveMarketConfig[];
 }
 
@@ -105,6 +106,16 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
     mockProviderEnabled: true,
     verifiedLiveOiPath: true,
   },
+  distributionAddressProbes: [
+    { name: "FEE_DISTRIBUTOR_VAULT", label: "Fee Distributor Vault" },
+    { name: "KEEPER_READER", label: "Keeper Reader" },
+    { name: "DEPLOYER", label: "Deployer" },
+    { name: "ORDER_KEEPER", label: "Order Keeper" },
+    { name: "MOCK_ORACLE_PROVIDER", label: "Mock Oracle Provider" },
+    { name: "FEE_DISTRIBUTOR_VAULT", label: "Fee Distributor Vault (Current Chain)", perChain: true },
+    { name: "KEEPER_READER", label: "Keeper Reader (Current Chain)", perChain: true },
+    { name: "ORDER_KEEPER", label: "Order Keeper (Current Chain)", perChain: true },
+  ],
   markets: [
     {
       symbol: "ETH",

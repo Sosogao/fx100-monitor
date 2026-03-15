@@ -597,6 +597,14 @@ function scopedAddressKey(baseKey: string, value: string): string {
   return hashKey(["bytes32", "address"], [baseKey, getAddress(value)]);
 }
 
+function scopedStringKey(baseKey: string, value: string): string {
+  return hashKey(["bytes32", "bytes32"], [baseKey, keyFromString(value)]);
+}
+
+function scopedChainStringKey(baseKey: string, chainId: bigint | number, value: string): string {
+  return hashKey(["bytes32", "uint256", "bytes32"], [baseKey, BigInt(chainId), keyFromString(value)]);
+}
+
 async function fetchJson<T>(url: string): Promise<T | undefined> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
@@ -1301,6 +1309,11 @@ async function loadLiveState(): Promise<LiveReadState> {
           source: "onchain",
           detail: `target=${round(Number(formatUnits(keeperCostTargetsRaw[index] ?? 0, 18)), 4)} WNT, v2=${keeperCostV2Raw[index] ? "true" : "false"}`,
         })),
+      },
+      {
+        title: "Fee Distributor Address Probes",
+        description: "Configured probes for FEE_DISTRIBUTOR_ADDRESS_INFO and FEE_DISTRIBUTOR_ADDRESS_INFO_FOR_CHAIN. Names remain configurable because the mapping is not enumerable onchain.",
+        rows: [],
       },
     ];
 

@@ -712,3 +712,8 @@ Reason:
 ## Step 37: added Keys2 registry view
 - Added a separate `Distribution Registry` page for enumerable and probe-based Keys2 mappings.
 - Covered fee distributor chain registry, keeper-cost registry, and authorized-originator probes without guessing opaque address-name mappings.
+
+
+## Step 38: added configurable distribution address probes
+- Added configurable probe names for `FEE_DISTRIBUTOR_ADDRESS_INFO` and `FEE_DISTRIBUTOR_ADDRESS_INFO_FOR_CHAIN`.
+- Default probes cover deployment-relevant names only; opaque names remain intentionally opt-in.
