@@ -547,3 +547,19 @@ Reason:
 - the protocol stores `OPEN_INTEREST_IN_TOKENS` as token counts, not token wei units
 - monitor was incorrectly applying `formatUnits(..., indexTokenDecimals)`, which collapsed materially populated counters to near-zero and forced an unnecessary inferred OI fallback
 - with the scaling corrected, the monitor now reflects the actual fresh-fork OI state already validated by isolated ETH/BTC regression flows
+
+### Step 26: stabilize Vercel deployment with a committed server bundle
+
+- switched the deployed Vercel API handlers to load a committed prebuilt bundle at `api/_lib/server-api.js`
+- reverted the Vercel build back to `pnpm build:client` so deployment no longer depends on rebuilding server-side snapshot code during the Vercel build step
+- documented the tradeoff in `README.md`: this is the most reliable current path for Vercel, even though it is less elegant than a dedicated server-runtime build pipeline
+- documented source-label interpretation for the main fallback-sensitive fields:
+  - `externalPriceSource`
+  - `externalFundingSource`
+  - `oiSource`
+
+Reason:
+
+- the Vercel deployment path repeatedly failed on server-side module resolution, runtime imports, and compiled bundle dependencies
+- a committed server bundle removes that instability and gives a repeatable deployment path for the monitor today
+- source labels such as `config-reference` and `runtime-benchmark` need explicit operator-facing explanation so fallback values are not mistaken for live venue data

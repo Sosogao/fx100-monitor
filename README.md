@@ -83,12 +83,29 @@ The repo now supports Vercel deployment with serverless API routes under `api/`.
 - frontend build output: `dist/public`
 - API routes: `api/health.ts`, `api/monitoring/snapshot.ts`, `api/monitoring/history.ts`
 - Vercel config: `vercel.json`
+- committed server-side bundle used by the API routes: `api/_lib/server-api.js`
 
-Use Node 20 on Vercel. The project is configured to build the frontend with:
+Use Node 20 on Vercel. The deployed frontend only needs to build the client:
 
 ```bash
 pnpm build:client
 ```
+
+### Why the Vercel API uses a committed bundle
+
+The monitor's server-side snapshot logic depends on a non-trivial runtime graph (`ethers`, live RPC readers, history helpers, and mixed fallback logic). In this repo, the most reliable Vercel path is:
+
+- build the frontend on Vercel
+- commit a prebuilt server bundle at `api/_lib/server-api.js`
+- have the serverless API handlers load that bundle directly
+
+This is intentionally pragmatic. It avoids repeated Vercel failures around:
+
+- resolving `server/api` from API handlers
+- packaging server-only TypeScript modules into the function bundle
+- runtime dependency mismatches around `ethers` and esbuild-generated artifacts
+
+If we later want a cleaner deployment model, the next refactor is to replace the committed bundle with a dedicated Vercel-safe build pipeline for the API runtime.
 
 ### Important runtime constraint
 
@@ -99,6 +116,22 @@ Vercel functions do not provide durable local disk storage. That means:
 - local long-running history collection remains available when using `pnpm start` with the Node server
 
 If durable historical series are required on Vercel, the next step is to move history storage to an external database or blob store.
+
+## Source interpretation
+
+Several monitor fields intentionally expose whether a value is live or derived. The important ones are:
+
+- `externalPriceSource`
+  - `live-aggregate`, `live-index`, `live-spot`, `live-mark` mean the monitor obtained a live venue reference
+  - `config-reference` means the venue read path was not available and the monitor fell back to the environment reference price
+- `externalFundingSource`
+  - `live-venue` means venue funding was fetched successfully
+  - `runtime-benchmark` means the monitor derived the comparison value from protocol/runtime state instead of a live venue feed
+- `oiSource`
+  - `live-position-counters` means `OPEN_INTEREST_IN_TOKENS` is being used directly
+  - `pool-depth-inferred` means the market snapshot did not have sufficient direct OI counters, so the monitor inferred OI from pool/depth state
+
+Operators should read these source labels as data-provenance markers, not as UI decoration.
 
 ## Development
 
