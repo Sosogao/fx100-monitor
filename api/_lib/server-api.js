@@ -17409,6 +17409,10 @@ var basefx100Sepolia0312 = {
     LP_VAULT_USDC: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
     MOCK_ORACLE_PROVIDER: "0x08B98cD8b1aeaA5763520399f6C7852f28C0d1Fc"
   },
+  operators: {
+    deployer: "0xb5eb16b6dF444c07309fd5f5635BA21Ef30F8cA2",
+    orderKeeper: "0x0df15a5110ef7aA966F3bB9bA10d61d8ff337048"
+  },
   tokens: {
     WETH: "0x4200000000000000000000000000000000000006",
     WBTC: "0xA852Af33A6Dd6dF18714A3Cdad6c8928560Dfa31",
@@ -17475,6 +17479,9 @@ var DATA_STORE_ABI = [
   "function getBytes32(bytes32 key) view returns (bytes32)",
   "function getAddress(bytes32 key) view returns (address)",
   "function getBool(bytes32 key) view returns (bool)",
+  "function getAddressArray(bytes32 key) view returns (address[])",
+  "function getUintArray(bytes32 key) view returns (uint256[])",
+  "function getBoolArray(bytes32 key) view returns (bool[])",
   "function getUintCount(bytes32 setKey) view returns (uint256)",
   "function getUintValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (uint256[])"
 ];
@@ -17552,6 +17559,7 @@ var DATA_KEYS = {
   MULTICHAIN_READ_CHANNEL: keyFromString("MULTICHAIN_READ_CHANNEL"),
   MULTICHAIN_PEERS: keyFromString("MULTICHAIN_PEERS"),
   MULTICHAIN_CONFIRMATIONS: keyFromString("MULTICHAIN_CONFIRMATIONS"),
+  MULTICHAIN_AUTHORIZED_ORIGINATORS: keyFromString("MULTICHAIN_AUTHORIZED_ORIGINATORS"),
   FEE_DISTRIBUTOR_DISTRIBUTION_DAY: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_DAY"),
   FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP"),
   FEE_DISTRIBUTOR_STATE: keyFromString("FEE_DISTRIBUTOR_STATE"),
@@ -17576,7 +17584,8 @@ var DATA_KEYS = {
   FEE_DISTRIBUTOR_REFERRAL_REWARDS_DEPOSITED: keyFromString("FEE_DISTRIBUTOR_REFERRAL_REWARDS_DEPOSITED"),
   FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY: keyFromString("FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY"),
   FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR"),
-  FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR")
+  FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR"),
+  FEE_DISTRIBUTOR_KEEPER_COSTS: keyFromString("FEE_DISTRIBUTOR_KEEPER_COSTS")
 };
 var MARKET_PROP_KEYS = {
   VAULT: keyFromString("VAULT"),
@@ -18155,6 +18164,15 @@ async function readAddress(provider, key) {
 async function readBool(provider, key) {
   return dataStoreCall(provider, "getBool", [key]);
 }
+async function readAddressArray(provider, key) {
+  return dataStoreCall(provider, "getAddressArray", [key]);
+}
+async function readUintArray(provider, key) {
+  return dataStoreCall(provider, "getUintArray", [key]);
+}
+async function readBoolArray(provider, key) {
+  return dataStoreCall(provider, "getBoolArray", [key]);
+}
 async function loadLiveState() {
   const state = {
     onchainMarkets: [],
@@ -18472,6 +18490,44 @@ async function loadLiveState() {
     ]);
     const multichainPeerForReadChannelRaw = await readBytes32(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_PEERS, multichainReadChannelRaw));
     const multichainConfirmationsForReadChannelRaw = await readUint(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_CONFIRMATIONS, multichainReadChannelRaw));
+    const [feeDistributorChainIdsRaw, keeperCostAddresses, keeperCostTargetsRaw, keeperCostV2Raw, deployerAuthorizedRaw, orderKeeperAuthorizedRaw] = await Promise.all([
+      readUintArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_CHAIN_ID),
+      readAddressArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readUintArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readBoolArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readBool(provider, scopedAddressKey(DATA_KEYS.MULTICHAIN_AUTHORIZED_ORIGINATORS, basefx100Sepolia0312.operators.deployer)),
+      readBool(provider, scopedAddressKey(DATA_KEYS.MULTICHAIN_AUTHORIZED_ORIGINATORS, basefx100Sepolia0312.operators.orderKeeper))
+    ]);
+    state.distributionRegistry = [
+      {
+        title: "Authorized Originator Probes",
+        description: "Probe-only view for configured operator addresses. The MULTICHAIN_AUTHORIZED_ORIGINATORS mapping is not enumerable onchain.",
+        rows: [
+          { label: "Deployer authorized", value: deployerAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.deployer },
+          { label: "Order keeper authorized", value: orderKeeperAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.orderKeeper }
+        ]
+      },
+      {
+        title: "Fee Distributor Chain Registry",
+        description: "Enumerable chain IDs stored under FEE_DISTRIBUTOR_CHAIN_ID.",
+        rows: feeDistributorChainIdsRaw.map((chainIdValue, index) => ({
+          label: `Registered chain ${index + 1}`,
+          value: Number(chainIdValue),
+          source: "onchain",
+          detail: `Fee distributor chainId index ${index}`
+        }))
+      },
+      {
+        title: "Fee Distributor Keeper Registry",
+        description: "Parallel arrays from FEE_DISTRIBUTOR_KEEPER_COSTS showing keeper addresses, target balances, and v2 flags.",
+        rows: keeperCostAddresses.map((keeper, index) => ({
+          label: `Keeper ${index + 1}`,
+          value: keeper,
+          source: "onchain",
+          detail: `target=${round(Number(formatUnits(keeperCostTargetsRaw[index] ?? 0, 18)), 4)} WNT, v2=${keeperCostV2Raw[index] ? "true" : "false"}`
+        }))
+      }
+    ];
     state.distributionOpsCurrent = {
       multichainReadChannel: Number(multichainReadChannelRaw),
       multichainPeerForReadChannel: multichainPeerForReadChannelRaw,
@@ -19196,7 +19252,8 @@ async function buildMonitoringSnapshot() {
     protocolOpsDefinitions,
     protocolOps,
     distributionOpsDefinitions,
-    distributionOps
+    distributionOps,
+    distributionRegistry: liveState.distributionRegistry ?? []
   };
 }
 
@@ -19244,7 +19301,8 @@ function buildDegradedSnapshot(error) {
     protocolOpsDefinitions: [],
     protocolOps: { current: {}, currentSources: {} },
     distributionOpsDefinitions: [],
-    distributionOps: { current: {}, currentSources: {} }
+    distributionOps: { current: {}, currentSources: {} },
+    distributionRegistry: []
   };
 }
 async function refreshSnapshot(force = false) {

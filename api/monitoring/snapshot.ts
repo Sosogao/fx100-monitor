@@ -47,6 +47,7 @@ function degradedSnapshot(error: unknown) {
     protocolOps: { current: {}, currentSources: {} },
     distributionOpsDefinitions: [],
     distributionOps: { current: {}, currentSources: {} },
+    distributionRegistry: [],
   };
 }
 

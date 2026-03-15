@@ -50,6 +50,7 @@ function buildDegradedSnapshot(error: unknown): MonitoringSnapshot {
     protocolOps: { current: {}, currentSources: {} },
     distributionOpsDefinitions: [],
     distributionOps: { current: {}, currentSources: {} },
+    distributionRegistry: [],
   };
 }
 

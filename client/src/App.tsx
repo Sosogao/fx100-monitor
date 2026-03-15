@@ -12,6 +12,7 @@ import AlertsEnhanced from "./pages/AlertsEnhanced";
 import ParametersEnhanced from "./pages/ParametersEnhanced";
 import ProtocolOps from "./pages/ProtocolOps";
 import DistributionOps from "./pages/DistributionOps";
+import DistributionRegistry from "./pages/DistributionRegistry";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
         <Route path="/parameters" component={ParametersEnhanced} />
         <Route path="/protocol-ops" component={ProtocolOps} />
         <Route path="/distribution-ops" component={DistributionOps} />
+        <Route path="/distribution-registry" component={DistributionRegistry} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

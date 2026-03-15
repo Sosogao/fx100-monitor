@@ -8,6 +8,7 @@ import type {
   DashboardNote,
   DashboardOverview,
   DashboardStat,
+  DistributionRegistrySection,
   EnvironmentInfo,
   MarketSeries,
   MarketSnapshot,
@@ -38,6 +39,9 @@ const DATA_STORE_ABI = [
   "function getBytes32(bytes32 key) view returns (bytes32)",
   "function getAddress(bytes32 key) view returns (address)",
   "function getBool(bytes32 key) view returns (bool)",
+  "function getAddressArray(bytes32 key) view returns (address[])",
+  "function getUintArray(bytes32 key) view returns (uint256[])",
+  "function getBoolArray(bytes32 key) view returns (bool[])",
   "function getUintCount(bytes32 setKey) view returns (uint256)",
   "function getUintValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (uint256[])",
 ];
@@ -119,6 +123,7 @@ const DATA_KEYS = {
   MULTICHAIN_READ_CHANNEL: keyFromString("MULTICHAIN_READ_CHANNEL"),
   MULTICHAIN_PEERS: keyFromString("MULTICHAIN_PEERS"),
   MULTICHAIN_CONFIRMATIONS: keyFromString("MULTICHAIN_CONFIRMATIONS"),
+  MULTICHAIN_AUTHORIZED_ORIGINATORS: keyFromString("MULTICHAIN_AUTHORIZED_ORIGINATORS"),
   FEE_DISTRIBUTOR_DISTRIBUTION_DAY: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_DAY"),
   FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP"),
   FEE_DISTRIBUTOR_STATE: keyFromString("FEE_DISTRIBUTOR_STATE"),
@@ -144,6 +149,7 @@ const DATA_KEYS = {
   FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY: keyFromString("FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY"),
   FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR"),
   FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR"),
+  FEE_DISTRIBUTOR_KEEPER_COSTS: keyFromString("FEE_DISTRIBUTOR_KEEPER_COSTS"),
 };
 
 const MARKET_PROP_KEYS = {
@@ -237,6 +243,7 @@ interface LiveReadState {
   maxSkewImpact?: number;
   protocolOpsCurrent?: ParameterValueSet;
   distributionOpsCurrent?: ParameterValueSet;
+  distributionRegistry?: DistributionRegistrySection[];
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
   externalVenueMarkets: Record<string, ExternalVenueMarketState>;
@@ -918,6 +925,18 @@ async function readBool(provider: JsonRpcProvider, key: string): Promise<boolean
   return dataStoreCall<boolean>(provider, "getBool", [key]);
 }
 
+async function readAddressArray(provider: JsonRpcProvider, key: string): Promise<string[]> {
+  return dataStoreCall<string[]>(provider, "getAddressArray", [key]);
+}
+
+async function readUintArray(provider: JsonRpcProvider, key: string): Promise<bigint[]> {
+  return dataStoreCall<bigint[]>(provider, "getUintArray", [key]);
+}
+
+async function readBoolArray(provider: JsonRpcProvider, key: string): Promise<boolean[]> {
+  return dataStoreCall<boolean[]>(provider, "getBoolArray", [key]);
+}
+
 async function loadLiveState(): Promise<LiveReadState> {
   const state: LiveReadState = {
     onchainMarkets: [],
@@ -1245,6 +1264,45 @@ async function loadLiveState(): Promise<LiveReadState> {
 
     const multichainPeerForReadChannelRaw = await readBytes32(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_PEERS, multichainReadChannelRaw));
     const multichainConfirmationsForReadChannelRaw = await readUint(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_CONFIRMATIONS, multichainReadChannelRaw));
+    const [feeDistributorChainIdsRaw, keeperCostAddresses, keeperCostTargetsRaw, keeperCostV2Raw, deployerAuthorizedRaw, orderKeeperAuthorizedRaw] = await Promise.all([
+      readUintArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_CHAIN_ID),
+      readAddressArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readUintArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readBoolArray(provider, DATA_KEYS.FEE_DISTRIBUTOR_KEEPER_COSTS),
+      readBool(provider, scopedAddressKey(DATA_KEYS.MULTICHAIN_AUTHORIZED_ORIGINATORS, basefx100Sepolia0312.operators.deployer)),
+      readBool(provider, scopedAddressKey(DATA_KEYS.MULTICHAIN_AUTHORIZED_ORIGINATORS, basefx100Sepolia0312.operators.orderKeeper)),
+    ]);
+
+    state.distributionRegistry = [
+      {
+        title: "Authorized Originator Probes",
+        description: "Probe-only view for configured operator addresses. The MULTICHAIN_AUTHORIZED_ORIGINATORS mapping is not enumerable onchain.",
+        rows: [
+          { label: "Deployer authorized", value: deployerAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.deployer },
+          { label: "Order keeper authorized", value: orderKeeperAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.orderKeeper },
+        ],
+      },
+      {
+        title: "Fee Distributor Chain Registry",
+        description: "Enumerable chain IDs stored under FEE_DISTRIBUTOR_CHAIN_ID.",
+        rows: feeDistributorChainIdsRaw.map((chainIdValue, index) => ({
+          label: `Registered chain ${index + 1}`,
+          value: Number(chainIdValue),
+          source: "onchain",
+          detail: `Fee distributor chainId index ${index}`,
+        })),
+      },
+      {
+        title: "Fee Distributor Keeper Registry",
+        description: "Parallel arrays from FEE_DISTRIBUTOR_KEEPER_COSTS showing keeper addresses, target balances, and v2 flags.",
+        rows: keeperCostAddresses.map((keeper, index) => ({
+          label: `Keeper ${index + 1}`,
+          value: keeper,
+          source: "onchain",
+          detail: `target=${round(Number(formatUnits(keeperCostTargetsRaw[index] ?? 0, 18)), 4)} WNT, v2=${keeperCostV2Raw[index] ? "true" : "false"}`,
+        })),
+      },
+    ];
 
     state.distributionOpsCurrent = {
       multichainReadChannel: Number(multichainReadChannelRaw),
@@ -2075,5 +2133,6 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
     protocolOps,
     distributionOpsDefinitions,
     distributionOps,
+    distributionRegistry: liveState.distributionRegistry ?? [],
   };
 }

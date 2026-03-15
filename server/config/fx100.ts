@@ -43,6 +43,10 @@ export interface LiveEnvironmentConfig {
     LP_VAULT_USDC: string;
     MOCK_ORACLE_PROVIDER: string;
   };
+  operators: {
+    deployer: string;
+    orderKeeper: string;
+  };
   tokens: {
     WETH: string;
     WBTC: string;
@@ -82,6 +86,10 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
     MARKET_FACTORY: "0xC3e142E47cFDecC442D1D526ECC000A60F1c4721",
     LP_VAULT_USDC: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
     MOCK_ORACLE_PROVIDER: "0x08B98cD8b1aeaA5763520399f6C7852f28C0d1Fc",
+  },
+  operators: {
+    deployer: "0xb5eb16b6dF444c07309fd5f5635BA21Ef30F8cA2",
+    orderKeeper: "0x0df15a5110ef7aA966F3bB9bA10d61d8ff337048",
   },
   tokens: {
     WETH: "0x4200000000000000000000000000000000000006",

@@ -707,3 +707,8 @@ Reason:
 ## Step 36: added Keys2-backed Distribution Ops page
 - Split MultichainReader and FeeDistributor keys out of market and protocol pages into a dedicated `Distribution Ops` view.
 - Added live snapshot support for core scalar and environment-scoped Keys2 values so operators can inspect fee-distribution and multichain controls without mixing them into market risk parameters.
+
+
+## Step 37: added Keys2 registry view
+- Added a separate `Distribution Registry` page for enumerable and probe-based Keys2 mappings.
+- Covered fee distributor chain registry, keeper-cost registry, and authorized-originator probes without guessing opaque address-name mappings.

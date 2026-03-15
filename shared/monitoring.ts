@@ -220,6 +220,19 @@ export interface DistributionOpsSnapshot {
   currentSources: ParameterSourceSet;
 }
 
+export interface DistributionRegistryRow {
+  label: string;
+  value: string | number | boolean;
+  source: ParameterValueSource;
+  detail?: string;
+}
+
+export interface DistributionRegistrySection {
+  title: string;
+  description: string;
+  rows: DistributionRegistryRow[];
+}
+
 export interface MonitoringHistoryPoint {
   timestamp: string;
   totalOpenInterestUsd: number;
@@ -246,4 +259,5 @@ export interface MonitoringSnapshot {
   protocolOps: ProtocolOpsSnapshot;
   distributionOpsDefinitions: DistributionOpsFieldDefinition[];
   distributionOps: DistributionOpsSnapshot;
+  distributionRegistry: DistributionRegistrySection[];
 }

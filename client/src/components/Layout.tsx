@@ -14,6 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: "Risk Parameters", path: "/parameters", icon: Settings },
     { name: "Protocol Ops", path: "/protocol-ops", icon: SlidersHorizontal },
     { name: "Distribution Ops", path: "/distribution-ops", icon: Network },
+    { name: "Distribution Registry", path: "/distribution-registry", icon: Network },
   ];
 
   const criticalCount = snapshot?.alerts.filter((alert) => alert.level === "l3").length ?? 0;
