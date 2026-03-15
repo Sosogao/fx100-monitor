@@ -20,6 +20,24 @@ function analyticsBadge(source: string) {
     : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
 }
 
+function explainSignalSource(source: string) {
+  const lower = source.toLowerCase();
+  if (lower.includes("binance")) return "The alert uses a live Binance venue reference for comparison or divergence checks.";
+  if (lower.includes("runtime benchmark")) return "The alert compares protocol state against a runtime-derived benchmark because no direct venue series was used for this signal.";
+  if (lower.includes("protocol oi diagnostics")) return "The alert is driven by direct protocol diagnostics around OI counter availability and quality.";
+  if (lower.includes("protocol funding state")) return "The alert is driven directly by protocol funding state and freshness data from DataStore.";
+  return "This alert source comes from the current monitoring snapshot and should be read together with the source labels shown on dashboard and market views.";
+}
+
+function explainCategory(category: string) {
+  const lower = category.toLowerCase();
+  if (lower.includes("oracle")) return "Oracle divergence alerts flag gaps between protocol price and external venue reference price.";
+  if (lower.includes("funding stale")) return "Funding stale alerts mean protocol funding state has not been refreshed recently enough for operators to trust it as current.";
+  if (lower.includes("funding")) return "Funding divergence alerts compare protocol funding posture against a live or runtime-derived benchmark.";
+  if (lower.includes("oi")) return "OI alerts explain whether direct protocol position counters are usable or whether the monitor had to infer OI.";
+  return "This category is part of the shared monitoring incident model.";
+}
+
 export default function AlertsEnhanced() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const [tab, setTab] = useState("active");
@@ -225,6 +243,33 @@ export default function AlertsEnhanced() {
 
       <Card className="bg-card/50 border-primary/20 tech-border">
         <CardHeader>
+          <CardTitle className="text-primary">Alert Source Guide</CardTitle>
+          <CardDescription>Interpret category and signal-source labels directly from the incident page.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-sm font-medium text-foreground">Category meaning</div>
+            <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+              <div><span className="text-foreground">Oracle divergence</span>: protocol price vs external venue reference gap.</div>
+              <div><span className="text-foreground">Funding divergence</span>: protocol funding posture vs live or runtime benchmark.</div>
+              <div><span className="text-foreground">Funding stale</span>: funding state age is too old for comfort.</div>
+              <div><span className="text-foreground">OI counter missing/dust</span>: direct position counters are not sufficiently usable.</div>
+            </div>
+          </div>
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-sm font-medium text-foreground">Signal source meaning</div>
+            <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+              <div><span className="text-foreground">Binance Futures</span>: live venue comparison source.</div>
+              <div><span className="text-foreground">runtime benchmark</span>: derived from protocol/runtime state.</div>
+              <div><span className="text-foreground">protocol funding state</span>: direct DataStore funding state.</div>
+              <div><span className="text-foreground">protocol OI diagnostics</span>: direct protocol counter availability checks.</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
           <CardTitle className="text-primary">Category Breakdown</CardTitle>
           <CardDescription>Live incident counts grouped by category.</CardDescription>
         </CardHeader>
@@ -268,7 +313,7 @@ export default function AlertsEnhanced() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p className="text-muted-foreground">{alert.description}</p>
-                <div className="text-xs text-muted-foreground">Signal source: {alert.signalSource}</div>
+                <div className="space-y-1 text-xs text-muted-foreground"><div>Signal source: {alert.signalSource}</div><div>{explainSignalSource(alert.signalSource)}</div><div>{explainCategory(alert.category)}</div></div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Metric</div>

@@ -579,3 +579,16 @@ Reason:
 
 - the monitor now exposes mixed provenance intentionally, but source labels were still too implicit for operators using only the deployed UI
 - critical labels must be understandable from the page itself, not only from README or engineering notes
+
+### Step 28: add alert source and category explanations
+
+- added an `Alert Source Guide` card to the alerts page so operators can interpret category and signal-source labels in place
+- added per-alert explanatory copy for:
+  - `signalSource`
+  - `category`
+- this removes the need to cross-reference README for common incident labels like `Funding divergence`, `Funding stale`, `Oracle divergence`, and OI diagnostics
+
+Reason:
+
+- once the monitor started exposing mixed live and derived alert signals, the alerts page still required repo context to interpret source labels correctly
+- operators need the incident semantics directly on the page when triaging problems
