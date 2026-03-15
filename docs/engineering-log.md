@@ -616,3 +616,17 @@ Reason:
 
 - once the monitor moved to live RPC reads and mixed provenance, the main failure mode became operational confusion rather than missing UI
 - operators need one short document that answers: is the API live, is OI direct or inferred, are venue labels live or fallback, and how do I quickly rehydrate the shared fork
+
+### Step 31: add monitor docs index
+
+- added a short docs index near the top of `README.md`
+- explicitly linked the main operator-facing documents:
+  - `README.md`
+  - `docs/operator-troubleshooting.md`
+  - `docs/engineering-log.md`
+- linked the companion contracts-repo sample-book command so the shared fork rehydration path is visible from the monitor repo entry point
+
+Reason:
+
+- the monitor docs set is now useful but spread across multiple files
+- a small docs index reduces search time for the next developer or operator and makes the sample-book workflow discoverable from the repo root

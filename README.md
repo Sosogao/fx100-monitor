@@ -12,6 +12,25 @@ The system is intentionally read-only. It is designed to answer three questions 
 
 This keeps the UI usable while the live reader layer is still being expanded.
 
+## Docs index
+
+Start here depending on what you need:
+
+- `README.md`
+  - deployment shape, data sources, Vercel runtime notes
+- `docs/operator-troubleshooting.md`
+  - live API triage, OI/source-label interpretation, demo fork rehydration
+- `docs/engineering-log.md`
+  - chronological implementation record and rationale
+
+If you are validating the shared fresh Base fork, use the companion contracts repo flow:
+
+```bash
+cd ../fx100-contracts_fork
+FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base49b34c09.env \
+  scripts/fork/run_monitor_sample_book.sh
+```
+
 ## API
 
 - `GET /api/health`
