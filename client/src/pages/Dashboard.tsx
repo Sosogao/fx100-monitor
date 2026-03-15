@@ -32,6 +32,30 @@ function confidenceBadge(tone: "good" | "warning" | "critical") {
   return "bg-primary/20 text-primary border-primary/30";
 }
 
+function sourceLegendTone(kind: "live" | "derived" | "fallback") {
+  if (kind === "fallback") return "bg-yellow-500/20 text-yellow-500 border-yellow-500/40";
+  if (kind === "derived") return "bg-orange-500/20 text-orange-500 border-orange-500/40";
+  return "bg-primary/20 text-primary border-primary/30";
+}
+
+const sourceLegend = [
+  {
+    label: "live-position-counters / live-venue / live-aggregate",
+    kind: "live" as const,
+    detail: "Direct protocol counters or external venue reads are available and used as-is.",
+  },
+  {
+    label: "runtime-derived / runtime-benchmark",
+    kind: "derived" as const,
+    detail: "Computed from live protocol state when a direct venue/reference series is not available.",
+  },
+  {
+    label: "config-reference / seeded-fallback / pool-depth-inferred",
+    kind: "fallback" as const,
+    detail: "A configured or inferred substitute is being used. Treat this as lower-confidence operator context.",
+  },
+];
+
 export default function Dashboard() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const priority = useMemo(() => snapshot?.dashboard.priorityMarkets ?? [], [snapshot]);
@@ -181,6 +205,22 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Source Legend</CardTitle>
+          <CardDescription>Interpret live, derived, and fallback labels consistently across dashboard, monitoring, and alerts.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {sourceLegend.map((item) => (
+            <div key={item.label} className="rounded border border-border bg-background/40 p-3">
+              <Badge variant="outline" className={sourceLegendTone(item.kind)}>{item.kind}</Badge>
+              <div className="mt-2 text-sm font-medium text-foreground">{item.label}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{item.detail}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="bg-card/50 border-primary/20 tech-border">

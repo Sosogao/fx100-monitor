@@ -29,6 +29,23 @@ function diagnosticsBadge(tone: "good" | "warning" | "critical" | "neutral") {
   return "bg-muted/20 text-muted-foreground border-border";
 }
 
+function explainSource(label: string, detail?: string) {
+  const map: Record<string, string> = {
+    "live-position-counters": "Protocol OPEN_INTEREST_IN_TOKENS counters are populated and used directly.",
+    "pool-depth-inferred": "Direct OI counters were not sufficient for this snapshot, so OI is inferred from pool/depth state.",
+    "live-funding-state": "Funding values come from live protocol funding state in DataStore.",
+    "runtime-benchmark": "Funding comparison value is derived from live runtime conditions rather than a direct venue funding feed.",
+    "live-aggregate": "External reference price uses an aggregate of available live venue signals.",
+    "live-index": "External reference price comes from a live venue index price.",
+    "live-spot": "External reference price comes from a live venue spot market read.",
+    "live-mark": "External reference price comes from a live venue perp mark price.",
+    "config-reference": "External reference fell back to the configured environment reference price.",
+    "runtime-derived": "Risk metrics are computed from live protocol/runtime state.",
+    "seeded-fallback": "Risk metrics are using seeded fallback values because live state is incomplete.",
+  };
+  return map[label] ?? detail ?? "No additional explanation available.";
+}
+
 function buildDiagnostics(selected: {
   analyticsSource: string;
   var99_9Pct: number;

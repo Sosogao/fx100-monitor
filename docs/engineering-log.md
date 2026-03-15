@@ -563,3 +563,19 @@ Reason:
 - the Vercel deployment path repeatedly failed on server-side module resolution, runtime imports, and compiled bundle dependencies
 - a committed server bundle removes that instability and gives a repeatable deployment path for the monitor today
 - source labels such as `config-reference` and `runtime-benchmark` need explicit operator-facing explanation so fallback values are not mistaken for live venue data
+
+### Step 27: add operator-visible source legend and explanations
+
+- added a dashboard-level source legend so operators can distinguish live, derived, and fallback labels without reading repo docs
+- added selected-market source explanation cards in `MonitoringEnhanced.tsx` for:
+  - risk source
+  - OI source
+  - funding source
+  - venue price source
+  - venue funding source
+- this makes labels such as `config-reference`, `runtime-benchmark`, and `live-position-counters` self-explanatory in the UI
+
+Reason:
+
+- the monitor now exposes mixed provenance intentionally, but source labels were still too implicit for operators using only the deployed UI
+- critical labels must be understandable from the page itself, not only from README or engineering notes
