@@ -46,6 +46,8 @@ function buildDegradedSnapshot(error: unknown): MonitoringSnapshot {
     recovery: [],
     parameterDefinitions: [],
     parameters: [],
+    protocolOpsDefinitions: [],
+    protocolOps: { current: {}, currentSources: {} },
   };
 }
 

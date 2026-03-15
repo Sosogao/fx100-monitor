@@ -14,6 +14,8 @@ import type {
   MetricPoint,
   MonitoringSnapshot,
   ParameterFieldDefinition,
+  ProtocolOpsFieldDefinition,
+  ProtocolOpsSnapshot,
   ParameterSnapshot,
   ParameterSourceSet,
   ParameterValueSet,
@@ -33,6 +35,7 @@ const DATA_STORE_ABI = [
   "function getInt(bytes32 key) view returns (int256)",
   "function getBytes32(bytes32 key) view returns (bytes32)",
   "function getAddress(bytes32 key) view returns (address)",
+  "function getBool(bytes32 key) view returns (bool)",
   "function getUintCount(bytes32 setKey) view returns (uint256)",
   "function getUintValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (uint256[])",
 ];
@@ -74,6 +77,12 @@ const DATA_KEYS = {
   MAX_FUNDING_FACTOR_PER_SECOND: keyFromString("MAX_FUNDING_FACTOR_PER_SECOND"),
   FUNDING_UPDATED_AT: keyFromString("FUNDING_UPDATED_AT"),
   MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR: keyFromString("MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR"),
+  MIN_ORACLE_SIGNERS: keyFromString("MIN_ORACLE_SIGNERS"),
+  MIN_ORACLE_BLOCK_CONFIRMATIONS: keyFromString("MIN_ORACLE_BLOCK_CONFIRMATIONS"),
+  MAX_ORACLE_PRICE_AGE: keyFromString("MAX_ORACLE_PRICE_AGE"),
+  MAX_ATOMIC_ORACLE_PRICE_AGE: keyFromString("MAX_ATOMIC_ORACLE_PRICE_AGE"),
+  MAX_ORACLE_TIMESTAMP_RANGE: keyFromString("MAX_ORACLE_TIMESTAMP_RANGE"),
+  SEQUENCER_GRACE_DURATION: keyFromString("SEQUENCER_GRACE_DURATION"),
   SKEW_IMPACT_FACTOR: keyFromString("SKEW_IMPACT_FACTOR"),
   MIN_SKEW_IMPACT: keyFromString("MIN_SKEW_IMPACT"),
   MAX_SKEW_IMPACT: keyFromString("MAX_SKEW_IMPACT"),
@@ -85,6 +94,26 @@ const DATA_KEYS = {
   MAX_POSITION_SIZE_USD: keyFromString("MAX_POSITION_SIZE_USD"),
   LIQUIDATION_GRACE_PERIOD_BASE: keyFromString("LIQUIDATION_GRACE_PERIOD_BASE"),
   LIQUIDATION_FEE_FACTOR: keyFromString("LIQUIDATION_FEE_FACTOR"),
+  CREATE_ORDER_FEATURE_DISABLED: keyFromString("CREATE_ORDER_FEATURE_DISABLED"),
+  EXECUTE_ORDER_FEATURE_DISABLED: keyFromString("EXECUTE_ORDER_FEATURE_DISABLED"),
+  UPDATE_ORDER_FEATURE_DISABLED: keyFromString("UPDATE_ORDER_FEATURE_DISABLED"),
+  CANCEL_ORDER_FEATURE_DISABLED: keyFromString("CANCEL_ORDER_FEATURE_DISABLED"),
+  CREATE_DEPOSIT_FEATURE_DISABLED: keyFromString("CREATE_DEPOSIT_FEATURE_DISABLED"),
+  EXECUTE_DEPOSIT_FEATURE_DISABLED: keyFromString("EXECUTE_DEPOSIT_FEATURE_DISABLED"),
+  CREATE_WITHDRAWAL_FEATURE_DISABLED: keyFromString("CREATE_WITHDRAWAL_FEATURE_DISABLED"),
+  EXECUTE_WITHDRAWAL_FEATURE_DISABLED: keyFromString("EXECUTE_WITHDRAWAL_FEATURE_DISABLED"),
+  SUBACCOUNT_FEATURE_DISABLED: keyFromString("SUBACCOUNT_FEATURE_DISABLED"),
+  GASLESS_FEATURE_DISABLED: keyFromString("GASLESS_FEATURE_DISABLED"),
+  CREATE_DEPOSIT_GAS_LIMIT: keyFromString("CREATE_DEPOSIT_GAS_LIMIT"),
+  DEPOSIT_GAS_LIMIT: keyFromString("DEPOSIT_GAS_LIMIT"),
+  CREATE_WITHDRAWAL_GAS_LIMIT: keyFromString("CREATE_WITHDRAWAL_GAS_LIMIT"),
+  WITHDRAWAL_GAS_LIMIT: keyFromString("WITHDRAWAL_GAS_LIMIT"),
+  SINGLE_SWAP_GAS_LIMIT: keyFromString("SINGLE_SWAP_GAS_LIMIT"),
+  INCREASE_ORDER_GAS_LIMIT: keyFromString("INCREASE_ORDER_GAS_LIMIT"),
+  DECREASE_ORDER_GAS_LIMIT: keyFromString("DECREASE_ORDER_GAS_LIMIT"),
+  SWAP_ORDER_GAS_LIMIT: keyFromString("SWAP_ORDER_GAS_LIMIT"),
+  TOKEN_TRANSFER_GAS_LIMIT: keyFromString("TOKEN_TRANSFER_GAS_LIMIT"),
+  NATIVE_TOKEN_TRANSFER_GAS_LIMIT: keyFromString("NATIVE_TOKEN_TRANSFER_GAS_LIMIT"),
 };
 
 const MARKET_PROP_KEYS = {
@@ -176,6 +205,7 @@ interface LiveReadState {
   skewImpactFactor?: number;
   minSkewImpact?: number;
   maxSkewImpact?: number;
+  protocolOpsCurrent?: ParameterValueSet;
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
   externalVenueMarkets: Record<string, ExternalVenueMarketState>;
@@ -247,6 +277,36 @@ const parameterDefinitions: ParameterFieldDefinition[] = [
   { category: "Grace", label: "Grace Base", key: "graceBaseMinutes", unit: "min" },
   { category: "Grace", label: "Grace Max", key: "graceMaxMinutes", unit: "min" },
   { category: "LP", label: "LP NAV", key: "lpNavUsd", unit: "$" },
+];
+
+const protocolOpsDefinitions: ProtocolOpsFieldDefinition[] = [
+  { category: "Oracle", label: "Min Oracle Signers", key: "minOracleSigners", unit: "" },
+  { category: "Oracle", label: "Min Block Confirmations", key: "minOracleBlockConfirmations", unit: "" },
+  { category: "Oracle", label: "Max Oracle Price Age", key: "maxOraclePriceAgeSec", unit: "s" },
+  { category: "Oracle", label: "Max Atomic Oracle Price Age", key: "maxAtomicOraclePriceAgeSec", unit: "s" },
+  { category: "Oracle", label: "Max Oracle Timestamp Range", key: "maxOracleTimestampRangeSec", unit: "s" },
+  { category: "Oracle", label: "Sequencer Grace Duration", key: "sequencerGraceDurationSec", unit: "s" },
+  { category: "Oracle", label: "Max Ref Price Deviation", key: "maxOracleRefPriceDeviationPct", unit: "%" },
+  { category: "Execution", label: "Create Deposit Gas", key: "createDepositGasLimit", unit: "gas" },
+  { category: "Execution", label: "Deposit Gas", key: "depositGasLimit", unit: "gas" },
+  { category: "Execution", label: "Create Withdrawal Gas", key: "createWithdrawalGasLimit", unit: "gas" },
+  { category: "Execution", label: "Withdrawal Gas", key: "withdrawalGasLimit", unit: "gas" },
+  { category: "Execution", label: "Single Swap Gas", key: "singleSwapGasLimit", unit: "gas" },
+  { category: "Execution", label: "Increase Order Gas", key: "increaseOrderGasLimit", unit: "gas" },
+  { category: "Execution", label: "Decrease Order Gas", key: "decreaseOrderGasLimit", unit: "gas" },
+  { category: "Execution", label: "Swap Order Gas", key: "swapOrderGasLimit", unit: "gas" },
+  { category: "Execution", label: "Token Transfer Gas", key: "tokenTransferGasLimit", unit: "gas" },
+  { category: "Execution", label: "Native Transfer Gas", key: "nativeTokenTransferGasLimit", unit: "gas" },
+  { category: "Feature Flags", label: "Create Order Disabled", key: "createOrderDisabled", unit: "" },
+  { category: "Feature Flags", label: "Execute Order Disabled", key: "executeOrderDisabled", unit: "" },
+  { category: "Feature Flags", label: "Update Order Disabled", key: "updateOrderDisabled", unit: "" },
+  { category: "Feature Flags", label: "Cancel Order Disabled", key: "cancelOrderDisabled", unit: "" },
+  { category: "Feature Flags", label: "Create Deposit Disabled", key: "createDepositDisabled", unit: "" },
+  { category: "Feature Flags", label: "Execute Deposit Disabled", key: "executeDepositDisabled", unit: "" },
+  { category: "Feature Flags", label: "Create Withdrawal Disabled", key: "createWithdrawalDisabled", unit: "" },
+  { category: "Feature Flags", label: "Execute Withdrawal Disabled", key: "executeWithdrawalDisabled", unit: "" },
+  { category: "Feature Flags", label: "Subaccount Disabled", key: "subaccountDisabled", unit: "" },
+  { category: "Feature Flags", label: "Gasless Disabled", key: "gaslessDisabled", unit: "" },
 ];
 
 const tierTemplates: Record<string, ParameterValueSet> = {
@@ -783,6 +843,10 @@ async function readAddress(provider: JsonRpcProvider, key: string): Promise<stri
   return dataStoreCall<string>(provider, "getAddress", [key]);
 }
 
+async function readBool(provider: JsonRpcProvider, key: string): Promise<boolean> {
+  return dataStoreCall<boolean>(provider, "getBool", [key]);
+}
+
 async function loadLiveState(): Promise<LiveReadState> {
   const state: LiveReadState = {
     onchainMarkets: [],
@@ -798,16 +862,68 @@ async function loadLiveState(): Promise<LiveReadState> {
     const block = await provider.getBlock(blockNumber);
     const [
       maxOracleRefPriceDeviationFactorRaw,
+      minOracleSignersRaw,
+      minOracleBlockConfirmationsRaw,
+      maxOraclePriceAgeRaw,
+      maxAtomicOraclePriceAgeRaw,
+      maxOracleTimestampRangeRaw,
+      sequencerGraceDurationRaw,
       maxPriceImpactSpreadRaw,
       skewImpactFactorRaw,
       minSkewImpactRaw,
       maxSkewImpactRaw,
+      createOrderDisabled,
+      executeOrderDisabled,
+      updateOrderDisabled,
+      cancelOrderDisabled,
+      createDepositDisabled,
+      executeDepositDisabled,
+      createWithdrawalDisabled,
+      executeWithdrawalDisabled,
+      subaccountDisabled,
+      gaslessDisabled,
+      createDepositGasLimitRaw,
+      depositGasLimitRaw,
+      createWithdrawalGasLimitRaw,
+      withdrawalGasLimitRaw,
+      singleSwapGasLimitRaw,
+      increaseOrderGasLimitRaw,
+      decreaseOrderGasLimitRaw,
+      swapOrderGasLimitRaw,
+      tokenTransferGasLimitRaw,
+      nativeTokenTransferGasLimitRaw,
     ] = await Promise.all([
       readUint(provider, DATA_KEYS.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR),
+      readUint(provider, DATA_KEYS.MIN_ORACLE_SIGNERS),
+      readUint(provider, DATA_KEYS.MIN_ORACLE_BLOCK_CONFIRMATIONS),
+      readUint(provider, DATA_KEYS.MAX_ORACLE_PRICE_AGE),
+      readUint(provider, DATA_KEYS.MAX_ATOMIC_ORACLE_PRICE_AGE),
+      readUint(provider, DATA_KEYS.MAX_ORACLE_TIMESTAMP_RANGE),
+      readUint(provider, DATA_KEYS.SEQUENCER_GRACE_DURATION),
       readUint(provider, DATA_KEYS.MAX_PRICE_IMPACT_SPREAD),
       readInt(provider, DATA_KEYS.SKEW_IMPACT_FACTOR),
       readInt(provider, DATA_KEYS.MIN_SKEW_IMPACT),
       readInt(provider, DATA_KEYS.MAX_SKEW_IMPACT),
+      readBool(provider, DATA_KEYS.CREATE_ORDER_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.EXECUTE_ORDER_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.UPDATE_ORDER_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.CANCEL_ORDER_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.CREATE_DEPOSIT_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.EXECUTE_DEPOSIT_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.CREATE_WITHDRAWAL_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.EXECUTE_WITHDRAWAL_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.SUBACCOUNT_FEATURE_DISABLED),
+      readBool(provider, DATA_KEYS.GASLESS_FEATURE_DISABLED),
+      readUint(provider, DATA_KEYS.CREATE_DEPOSIT_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.DEPOSIT_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.CREATE_WITHDRAWAL_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.WITHDRAWAL_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.SINGLE_SWAP_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.INCREASE_ORDER_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.DECREASE_ORDER_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.SWAP_ORDER_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.TOKEN_TRANSFER_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.NATIVE_TOKEN_TRANSFER_GAS_LIMIT),
     ]);
     const count = Number(await dataStoreCall<bigint>(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
     const marketIndices = count > 0 ? ((await dataStoreCall<bigint[]>(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value))) : [];
@@ -998,6 +1114,35 @@ async function loadLiveState(): Promise<LiveReadState> {
     state.skewImpactFactor = factorToRatioSigned(skewImpactFactorRaw);
     state.minSkewImpact = factorToRatioSigned(minSkewImpactRaw);
     state.maxSkewImpact = factorToRatioSigned(maxSkewImpactRaw);
+    state.protocolOpsCurrent = {
+      minOracleSigners: Number(minOracleSignersRaw),
+      minOracleBlockConfirmations: Number(minOracleBlockConfirmationsRaw),
+      maxOraclePriceAgeSec: Number(maxOraclePriceAgeRaw),
+      maxAtomicOraclePriceAgeSec: Number(maxAtomicOraclePriceAgeRaw),
+      maxOracleTimestampRangeSec: Number(maxOracleTimestampRangeRaw),
+      sequencerGraceDurationSec: Number(sequencerGraceDurationRaw),
+      maxOracleRefPriceDeviationPct: factorToPercent(maxOracleRefPriceDeviationFactorRaw),
+      createDepositGasLimit: Number(createDepositGasLimitRaw),
+      depositGasLimit: Number(depositGasLimitRaw),
+      createWithdrawalGasLimit: Number(createWithdrawalGasLimitRaw),
+      withdrawalGasLimit: Number(withdrawalGasLimitRaw),
+      singleSwapGasLimit: Number(singleSwapGasLimitRaw),
+      increaseOrderGasLimit: Number(increaseOrderGasLimitRaw),
+      decreaseOrderGasLimit: Number(decreaseOrderGasLimitRaw),
+      swapOrderGasLimit: Number(swapOrderGasLimitRaw),
+      tokenTransferGasLimit: Number(tokenTransferGasLimitRaw),
+      nativeTokenTransferGasLimit: Number(nativeTokenTransferGasLimitRaw),
+      createOrderDisabled,
+      executeOrderDisabled,
+      updateOrderDisabled,
+      cancelOrderDisabled,
+      createDepositDisabled,
+      executeDepositDisabled,
+      createWithdrawalDisabled,
+      executeWithdrawalDisabled,
+      subaccountDisabled,
+      gaslessDisabled,
+    };
     state.onchainMarkets = onchainMarkets;
     state.readStatus = onchainMarkets.length > 0 ? "mixed" : "live";
     return state;
@@ -1649,12 +1794,51 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
   });
 }
 
+function buildProtocolOps(liveState: LiveReadState): ProtocolOpsSnapshot {
+  const current: ParameterValueSet = liveState.protocolOpsCurrent ?? {
+    minOracleSigners: 0,
+    minOracleBlockConfirmations: 0,
+    maxOraclePriceAgeSec: 0,
+    maxAtomicOraclePriceAgeSec: 0,
+    maxOracleTimestampRangeSec: 0,
+    sequencerGraceDurationSec: 0,
+    maxOracleRefPriceDeviationPct: basefx100Sepolia0312.globals.maxOracleRefPriceDeviationFactor * 100,
+    createDepositGasLimit: 0,
+    depositGasLimit: 0,
+    createWithdrawalGasLimit: 0,
+    withdrawalGasLimit: 0,
+    singleSwapGasLimit: 0,
+    increaseOrderGasLimit: 0,
+    decreaseOrderGasLimit: 0,
+    swapOrderGasLimit: 0,
+    tokenTransferGasLimit: 0,
+    nativeTokenTransferGasLimit: 0,
+    createOrderDisabled: false,
+    executeOrderDisabled: false,
+    updateOrderDisabled: false,
+    cancelOrderDisabled: false,
+    createDepositDisabled: false,
+    executeDepositDisabled: false,
+    createWithdrawalDisabled: false,
+    executeWithdrawalDisabled: false,
+    subaccountDisabled: false,
+    gaslessDisabled: false,
+  };
+
+  const source = liveState.readStatus === "fallback" ? "config-fallback" : "onchain";
+  return {
+    current,
+    currentSources: buildSourceSet(current, source),
+  };
+}
+
 export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
   const liveState = await loadLiveState();
   const { markets, marketSeries } = buildMarkets(liveState);
   const dashboard = buildDashboard(markets, liveState);
   const { alerts, actions, recovery } = buildAlerts(markets);
   const parameters = buildParameters(markets, liveState);
+  const protocolOps = buildProtocolOps(liveState);
   const generatedAt = new Date().toISOString();
 
   const hasLiveMarkets = liveState.readStatus !== "fallback" && liveState.onchainMarkets.length > 0;
@@ -1682,5 +1866,7 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
     recovery,
     parameterDefinitions,
     parameters,
+    protocolOpsDefinitions,
+    protocolOps,
   };
 }

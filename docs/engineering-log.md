@@ -685,3 +685,20 @@ Reason:
 
 - after adding reserve/skew coverage, the biggest remaining gap in the market parameter view was the position-impact and collateral-threshold family of risk controls
 - these are operator-relevant knobs and belong on the same page as price impact, reserve, and funding controls if the goal is to audit live market configuration
+
+### Step 35: split protocol-global controls into a dedicated Protocol Ops page
+
+- added a new `Protocol Ops` page and route so non-market controls are no longer forced into the market risk parameters view
+- the first version of the page exposes global DataStore-backed controls in three groups:
+  - `Oracle`
+  - `Execution`
+  - `Feature Flags`
+- wired `MonitoringSnapshot` to return:
+  - `protocolOpsDefinitions`
+  - `protocolOps.current`
+  - `protocolOps.currentSources`
+
+Reason:
+
+- market risk parameters and protocol-global switches are different operational domains
+- separating them reduces ambiguity around what is market-specific versus what affects the entire protocol instance

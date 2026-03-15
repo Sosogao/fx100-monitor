@@ -196,6 +196,18 @@ export interface ParameterSnapshot {
   recommendedSources: ParameterSourceSet;
 }
 
+export interface ProtocolOpsFieldDefinition {
+  key: string;
+  label: string;
+  category: string;
+  unit: string;
+}
+
+export interface ProtocolOpsSnapshot {
+  current: ParameterValueSet;
+  currentSources: ParameterSourceSet;
+}
+
 export interface MonitoringHistoryPoint {
   timestamp: string;
   totalOpenInterestUsd: number;
@@ -218,4 +230,6 @@ export interface MonitoringSnapshot {
   recovery: RecoveryRecord[];
   parameterDefinitions: ParameterFieldDefinition[];
   parameters: ParameterSnapshot[];
+  protocolOpsDefinitions: ProtocolOpsFieldDefinition[];
+  protocolOps: ProtocolOpsSnapshot;
 }

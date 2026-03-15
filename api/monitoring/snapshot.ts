@@ -43,6 +43,8 @@ function degradedSnapshot(error: unknown) {
     recovery: [],
     parameterDefinitions: [],
     parameters: [],
+    protocolOpsDefinitions: [],
+    protocolOps: { current: {}, currentSources: {} },
   };
 }
 
