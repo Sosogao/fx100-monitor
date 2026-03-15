@@ -14,6 +14,12 @@ This keeps the UI usable while the live reader layer is still being expanded.
 
 ## Docs index
 
+
+## Control Surface Map
+- `Risk Parameters` (`/parameters`): per-market risk, funding, OI, impact, reserve, and collateral controls from `FX100Keys` plus explicit template/derived overlays.
+- `Protocol Ops` (`/protocol-ops`): global protocol-wide controls such as oracle settings, execution gas limits, and feature flags.
+- `Distribution Ops` (`/distribution-ops`): `Keys2` scalar and current-chain operational values for MultichainReader and FeeDistributor.
+- `Distribution Registry` (`/distribution-registry`): enumerable `Keys2` registries and configured probe-only mappings. This intentionally excludes opaque address-name mappings unless explicitly configured.
 Start here depending on what you need:
 
 - `README.md`

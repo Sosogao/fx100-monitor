@@ -119,3 +119,10 @@ The standard shared demo environment is:
 - fork RPC: `https://virtual.base.eu.rpc.tenderly.co/49b34c09-5fb0-4814-9440-4231f0018ac5`
 
 If monitor and contracts are not pointed at the same environment, OI comparisons and deployment assumptions are not valid.
+
+
+## Page Boundaries
+- Use `/parameters` for market-level controls. If a field varies by market or tier, it belongs there.
+- Use `/protocol-ops` for protocol-global controls such as oracle configuration, feature flags, and execution gas limits.
+- Use `/distribution-ops` for `Keys2` scalar and current-chain FeeDistributor / MultichainReader values.
+- Use `/distribution-registry` for enumerable arrays and configured probes. If a key is not enumerable onchain, it should appear there only through explicit probe configuration.

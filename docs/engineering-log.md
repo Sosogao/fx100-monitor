@@ -717,3 +717,8 @@ Reason:
 ## Step 38: added configurable distribution address probes
 - Added configurable probe names for `FEE_DISTRIBUTOR_ADDRESS_INFO` and `FEE_DISTRIBUTOR_ADDRESS_INFO_FOR_CHAIN`.
 - Default probes cover deployment-relevant names only; opaque names remain intentionally opt-in.
+
+
+## Step 39: documented control-surface boundaries
+- Added an explicit control-surface map to the README and operator troubleshooting guide.
+- This documents the separation between market parameters, protocol-global controls, Keys2 scalar ops, and Keys2 registry/probe views.
