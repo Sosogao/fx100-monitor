@@ -630,3 +630,23 @@ Reason:
 
 - the monitor docs set is now useful but spread across multiple files
 - a small docs index reduces search time for the next developer or operator and makes the sample-book workflow discoverable from the repo root
+
+### Step 32: increase onchain coverage for the parameters view
+
+- extended `server/data/snapshot.ts` live reads to include more first-class `FX100Keys` values used by operators when checking market configuration:
+  - `CONSTANT_PRICE_SPREAD`
+  - `MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR`
+  - `MIN_POSITION_SIZE_USD`
+  - `LIQUIDATION_GRACE_PERIOD_BASE`
+  - plus reserve/open-interest reserve and skew/max-spread globals for future use
+- changed the parameters view assembly so these fields stop falling back to template/config when live reads are available:
+  - `constantSpread`
+  - `maxPriceDeviation`
+  - `minPosUsd`
+  - `graceBaseMinutes`
+- removed the old heuristic that downgraded values to `config-fallback` simply because the live onchain value matched a known deployment default
+
+Reason:
+
+- the parameter page was presenting a mixed model as if it were a direct contract view, which was defensible only for a subset of fields
+- when a live onchain value equals the deployment default, it is still onchain; labeling it as fallback makes the page less accurate and makes coverage analysis harder

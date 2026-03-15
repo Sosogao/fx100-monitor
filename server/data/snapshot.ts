@@ -51,12 +51,16 @@ const dataStoreInterface = new Interface(DATA_STORE_ABI);
 const DATA_KEYS = {
   MARKET_LIST: keyFromString("MARKET_LIST"),
   POSITION_FEE_FACTOR: keyFromString("POSITION_FEE_FACTOR"),
+  CONSTANT_PRICE_SPREAD: keyFromString("CONSTANT_PRICE_SPREAD"),
   PRICE_IMPACT_PARAMETER: keyFromString("PRICE_IMPACT_PARAMETER"),
+  MAX_PRICE_IMPACT_SPREAD: keyFromString("MAX_PRICE_IMPACT_SPREAD"),
   BID_ORDER_BOOK_DEPTH: keyFromString("BID_ORDER_BOOK_DEPTH"),
   ASK_ORDER_BOOK_DEPTH: keyFromString("ASK_ORDER_BOOK_DEPTH"),
   OPEN_INTEREST_IN_TOKENS: keyFromString("OPEN_INTEREST_IN_TOKENS"),
   POOL_AMOUNT: keyFromString("POOL_AMOUNT"),
   MAX_OPEN_INTEREST: keyFromString("MAX_OPEN_INTEREST"),
+  RESERVE_FACTOR: keyFromString("RESERVE_FACTOR"),
+  OPEN_INTEREST_RESERVE_FACTOR: keyFromString("OPEN_INTEREST_RESERVE_FACTOR"),
   NEGATIVE_FUNDING_FEE_PER_SIZE: keyFromString("NEGATIVE_FUNDING_FEE_PER_SIZE"),
   POSITIVE_FUNDING_FEE_PER_SIZE: keyFromString("POSITIVE_FUNDING_FEE_PER_SIZE"),
   FUNDING_SKEW_EMA: keyFromString("FUNDING_SKEW_EMA"),
@@ -65,9 +69,15 @@ const DATA_KEYS = {
   MIN_FUNDING_FACTOR_PER_SECOND: keyFromString("MIN_FUNDING_FACTOR_PER_SECOND"),
   MAX_FUNDING_FACTOR_PER_SECOND: keyFromString("MAX_FUNDING_FACTOR_PER_SECOND"),
   FUNDING_UPDATED_AT: keyFromString("FUNDING_UPDATED_AT"),
+  MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR: keyFromString("MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR"),
+  SKEW_IMPACT_FACTOR: keyFromString("SKEW_IMPACT_FACTOR"),
+  MIN_SKEW_IMPACT: keyFromString("MIN_SKEW_IMPACT"),
+  MAX_SKEW_IMPACT: keyFromString("MAX_SKEW_IMPACT"),
   MIN_COLLATERAL_FACTOR: keyFromString("MIN_COLLATERAL_FACTOR"),
   MIN_COLLATERAL_FACTOR_FOR_LIQUIDATION: keyFromString("MIN_COLLATERAL_FACTOR_FOR_LIQUIDATION"),
+  MIN_POSITION_SIZE_USD: keyFromString("MIN_POSITION_SIZE_USD"),
   MAX_POSITION_SIZE_USD: keyFromString("MAX_POSITION_SIZE_USD"),
+  LIQUIDATION_GRACE_PERIOD_BASE: keyFromString("LIQUIDATION_GRACE_PERIOD_BASE"),
 };
 
 const MARKET_PROP_KEYS = {
@@ -94,12 +104,19 @@ interface OnchainMarketState {
   indexVaultBalance: number;
   poolCollateralAmount: number;
   positionFeeFactorPct: number;
+  constantPriceSpreadPct: number;
   priceImpactParameter: number;
   bidDepthUsd: number;
   askDepthUsd: number;
+  reserveFactorLongPct: number;
+  reserveFactorShortPct: number;
+  openInterestReserveFactorLongPct: number;
+  openInterestReserveFactorShortPct: number;
   minCollateralFactorPct: number;
   minCollateralFactorForLiquidationPct: number;
+  minPositionSizeUsd: number;
   maxPositionSizeUsd: number;
+  liquidationGraceBaseMinutes: number;
   fundingSkewEmaMinutes: number;
   fundingSkewEmaPct: number;
   fundingSkewSampleIntervalMinutes: number;
@@ -135,6 +152,11 @@ interface LiveReadState {
   blockNumber?: number;
   blockTimestamp?: number;
   lpVaultUsdcBalance?: number;
+  maxOracleRefPriceDeviationFactorPct?: number;
+  maxPriceImpactSpreadPct?: number;
+  skewImpactFactor?: number;
+  minSkewImpact?: number;
+  maxSkewImpact?: number;
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
   externalVenueMarkets: Record<string, ExternalVenueMarketState>;
@@ -570,6 +592,10 @@ function factorToRatio(raw: bigint): number {
   return round(Number(formatUnits(raw, FACTOR_DECIMALS)), 6);
 }
 
+function factorToRatioSigned(raw: bigint): number {
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS)), 6);
+}
+
 function usdValue(raw: bigint): number {
   return round(Number(formatUnits(raw, USD_DECIMALS)), 2);
 }
@@ -671,6 +697,19 @@ async function loadLiveState(): Promise<LiveReadState> {
     const chainId = await provider.getNetwork();
     const blockNumber = await provider.getBlockNumber();
     const block = await provider.getBlock(blockNumber);
+    const [
+      maxOracleRefPriceDeviationFactorRaw,
+      maxPriceImpactSpreadRaw,
+      skewImpactFactorRaw,
+      minSkewImpactRaw,
+      maxSkewImpactRaw,
+    ] = await Promise.all([
+      readUint(provider, DATA_KEYS.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR),
+      readUint(provider, DATA_KEYS.MAX_PRICE_IMPACT_SPREAD),
+      readInt(provider, DATA_KEYS.SKEW_IMPACT_FACTOR),
+      readInt(provider, DATA_KEYS.MIN_SKEW_IMPACT),
+      readInt(provider, DATA_KEYS.MAX_SKEW_IMPACT),
+    ]);
     const count = Number(await dataStoreCall<bigint>(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
     const marketIndices = count > 0 ? ((await dataStoreCall<bigint[]>(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value))) : [];
 
@@ -691,15 +730,22 @@ async function loadLiveState(): Promise<LiveReadState> {
           collateralVaultBalance,
           indexVaultBalance,
           positionFeeFactorRaw,
+          constantPriceSpreadRaw,
           priceImpactParameterRaw,
           poolCollateralAmountRaw,
           maxOpenInterestLongRaw,
           maxOpenInterestShortRaw,
           bidDepthRaw,
           askDepthRaw,
+          reserveFactorLongRaw,
+          reserveFactorShortRaw,
+          openInterestReserveFactorLongRaw,
+          openInterestReserveFactorShortRaw,
           minCollateralFactorRaw,
           minCollateralFactorForLiquidationRaw,
+          minPositionSizeUsdRaw,
           maxPositionSizeUsdRaw,
+          liquidationGracePeriodBaseRaw,
           fundingSkewEmaRaw,
           fundingFloorRaw,
           fundingBaseRaw,
@@ -717,15 +763,22 @@ async function loadLiveState(): Promise<LiveReadState> {
           vault !== ZeroAddress ? erc20Balance(provider, collateralToken, vault, collateralTokenDecimals) : Promise.resolve(0),
           vault !== ZeroAddress ? erc20Balance(provider, indexToken, vault, indexTokenDecimals) : Promise.resolve(0),
           readUint(provider, marketUintKey(DATA_KEYS.POSITION_FEE_FACTOR, marketIndex)),
+          readUint(provider, marketUintKey(DATA_KEYS.CONSTANT_PRICE_SPREAD, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.PRICE_IMPACT_PARAMETER, marketIndex)),
           readUint(provider, marketAddressKey(DATA_KEYS.POOL_AMOUNT, marketIndex, collateralToken)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST, marketIndex, false)),
           readUint(provider, marketUintKey(DATA_KEYS.BID_ORDER_BOOK_DEPTH, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.ASK_ORDER_BOOK_DEPTH, marketIndex)),
+          readUint(provider, marketBoolKey(DATA_KEYS.RESERVE_FACTOR, marketIndex, true)),
+          readUint(provider, marketBoolKey(DATA_KEYS.RESERVE_FACTOR, marketIndex, false)),
+          readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_RESERVE_FACTOR, marketIndex, true)),
+          readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_RESERVE_FACTOR, marketIndex, false)),
           readUint(provider, marketUintKey(DATA_KEYS.MIN_COLLATERAL_FACTOR, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.MIN_COLLATERAL_FACTOR_FOR_LIQUIDATION, marketIndex)),
+          readUint(provider, marketUintKey(DATA_KEYS.MIN_POSITION_SIZE_USD, marketIndex)),
           readUint(provider, marketUintKey(DATA_KEYS.MAX_POSITION_SIZE_USD, marketIndex)),
+          readUint(provider, marketUintKey(DATA_KEYS.LIQUIDATION_GRACE_PERIOD_BASE, marketIndex)),
           readBytes32(provider, marketUintKey(DATA_KEYS.FUNDING_SKEW_EMA, marketIndex)),
           readInt(provider, marketUintKey(DATA_KEYS.FUNDING_FLOOR_FACTOR, marketIndex)),
           readInt(provider, marketUintKey(DATA_KEYS.FUNDING_BASE_FACTOR, marketIndex)),
@@ -755,15 +808,22 @@ async function loadLiveState(): Promise<LiveReadState> {
           collateralVaultBalance,
           indexVaultBalance,
           positionFeeFactorPct: factorToPercent(positionFeeFactorRaw),
+          constantPriceSpreadPct: factorToPercent(constantPriceSpreadRaw),
           priceImpactParameter: factorToRatio(priceImpactParameterRaw),
           poolCollateralAmount: round(Number(formatUnits(poolCollateralAmountRaw, collateralTokenDecimals)), 4),
           maxOpenInterestLongUsd: usdValue(maxOpenInterestLongRaw),
           maxOpenInterestShortUsd: usdValue(maxOpenInterestShortRaw),
           bidDepthUsd: usdValue(bidDepthRaw),
           askDepthUsd: usdValue(askDepthRaw),
+          reserveFactorLongPct: factorToPercent(reserveFactorLongRaw),
+          reserveFactorShortPct: factorToPercent(reserveFactorShortRaw),
+          openInterestReserveFactorLongPct: factorToPercent(openInterestReserveFactorLongRaw),
+          openInterestReserveFactorShortPct: factorToPercent(openInterestReserveFactorShortRaw),
           minCollateralFactorPct: factorToPercent(minCollateralFactorRaw),
           minCollateralFactorForLiquidationPct: factorToPercent(minCollateralFactorForLiquidationRaw),
+          minPositionSizeUsd: usdValue(minPositionSizeUsdRaw),
           maxPositionSizeUsd: usdValue(maxPositionSizeUsdRaw),
+          liquidationGraceBaseMinutes: round(Number(liquidationGracePeriodBaseRaw) / 60, 2),
           fundingSkewEmaMinutes: skewEma.sampleIntervalMinutes,
           fundingSkewEmaPct: skewEma.emaPct,
           fundingSkewSampleIntervalMinutes: skewEma.sampleIntervalMinutes,
@@ -798,6 +858,11 @@ async function loadLiveState(): Promise<LiveReadState> {
     state.blockNumber = blockNumber;
     state.blockTimestamp = block?.timestamp;
     state.lpVaultUsdcBalance = lpVaultUsdcBalance;
+    state.maxOracleRefPriceDeviationFactorPct = factorToPercent(maxOracleRefPriceDeviationFactorRaw);
+    state.maxPriceImpactSpreadPct = factorToPercent(maxPriceImpactSpreadRaw);
+    state.skewImpactFactor = factorToRatioSigned(skewImpactFactorRaw);
+    state.minSkewImpact = factorToRatioSigned(minSkewImpactRaw);
+    state.maxSkewImpact = factorToRatioSigned(maxSkewImpactRaw);
     state.onchainMarkets = onchainMarkets;
     state.readStatus = onchainMarkets.length > 0 ? "mixed" : "live";
     return state;
@@ -826,12 +891,19 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         indexVaultBalance: 0,
         poolCollateralAmount: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
         positionFeeFactorPct: round(market.positionFeeFactor * 100, 4),
+        constantPriceSpreadPct: 0.01,
         priceImpactParameter: market.priceImpactParameter,
         bidDepthUsd: market.bidDepthUsd,
         askDepthUsd: market.askDepthUsd,
+        reserveFactorLongPct: 25,
+        reserveFactorShortPct: 25,
+        openInterestReserveFactorLongPct: 25,
+        openInterestReserveFactorShortPct: 25,
         minCollateralFactorPct: round(market.minCollateralFactor * 100, 4),
         minCollateralFactorForLiquidationPct: round(market.minCollateralFactorForLiquidation * 100, 4),
+        minPositionSizeUsd: market.minPositionSizeUsd,
         maxPositionSizeUsd: market.maxPositionSizeUsd,
+        liquidationGraceBaseMinutes: 15,
         fundingSkewEmaMinutes: 20,
         fundingSkewEmaPct: 0,
         fundingSkewSampleIntervalMinutes: 20,
@@ -1289,17 +1361,24 @@ function assignSource(target: ParameterSourceSet, keys: string[], source: Parame
 }
 
 function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): ParameterSnapshot[] {
+  const liveMarketsBySymbol = new Map(liveState.onchainMarkets.map((market) => [market.symbol, market]));
+  const maxOracleRefPriceDeviationPct = liveState.readStatus === "fallback"
+    ? basefx100Sepolia0312.globals.maxOracleRefPriceDeviationFactor * 100
+    : (liveState.maxOracleRefPriceDeviationFactorPct ?? basefx100Sepolia0312.globals.maxOracleRefPriceDeviationFactor * 100);
+
   return markets.map((market) => {
+    const liveMarket = liveMarketsBySymbol.get(market.symbol);
     const template = cloneTemplate(tierTemplates[market.tier] ?? tierTemplates["Tier 2"]);
     const baselineSources = buildSourceSet(template, "template");
     const current: ParameterValueSet = {
       ...template,
       openFeeRatio: market.positionFeeFactorPct,
       closeFeeRatio: market.positionFeeFactorPct,
-      maxPriceDeviation: basefx100Sepolia0312.globals.maxOracleRefPriceDeviationFactor * 100,
+      constantSpread: liveMarket?.constantPriceSpreadPct ?? template.constantSpread,
+      maxPriceDeviation: maxOracleRefPriceDeviationPct,
       priceImpactNormal: market.priceImpactParameter,
       priceImpactEmergency: round(market.priceImpactParameter * 1.7, 2),
-      minPosUsd: 10,
+      minPosUsd: liveMarket?.minPositionSizeUsd ?? template.minPosUsd,
       singlePosCapUsd: market.maxPositionSizeUsd,
       globalCapUsd: market.maxPositionSizeUsd * 4,
       fundingFloorApr: market.fundingFloorAprPct,
@@ -1315,6 +1394,7 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
       maxOrderbookDepthLong: round(market.askDepthUsd * 1.22, 2),
       maxOrderbookDepthShort: round(market.bidDepthUsd * 1.22, 2),
       skewEmaMinutes: market.fundingSkewEmaMinutes,
+      graceBaseMinutes: liveMarket?.liquidationGraceBaseMinutes ?? template.graceBaseMinutes,
       lpNavUsd: liveState.lpVaultUsdcBalance ?? 0,
     };
 
@@ -1322,6 +1402,7 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
     assignSource(currentSources, [
       "openFeeRatio",
       "closeFeeRatio",
+      "constantSpread",
       "priceImpactNormal",
       "fundingFloorApr",
       "fundingBaseApr",
@@ -1333,9 +1414,10 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
       "orderbookDepthShort",
       "skewEmaMinutes",
       "singlePosCapUsd",
+      "graceBaseMinutes",
     ], "onchain");
 
-    assignSource(currentSources, ["maxPriceDeviation"], "config-fallback");
+    assignSource(currentSources, ["maxPriceDeviation"], liveState.readStatus === "fallback" ? "config-fallback" : "onchain");
     assignSource(currentSources, [
       "priceImpactEmergency",
       "globalCapUsd",
@@ -1345,27 +1427,7 @@ function buildParameters(markets: MarketSnapshot[], liveState: LiveReadState): P
       "maxOrderbookDepthShort",
     ], "derived");
     assignSource(currentSources, ["lpNavUsd"], liveState.readStatus === "fallback" ? "config-fallback" : "onchain");
-    assignSource(currentSources, ["minPosUsd"], "config-fallback");
-
-    if (market.fundingBaseAprPct === 21.4 || market.fundingBaseAprPct === 18.2) {
-      assignSource(currentSources, ["fundingBaseApr"], "seeded-analytics");
-    }
-    if (market.fundingFloorAprPct === 10.95) {
-      assignSource(currentSources, ["fundingFloorApr"], "config-fallback");
-    }
-    if (market.maxFundingAprPct === 140 || market.minFundingAprPct === -12) {
-      assignSource(currentSources, ["fundingEmergencyApr", "minFundingRate", "maxFundingRate"], "config-fallback");
-    }
-    if (market.askDepthUsd === 7923961.27 || market.askDepthUsd == 15593281.79 || market.bidDepthUsd === 7767179.17 || market.bidDepthUsd === 15217320.43) {
-      assignSource(currentSources, [
-        "orderbookDepthLong",
-        "orderbookDepthShort",
-        "minOrderbookDepthLong",
-        "minOrderbookDepthShort",
-        "maxOrderbookDepthLong",
-        "maxOrderbookDepthShort",
-      ], "config-fallback");
-    }
+    assignSource(currentSources, ["minPosUsd"], liveState.readStatus === "fallback" ? "config-fallback" : "onchain");
 
     const recommended: ParameterValueSet = {
       ...current,
