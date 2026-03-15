@@ -208,6 +208,18 @@ export interface ProtocolOpsSnapshot {
   currentSources: ParameterSourceSet;
 }
 
+export interface DistributionOpsFieldDefinition {
+  key: string;
+  label: string;
+  category: string;
+  unit: string;
+}
+
+export interface DistributionOpsSnapshot {
+  current: ParameterValueSet;
+  currentSources: ParameterSourceSet;
+}
+
 export interface MonitoringHistoryPoint {
   timestamp: string;
   totalOpenInterestUsd: number;
@@ -232,4 +244,6 @@ export interface MonitoringSnapshot {
   parameters: ParameterSnapshot[];
   protocolOpsDefinitions: ProtocolOpsFieldDefinition[];
   protocolOps: ProtocolOpsSnapshot;
+  distributionOpsDefinitions: DistributionOpsFieldDefinition[];
+  distributionOps: DistributionOpsSnapshot;
 }

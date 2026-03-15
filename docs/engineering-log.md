@@ -702,3 +702,8 @@ Reason:
 
 - market risk parameters and protocol-global switches are different operational domains
 - separating them reduces ambiguity around what is market-specific versus what affects the entire protocol instance
+
+
+## Step 36: added Keys2-backed Distribution Ops page
+- Split MultichainReader and FeeDistributor keys out of market and protocol pages into a dedicated `Distribution Ops` view.
+- Added live snapshot support for core scalar and environment-scoped Keys2 values so operators can inspect fee-distribution and multichain controls without mixing them into market risk parameters.

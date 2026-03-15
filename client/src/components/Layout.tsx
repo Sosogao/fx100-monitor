@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertTriangle, Settings, Activity, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Settings, Activity, ShieldAlert, SlidersHorizontal, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 
@@ -13,6 +13,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: "Alerts", path: "/alerts", icon: AlertTriangle },
     { name: "Risk Parameters", path: "/parameters", icon: Settings },
     { name: "Protocol Ops", path: "/protocol-ops", icon: SlidersHorizontal },
+    { name: "Distribution Ops", path: "/distribution-ops", icon: Network },
   ];
 
   const criticalCount = snapshot?.alerts.filter((alert) => alert.level === "l3").length ?? 0;

@@ -16,6 +16,8 @@ import type {
   ParameterFieldDefinition,
   ProtocolOpsFieldDefinition,
   ProtocolOpsSnapshot,
+  DistributionOpsFieldDefinition,
+  DistributionOpsSnapshot,
   ParameterSnapshot,
   ParameterSourceSet,
   ParameterValueSet,
@@ -114,6 +116,34 @@ const DATA_KEYS = {
   SWAP_ORDER_GAS_LIMIT: keyFromString("SWAP_ORDER_GAS_LIMIT"),
   TOKEN_TRANSFER_GAS_LIMIT: keyFromString("TOKEN_TRANSFER_GAS_LIMIT"),
   NATIVE_TOKEN_TRANSFER_GAS_LIMIT: keyFromString("NATIVE_TOKEN_TRANSFER_GAS_LIMIT"),
+  MULTICHAIN_READ_CHANNEL: keyFromString("MULTICHAIN_READ_CHANNEL"),
+  MULTICHAIN_PEERS: keyFromString("MULTICHAIN_PEERS"),
+  MULTICHAIN_CONFIRMATIONS: keyFromString("MULTICHAIN_CONFIRMATIONS"),
+  FEE_DISTRIBUTOR_DISTRIBUTION_DAY: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_DAY"),
+  FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP: keyFromString("FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP"),
+  FEE_DISTRIBUTOR_STATE: keyFromString("FEE_DISTRIBUTOR_STATE"),
+  FEE_DISTRIBUTOR_REFERRAL_REWARDS_AMOUNT: keyFromString("FEE_DISTRIBUTOR_REFERRAL_REWARDS_AMOUNT"),
+  FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_AMOUNT: keyFromString("FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_AMOUNT"),
+  FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_FACTOR: keyFromString("FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_FACTOR"),
+  FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_ESGMX_AMOUNT: keyFromString("FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_ESGMX_AMOUNT"),
+  FEE_DISTRIBUTOR_GMX_PRICE: keyFromString("FEE_DISTRIBUTOR_GMX_PRICE"),
+  FEE_DISTRIBUTOR_WNT_PRICE: keyFromString("FEE_DISTRIBUTOR_WNT_PRICE"),
+  FEE_DISTRIBUTOR_MAX_READ_RESPONSE_DELAY: keyFromString("FEE_DISTRIBUTOR_MAX_READ_RESPONSE_DELAY"),
+  FEE_DISTRIBUTOR_GAS_LIMIT: keyFromString("FEE_DISTRIBUTOR_GAS_LIMIT"),
+  FEE_DISTRIBUTOR_CHAIN_ID: keyFromString("FEE_DISTRIBUTOR_CHAIN_ID"),
+  FEE_DISTRIBUTOR_FEE_AMOUNT_GMX: keyFromString("FEE_DISTRIBUTOR_FEE_AMOUNT_GMX"),
+  FEE_DISTRIBUTOR_TOTAL_FEE_AMOUNT_GMX: keyFromString("FEE_DISTRIBUTOR_TOTAL_FEE_AMOUNT_GMX"),
+  FEE_DISTRIBUTOR_FEE_AMOUNT_USD: keyFromString("FEE_DISTRIBUTOR_FEE_AMOUNT_USD"),
+  FEE_DISTRIBUTOR_STAKED_GMX: keyFromString("FEE_DISTRIBUTOR_STAKED_GMX"),
+  FEE_DISTRIBUTOR_TOTAL_STAKED_GMX: keyFromString("FEE_DISTRIBUTOR_TOTAL_STAKED_GMX"),
+  FEE_DISTRIBUTOR_BRIDGE_SLIPPAGE_FACTOR: keyFromString("FEE_DISTRIBUTOR_BRIDGE_SLIPPAGE_FACTOR"),
+  FEE_DISTRIBUTOR_READ_RESPONSE_TIMESTAMP: keyFromString("FEE_DISTRIBUTOR_READ_RESPONSE_TIMESTAMP"),
+  FEE_DISTRIBUTOR_LAYERZERO_CHAIN_ID: keyFromString("FEE_DISTRIBUTOR_LAYERZERO_CHAIN_ID"),
+  FEE_DISTRIBUTOR_CHAINLINK_FACTOR: keyFromString("FEE_DISTRIBUTOR_CHAINLINK_FACTOR"),
+  FEE_DISTRIBUTOR_REFERRAL_REWARDS_DEPOSITED: keyFromString("FEE_DISTRIBUTOR_REFERRAL_REWARDS_DEPOSITED"),
+  FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY: keyFromString("FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY"),
+  FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR"),
+  FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR: keyFromString("FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR"),
 };
 
 const MARKET_PROP_KEYS = {
@@ -206,6 +236,7 @@ interface LiveReadState {
   minSkewImpact?: number;
   maxSkewImpact?: number;
   protocolOpsCurrent?: ParameterValueSet;
+  distributionOpsCurrent?: ParameterValueSet;
   readStatus: EnvironmentInfo["readStatus"];
   onchainMarkets: OnchainMarketState[];
   externalVenueMarkets: Record<string, ExternalVenueMarketState>;
@@ -307,6 +338,38 @@ const protocolOpsDefinitions: ProtocolOpsFieldDefinition[] = [
   { category: "Feature Flags", label: "Execute Withdrawal Disabled", key: "executeWithdrawalDisabled", unit: "" },
   { category: "Feature Flags", label: "Subaccount Disabled", key: "subaccountDisabled", unit: "" },
   { category: "Feature Flags", label: "Gasless Disabled", key: "gaslessDisabled", unit: "" },
+];
+
+const distributionOpsDefinitions: DistributionOpsFieldDefinition[] = [
+  { category: "Multichain", label: "Read Channel", key: "multichainReadChannel", unit: "" },
+  { category: "Multichain", label: "Peer For Read Channel", key: "multichainPeerForReadChannel", unit: "" },
+  { category: "Multichain", label: "Confirmations For Read Channel", key: "multichainConfirmationsForReadChannel", unit: "" },
+  { category: "Fee Distributor", label: "Distribution Day", key: "feeDistributorDistributionDay", unit: "" },
+  { category: "Fee Distributor", label: "Distribution Timestamp", key: "feeDistributorDistributionTimestamp", unit: "s" },
+  { category: "Fee Distributor", label: "State", key: "feeDistributorState", unit: "" },
+  { category: "Fee Distributor", label: "Max Read Response Delay", key: "feeDistributorMaxReadResponseDelaySec", unit: "s" },
+  { category: "Fee Distributor", label: "Gas Limit", key: "feeDistributorGasLimit", unit: "gas" },
+  { category: "Fee Distributor", label: "Fee Distributor Chain ID", key: "feeDistributorChainId", unit: "" },
+  { category: "Fee Distributor", label: "Read Response Timestamp", key: "feeDistributorReadResponseTimestamp", unit: "s" },
+  { category: "Fee Distributor", label: "Max WNT Referral Rewards USD", key: "feeDistributorMaxReferralRewardsWntUsdAmount", unit: "$" },
+  { category: "Fee Distributor", label: "Max WNT Referral Rewards Factor", key: "feeDistributorMaxReferralRewardsWntUsdFactorPct", unit: "%" },
+  { category: "Fee Distributor", label: "Max ESGMX Referral Rewards", key: "feeDistributorMaxReferralRewardsEsgmxAmount", unit: "token" },
+  { category: "Fee Distributor", label: "GMX Price", key: "feeDistributorGmxPriceUsd", unit: "$" },
+  { category: "Fee Distributor", label: "WNT Price", key: "feeDistributorWntPriceUsd", unit: "$" },
+  { category: "Fee Distributor", label: "Chainlink Factor", key: "feeDistributorChainlinkFactorPct", unit: "%" },
+  { category: "Fee Distributor", label: "Max WNT From Treasury", key: "feeDistributorMaxWntAmountFromTreasury", unit: "token" },
+  { category: "Fee Distributor", label: "V1 Fees in WNT Factor", key: "feeDistributorV1FeesWntFactorPct", unit: "%" },
+  { category: "Fee Distributor", label: "V2 Fees in WNT Factor", key: "feeDistributorV2FeesWntFactorPct", unit: "%" },
+  { category: "Current Chain", label: "Fee Amount GMX", key: "feeDistributorFeeAmountGmxForCurrentChain", unit: "token" },
+  { category: "Current Chain", label: "Total Fee Amount GMX", key: "feeDistributorTotalFeeAmountGmx", unit: "token" },
+  { category: "Current Chain", label: "Fee Amount USD V1", key: "feeDistributorFeeAmountUsdV1", unit: "$" },
+  { category: "Current Chain", label: "Fee Amount USD V2", key: "feeDistributorFeeAmountUsdV2", unit: "$" },
+  { category: "Current Chain", label: "Staked GMX", key: "feeDistributorStakedGmxForCurrentChain", unit: "token" },
+  { category: "Current Chain", label: "Total Staked GMX", key: "feeDistributorTotalStakedGmx", unit: "token" },
+  { category: "Current Chain", label: "Bridge Slippage Factor", key: "feeDistributorBridgeSlippageFactorPct", unit: "%" },
+  { category: "Current Chain", label: "LayerZero Chain ID", key: "feeDistributorLayerZeroChainId", unit: "" },
+  { category: "Referral Snapshot", label: "Referral Rewards Amount (CORE_USDC)", key: "feeDistributorReferralRewardsAmountCoreUsdc", unit: "$" },
+  { category: "Referral Snapshot", label: "Referral Rewards Deposited (CORE_USDC)", key: "feeDistributorReferralRewardsDepositedCoreUsdc", unit: "$" },
 ];
 
 const tierTemplates: Record<string, ParameterValueSet> = {
@@ -517,6 +580,14 @@ function marketBoolKey(baseKey: string, marketIndex: number, isLong: boolean): s
 
 function marketAddressKey(baseKey: string, marketIndex: number, token: string): string {
   return hashKey(["bytes32", "uint256", "address"], [baseKey, BigInt(marketIndex), getAddress(token)]);
+}
+
+function scopedUintKey(baseKey: string, value: bigint | number): string {
+  return hashKey(["bytes32", "uint256"], [baseKey, BigInt(value)]);
+}
+
+function scopedAddressKey(baseKey: string, value: string): string {
+  return hashKey(["bytes32", "address"], [baseKey, getAddress(value)]);
 }
 
 async function fetchJson<T>(url: string): Promise<T | undefined> {
@@ -1114,6 +1185,99 @@ async function loadLiveState(): Promise<LiveReadState> {
     state.skewImpactFactor = factorToRatioSigned(skewImpactFactorRaw);
     state.minSkewImpact = factorToRatioSigned(minSkewImpactRaw);
     state.maxSkewImpact = factorToRatioSigned(maxSkewImpactRaw);
+    const [
+      multichainReadChannelRaw,
+      feeDistributorDistributionDayRaw,
+      feeDistributorDistributionTimestampRaw,
+      feeDistributorStateRaw,
+      feeDistributorMaxReferralRewardsWntUsdAmountRaw,
+      feeDistributorMaxReferralRewardsWntUsdFactorRaw,
+      feeDistributorMaxReferralRewardsEsgmxAmountRaw,
+      feeDistributorGmxPriceRaw,
+      feeDistributorWntPriceRaw,
+      feeDistributorMaxReadResponseDelayRaw,
+      feeDistributorGasLimitRaw,
+      feeDistributorChainIdRaw,
+      feeDistributorTotalFeeAmountGmxRaw,
+      feeDistributorFeeAmountUsdV1Raw,
+      feeDistributorFeeAmountUsdV2Raw,
+      feeDistributorTotalStakedGmxRaw,
+      feeDistributorReadResponseTimestampRaw,
+      feeDistributorChainlinkFactorRaw,
+      feeDistributorMaxWntAmountFromTreasuryRaw,
+      feeDistributorV1FeesWntFactorRaw,
+      feeDistributorV2FeesWntFactorRaw,
+      feeDistributorReferralRewardsAmountCoreUsdcRaw,
+      feeDistributorReferralRewardsDepositedCoreUsdcRaw,
+      feeDistributorFeeAmountGmxForCurrentChainRaw,
+      feeDistributorStakedGmxForCurrentChainRaw,
+      feeDistributorBridgeSlippageFactorRaw,
+      feeDistributorLayerZeroChainIdRaw,
+    ] = await Promise.all([
+      readUint(provider, DATA_KEYS.MULTICHAIN_READ_CHANNEL),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_DISTRIBUTION_DAY),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_DISTRIBUTION_TIMESTAMP),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_STATE),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_AMOUNT),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_WNT_USD_FACTOR),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_MAX_REFERRAL_REWARDS_ESGMX_AMOUNT),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_GMX_PRICE),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_WNT_PRICE),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_MAX_READ_RESPONSE_DELAY),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_GAS_LIMIT),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_CHAIN_ID),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_TOTAL_FEE_AMOUNT_GMX),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_FEE_AMOUNT_USD, 1)),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_FEE_AMOUNT_USD, 2)),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_TOTAL_STAKED_GMX),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_READ_RESPONSE_TIMESTAMP),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_CHAINLINK_FACTOR),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_MAX_WNT_AMOUNT_FROM_TREASURY),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_V1_FEES_WNT_FACTOR),
+      readUint(provider, DATA_KEYS.FEE_DISTRIBUTOR_V2_FEES_WNT_FACTOR),
+      readUint(provider, scopedAddressKey(DATA_KEYS.FEE_DISTRIBUTOR_REFERRAL_REWARDS_AMOUNT, basefx100Sepolia0312.tokens.CORE_USDC)),
+      readUint(provider, scopedAddressKey(DATA_KEYS.FEE_DISTRIBUTOR_REFERRAL_REWARDS_DEPOSITED, basefx100Sepolia0312.tokens.CORE_USDC)),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_FEE_AMOUNT_GMX, chainId.chainId)),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_STAKED_GMX, chainId.chainId)),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_BRIDGE_SLIPPAGE_FACTOR, chainId.chainId)),
+      readUint(provider, scopedUintKey(DATA_KEYS.FEE_DISTRIBUTOR_LAYERZERO_CHAIN_ID, chainId.chainId)),
+    ]);
+
+    const multichainPeerForReadChannelRaw = await readBytes32(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_PEERS, multichainReadChannelRaw));
+    const multichainConfirmationsForReadChannelRaw = await readUint(provider, scopedUintKey(DATA_KEYS.MULTICHAIN_CONFIRMATIONS, multichainReadChannelRaw));
+
+    state.distributionOpsCurrent = {
+      multichainReadChannel: Number(multichainReadChannelRaw),
+      multichainPeerForReadChannel: multichainPeerForReadChannelRaw,
+      multichainConfirmationsForReadChannel: Number(multichainConfirmationsForReadChannelRaw),
+      feeDistributorDistributionDay: Number(feeDistributorDistributionDayRaw),
+      feeDistributorDistributionTimestamp: Number(feeDistributorDistributionTimestampRaw),
+      feeDistributorState: Number(feeDistributorStateRaw),
+      feeDistributorMaxReadResponseDelaySec: Number(feeDistributorMaxReadResponseDelayRaw),
+      feeDistributorGasLimit: Number(feeDistributorGasLimitRaw),
+      feeDistributorChainId: Number(feeDistributorChainIdRaw),
+      feeDistributorReadResponseTimestamp: Number(feeDistributorReadResponseTimestampRaw),
+      feeDistributorMaxReferralRewardsWntUsdAmount: round(Number(formatUnits(feeDistributorMaxReferralRewardsWntUsdAmountRaw, USD_DECIMALS)), 2),
+      feeDistributorMaxReferralRewardsWntUsdFactorPct: factorToPercent(feeDistributorMaxReferralRewardsWntUsdFactorRaw),
+      feeDistributorMaxReferralRewardsEsgmxAmount: round(Number(formatUnits(feeDistributorMaxReferralRewardsEsgmxAmountRaw, 18)), 4),
+      feeDistributorGmxPriceUsd: round(Number(formatUnits(feeDistributorGmxPriceRaw, USD_DECIMALS)), 2),
+      feeDistributorWntPriceUsd: round(Number(formatUnits(feeDistributorWntPriceRaw, USD_DECIMALS)), 2),
+      feeDistributorChainlinkFactorPct: factorToPercent(feeDistributorChainlinkFactorRaw),
+      feeDistributorMaxWntAmountFromTreasury: round(Number(formatUnits(feeDistributorMaxWntAmountFromTreasuryRaw, 18)), 4),
+      feeDistributorV1FeesWntFactorPct: factorToPercent(feeDistributorV1FeesWntFactorRaw),
+      feeDistributorV2FeesWntFactorPct: factorToPercent(feeDistributorV2FeesWntFactorRaw),
+      feeDistributorFeeAmountGmxForCurrentChain: round(Number(formatUnits(feeDistributorFeeAmountGmxForCurrentChainRaw, 18)), 4),
+      feeDistributorTotalFeeAmountGmx: round(Number(formatUnits(feeDistributorTotalFeeAmountGmxRaw, 18)), 4),
+      feeDistributorFeeAmountUsdV1: round(Number(formatUnits(feeDistributorFeeAmountUsdV1Raw, USD_DECIMALS)), 2),
+      feeDistributorFeeAmountUsdV2: round(Number(formatUnits(feeDistributorFeeAmountUsdV2Raw, USD_DECIMALS)), 2),
+      feeDistributorStakedGmxForCurrentChain: round(Number(formatUnits(feeDistributorStakedGmxForCurrentChainRaw, 18)), 4),
+      feeDistributorTotalStakedGmx: round(Number(formatUnits(feeDistributorTotalStakedGmxRaw, 18)), 4),
+      feeDistributorBridgeSlippageFactorPct: factorToPercent(feeDistributorBridgeSlippageFactorRaw),
+      feeDistributorLayerZeroChainId: Number(feeDistributorLayerZeroChainIdRaw),
+      feeDistributorReferralRewardsAmountCoreUsdc: round(Number(formatUnits(feeDistributorReferralRewardsAmountCoreUsdcRaw, 6)), 2),
+      feeDistributorReferralRewardsDepositedCoreUsdc: round(Number(formatUnits(feeDistributorReferralRewardsDepositedCoreUsdcRaw, 6)), 2),
+    };
+
     state.protocolOpsCurrent = {
       minOracleSigners: Number(minOracleSignersRaw),
       minOracleBlockConfirmations: Number(minOracleBlockConfirmationsRaw),
@@ -1832,6 +1996,46 @@ function buildProtocolOps(liveState: LiveReadState): ProtocolOpsSnapshot {
   };
 }
 
+function buildDistributionOps(liveState: LiveReadState): DistributionOpsSnapshot {
+  const current: ParameterValueSet = liveState.distributionOpsCurrent ?? {
+    multichainReadChannel: 0,
+    multichainPeerForReadChannel: "0x0000000000000000000000000000000000000000000000000000000000000000",
+    multichainConfirmationsForReadChannel: 0,
+    feeDistributorDistributionDay: 0,
+    feeDistributorDistributionTimestamp: 0,
+    feeDistributorState: 0,
+    feeDistributorMaxReadResponseDelaySec: 0,
+    feeDistributorGasLimit: 0,
+    feeDistributorChainId: 0,
+    feeDistributorReadResponseTimestamp: 0,
+    feeDistributorMaxReferralRewardsWntUsdAmount: 0,
+    feeDistributorMaxReferralRewardsWntUsdFactorPct: 0,
+    feeDistributorMaxReferralRewardsEsgmxAmount: 0,
+    feeDistributorGmxPriceUsd: 0,
+    feeDistributorWntPriceUsd: 0,
+    feeDistributorChainlinkFactorPct: 0,
+    feeDistributorMaxWntAmountFromTreasury: 0,
+    feeDistributorV1FeesWntFactorPct: 0,
+    feeDistributorV2FeesWntFactorPct: 0,
+    feeDistributorFeeAmountGmxForCurrentChain: 0,
+    feeDistributorTotalFeeAmountGmx: 0,
+    feeDistributorFeeAmountUsdV1: 0,
+    feeDistributorFeeAmountUsdV2: 0,
+    feeDistributorStakedGmxForCurrentChain: 0,
+    feeDistributorTotalStakedGmx: 0,
+    feeDistributorBridgeSlippageFactorPct: 0,
+    feeDistributorLayerZeroChainId: 0,
+    feeDistributorReferralRewardsAmountCoreUsdc: 0,
+    feeDistributorReferralRewardsDepositedCoreUsdc: 0,
+  };
+
+  const source = liveState.readStatus === "fallback" ? "config-fallback" : "onchain";
+  return {
+    current,
+    currentSources: buildSourceSet(current, source),
+  };
+}
+
 export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
   const liveState = await loadLiveState();
   const { markets, marketSeries } = buildMarkets(liveState);
@@ -1839,6 +2043,7 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
   const { alerts, actions, recovery } = buildAlerts(markets);
   const parameters = buildParameters(markets, liveState);
   const protocolOps = buildProtocolOps(liveState);
+  const distributionOps = buildDistributionOps(liveState);
   const generatedAt = new Date().toISOString();
 
   const hasLiveMarkets = liveState.readStatus !== "fallback" && liveState.onchainMarkets.length > 0;
@@ -1868,5 +2073,7 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
     parameters,
     protocolOpsDefinitions,
     protocolOps,
+    distributionOpsDefinitions,
+    distributionOps,
   };
 }

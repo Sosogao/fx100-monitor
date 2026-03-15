@@ -48,6 +48,8 @@ function buildDegradedSnapshot(error: unknown): MonitoringSnapshot {
     parameters: [],
     protocolOpsDefinitions: [],
     protocolOps: { current: {}, currentSources: {} },
+    distributionOpsDefinitions: [],
+    distributionOps: { current: {}, currentSources: {} },
   };
 }
 
