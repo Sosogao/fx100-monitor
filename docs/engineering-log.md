@@ -605,3 +605,14 @@ Reason:
 
 - once the monitor moved to live OI and live protocol reads, an almost-empty fork underutilized the UI and alert surfaces
 - a documented sample-book flow makes it easy to rehydrate the shared demo fork into a more realistic state for verification, screenshots, and operator walkthroughs
+
+### Step 30: add operator troubleshooting guide
+
+- added `docs/operator-troubleshooting.md` to capture the minimal operational checks for `health`, `snapshot`, OI provenance, venue source labels, and alert interpretation
+- linked the troubleshooting guide from `README.md` so the deployment/operator workflow is visible without scanning the engineering log
+- documented that restoring demo realism on the shared fork should use `scripts/fork/run_monitor_sample_book.sh` from the contracts repo
+
+Reason:
+
+- once the monitor moved to live RPC reads and mixed provenance, the main failure mode became operational confusion rather than missing UI
+- operators need one short document that answers: is the API live, is OI direct or inferred, are venue labels live or fallback, and how do I quickly rehydrate the shared fork

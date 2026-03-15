@@ -160,6 +160,10 @@ Latest verified post-run OI on the shared fresh Base fork:
 
 This script is intended for fork demo realism, monitor verification, and regression sampling. It should not be treated as a protocol deployment step.
 
+## Operator troubleshooting
+
+For live deployment checks and fallback/OI/source-label triage, use `docs/operator-troubleshooting.md`.
+
 ## Development
 
 Use Node 20.
