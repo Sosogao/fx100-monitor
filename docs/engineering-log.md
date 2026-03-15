@@ -650,3 +650,20 @@ Reason:
 
 - the parameter page was presenting a mixed model as if it were a direct contract view, which was defensible only for a subset of fields
 - when a live onchain value equals the deployment default, it is still onchain; labeling it as fallback makes the page less accurate and makes coverage analysis harder
+
+### Step 33: expose long/short reserve and skew controls in the parameters view
+
+- extended the parameters view to surface additional live `FX100Keys` values already being read from the DataStore:
+  - `MAX_PRICE_IMPACT_SPREAD`
+  - `RESERVE_FACTOR` (long / short)
+  - `OPEN_INTEREST_RESERVE_FACTOR` (long / short)
+  - `SKEW_IMPACT_FACTOR`
+  - `MIN_SKEW_IMPACT`
+  - `MAX_SKEW_IMPACT`
+- added explicit parameter rows for those values so the page is closer to a real operator parameter console instead of a tier-template summary
+- kept template baselines for comparison, but current values now prefer the live onchain read whenever the environment is not in fallback mode
+
+Reason:
+
+- reserve and skew controls are core market risk knobs; hiding them while already reading them would keep the page artificially incomplete
+- showing long/short reserve factors explicitly also avoids collapsing asymmetric configuration into a single averaged number without context
