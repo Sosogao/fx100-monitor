@@ -179,6 +179,7 @@ export interface ParameterFieldDefinition {
   formula?: string;
   runtimeStatus?: string;
   testStatus?: string;
+  docHref?: string;
 }
 
 export interface ParameterValueSet {
@@ -220,6 +221,7 @@ export interface ProtocolOpsFieldDefinition {
   formula?: string;
   runtimeStatus?: string;
   testStatus?: string;
+  docHref?: string;
 }
 
 export interface ProtocolOpsSnapshot {
@@ -237,6 +239,7 @@ export interface DistributionOpsFieldDefinition {
   formula?: string;
   runtimeStatus?: string;
   testStatus?: string;
+  docHref?: string;
 }
 
 export interface DistributionOpsSnapshot {
@@ -256,6 +259,7 @@ export interface DistributionRegistrySection {
   description: string;
   businessMeaning?: string;
   runtimeStatus?: string;
+  docHref?: string;
   rows: DistributionRegistryRow[];
 }
 

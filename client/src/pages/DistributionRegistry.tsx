@@ -2,6 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResearchInfo } from "@/components/ResearchInfo";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 
 type ParameterValueSource = "onchain" | "config-fallback" | "seeded-analytics" | "template" | "derived";
@@ -82,20 +83,11 @@ export default function DistributionRegistry() {
           <CardHeader>
             <CardTitle className="text-primary">{section.title}</CardTitle>
             <CardDescription>{section.description}</CardDescription>
-            {section.businessMeaning || section.runtimeStatus ? (
-              <div className="space-y-1 text-xs text-muted-foreground/90">
-                {section.businessMeaning ? (
-                  <div>
-                    <span className="font-semibold text-foreground/80">Meaning:</span> {section.businessMeaning}
-                  </div>
-                ) : null}
-                {section.runtimeStatus ? (
-                  <div>
-                    <span className="font-semibold text-foreground/80">Runtime:</span> {section.runtimeStatus}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            <ResearchInfo
+              sectionMeaning={section.businessMeaning}
+              sectionRuntime={section.runtimeStatus}
+              docHref={section.docHref ?? "https://github.com/Sosogao/fx100-monitor/blob/main/docs/operator-troubleshooting.md"}
+            />
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded border border-border bg-background/40">

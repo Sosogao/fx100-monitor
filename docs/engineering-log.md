@@ -739,3 +739,13 @@ Reason:
 - Added the same operator-facing research pattern to `Distribution Ops`.
 - Added section-level business/runtime explanations to `Distribution Registry`.
 - This keeps Keys2 surfaces readable as control surfaces instead of opaque registry dumps.
+
+
+## Step 42: compacted research metadata into hover cards and doc links
+- Replaced always-expanded research text blocks with compact `Explain` hover cards.
+- Added direct docs links from:
+  - `Risk Parameters`
+  - `Protocol Ops`
+  - `Distribution Ops`
+  - `Distribution Registry`
+- This keeps the pages denser while preserving access to the research context.

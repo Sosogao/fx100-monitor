@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResearchInfo } from "@/components/ResearchInfo";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 import type { MonitoringControlUpdateInput } from "@shared/monitoring";
 
@@ -54,20 +55,12 @@ function promptValue(currentValue: string | number | boolean) {
   return next.trim();
 }
 
-function researchRows(definition: {
-  businessMeaning?: string;
-  riskControlled?: string;
-  formula?: string;
-  runtimeStatus?: string;
-  testStatus?: string;
-}) {
-  return [
-    definition.businessMeaning ? { label: "Meaning", value: definition.businessMeaning } : null,
-    definition.riskControlled ? { label: "Risk", value: definition.riskControlled } : null,
-    definition.formula ? { label: "Formula", value: definition.formula } : null,
-    definition.runtimeStatus ? { label: "Runtime", value: definition.runtimeStatus } : null,
-    definition.testStatus ? { label: "Tests", value: definition.testStatus } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+function docHrefForProtocolOps(fieldKey: string) {
+  const base = "https://github.com/Sosogao/fx100-contracts_fork/blob/main/docs/reports/Parameter_Risk_Research.md";
+  if (fieldKey.includes("Oracle") || fieldKey.includes("sequencer")) return `${base}#group-11-oracle-configuration-and-provider-routing`;
+  if (fieldKey.includes("Gas") || fieldKey.includes("tokenTransfer") || fieldKey.includes("nativeTokenTransfer")) return `${base}#group-12-execution-gas-callback-relay-and-request-lifecycle-controls`;
+  if (fieldKey.endsWith("Disabled")) return `${base}#group-13-feature-flags-market-gating-and-uxoperational-limits`;
+  return base;
 }
 
 export default function ProtocolOps() {
@@ -161,15 +154,14 @@ export default function ProtocolOps() {
                               <div className="mt-1 text-xs font-mono text-primary">{definition.keyName ?? "Unmapped"}</div>
                               <div className="mt-1 text-xs text-muted-foreground/80">{definition.keyPath}</div>
                               {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400">{definition.writableReason}</div> : null}
-                              {researchRows(definition).length ? (
-                                <div className="mt-3 space-y-1 text-xs text-muted-foreground/90">
-                                  {researchRows(definition).map((row) => (
-                                    <div key={row.label}>
-                                      <span className="font-semibold text-foreground/80">{row.label}:</span> {row.value}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
+                              <ResearchInfo
+                                businessMeaning={definition.businessMeaning}
+                                riskControlled={definition.riskControlled}
+                                formula={definition.formula}
+                                runtimeStatus={definition.runtimeStatus}
+                                testStatus={definition.testStatus}
+                                docHref={definition.docHref ?? docHrefForProtocolOps(definition.key)}
+                              />
                             </td>
                             <td className="px-4 py-3 text-right text-foreground">
                               <div>{formatValue(value, definition.unit)}</div>

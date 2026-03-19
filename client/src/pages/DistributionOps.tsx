@@ -2,6 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResearchInfo } from "@/components/ResearchInfo";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 
 type ParameterValueSource = "onchain" | "config-fallback" | "seeded-analytics" | "template" | "derived";
@@ -45,20 +46,8 @@ function sourceLabel(source: ParameterValueSource) {
   }
 }
 
-function researchRows(definition: {
-  businessMeaning?: string;
-  riskControlled?: string;
-  formula?: string;
-  runtimeStatus?: string;
-  testStatus?: string;
-}) {
-  return [
-    definition.businessMeaning ? { label: "Meaning", value: definition.businessMeaning } : null,
-    definition.riskControlled ? { label: "Risk", value: definition.riskControlled } : null,
-    definition.formula ? { label: "Formula", value: definition.formula } : null,
-    definition.runtimeStatus ? { label: "Runtime", value: definition.runtimeStatus } : null,
-    definition.testStatus ? { label: "Tests", value: definition.testStatus } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+function docHrefForDistributionOps() {
+  return "https://github.com/Sosogao/fx100-monitor/blob/main/docs/operator-troubleshooting.md";
 }
 
 export default function DistributionOps() {
@@ -124,15 +113,14 @@ export default function DistributionOps() {
                         <tr key={definition.key} className="border-b border-border/60 last:border-b-0 align-top">
                           <td className="px-4 py-3 text-muted-foreground">
                             <div>{definition.label}</div>
-                            {researchRows(definition).length ? (
-                              <div className="mt-3 space-y-1 text-xs text-muted-foreground/90">
-                                {researchRows(definition).map((row) => (
-                                  <div key={row.label}>
-                                    <span className="font-semibold text-foreground/80">{row.label}:</span> {row.value}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
+                            <ResearchInfo
+                              businessMeaning={definition.businessMeaning}
+                              riskControlled={definition.riskControlled}
+                              formula={definition.formula}
+                              runtimeStatus={definition.runtimeStatus}
+                              testStatus={definition.testStatus}
+                              docHref={definition.docHref ?? docHrefForDistributionOps()}
+                            />
                           </td>
                           <td className="px-4 py-3 text-right text-foreground">
                             <div>{formatValue(snapshot.distributionOps.current[definition.key], definition.unit)}</div>

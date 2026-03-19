@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResearchInfo } from "@/components/ResearchInfo";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 import type { MonitoringControlUpdateInput } from "@shared/monitoring";
 
@@ -61,20 +62,17 @@ function promptValue(currentValue: string | number | boolean) {
   return next.trim();
 }
 
-function researchRows(definition: {
-  businessMeaning?: string;
-  riskControlled?: string;
-  formula?: string;
-  runtimeStatus?: string;
-  testStatus?: string;
-}) {
-  return [
-    definition.businessMeaning ? { label: "Meaning", value: definition.businessMeaning } : null,
-    definition.riskControlled ? { label: "Risk", value: definition.riskControlled } : null,
-    definition.formula ? { label: "Formula", value: definition.formula } : null,
-    definition.runtimeStatus ? { label: "Runtime", value: definition.runtimeStatus } : null,
-    definition.testStatus ? { label: "Tests", value: definition.testStatus } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+function docHrefForParameter(fieldKey: string) {
+  const base = "https://github.com/Sosogao/fx100-contracts_fork/blob/main/docs/reports/Parameter_Risk_Research.md";
+  if (fieldKey.startsWith("positionImpact")) return `${base}#group-1-position-impact-controls`;
+  if (["constantSpread", "priceImpactNormal", "maxPriceImpactSpread", "orderbookDepthLong", "orderbookDepthShort"].includes(fieldKey)) return `${base}#group-2-spread--depth-price-impact-controls`;
+  if (["skewImpactFactor", "skewClampLiveMin", "skewClampLiveMax"].includes(fieldKey)) return `${base}#group-3-skew-and-open-interest-state`;
+  if (["maxOpenInterestFactorLong", "maxOpenInterestFactorShort", "reserveFactorLong", "reserveFactorShort", "oiReserveFactorLong", "oiReserveFactorShort", "minCollateralFactorForOIMultiplierLong", "minCollateralFactorForOIMultiplierShort"].includes(fieldKey)) return `${base}#group-4-capacity-and-reserve-constraints`;
+  if (["minPosUsd", "minCollateralUsd", "singlePosCapUsd", "minCollateralFactor"].includes(fieldKey)) return `${base}#group-5-collateral-and-position-size-guards`;
+  if (["fundingFloorApr", "fundingBaseApr", "fundingEmergencyApr", "minFundingRate", "maxFundingRate", "skewEmaMinutes"].includes(fieldKey)) return `${base}#group-6-funding-curve-and-funding-state`;
+  if (["openFeeRatio", "closeFeeRatio", "liquidationFeeFactor"].includes(fieldKey)) return `${base}#group-9-trading-fees-rebates-ui-fees-and-fee-distribution`;
+  if (["graceBaseMinutes", "graceEnabled", "graceMaxMinutes"].includes(fieldKey)) return `${base}#group-10-liquidation-grace-and-execution-fee-subsidy`;
+  return base;
 }
 
 export default function ParametersEnhanced() {
@@ -218,15 +216,14 @@ export default function ParametersEnhanced() {
                               <div className="mt-1 text-xs font-mono text-primary break-all">{definition.keyName ?? "Unmapped"}</div>
                               <div className="mt-1 text-xs text-muted-foreground/80 break-words">{definition.keyPath}</div>
                               {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400 break-words">{definition.writableReason}</div> : null}
-                              {researchRows(definition).length ? (
-                                <div className="mt-3 space-y-1 text-xs text-muted-foreground/90">
-                                  {researchRows(definition).map((row) => (
-                                    <div key={row.label} className="break-words">
-                                      <span className="font-semibold text-foreground/80">{row.label}:</span> {row.value}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
+                              <ResearchInfo
+                                businessMeaning={definition.businessMeaning}
+                                riskControlled={definition.riskControlled}
+                                formula={definition.formula}
+                                runtimeStatus={definition.runtimeStatus}
+                                testStatus={definition.testStatus}
+                                docHref={definition.docHref ?? docHrefForParameter(definition.key)}
+                              />
                             </td>
                             <td className="px-4 py-3 text-right align-top">
                               <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>
