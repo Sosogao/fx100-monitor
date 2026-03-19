@@ -61,6 +61,22 @@ function promptValue(currentValue: string | number | boolean) {
   return next.trim();
 }
 
+function researchRows(definition: {
+  businessMeaning?: string;
+  riskControlled?: string;
+  formula?: string;
+  runtimeStatus?: string;
+  testStatus?: string;
+}) {
+  return [
+    definition.businessMeaning ? { label: "Meaning", value: definition.businessMeaning } : null,
+    definition.riskControlled ? { label: "Risk", value: definition.riskControlled } : null,
+    definition.formula ? { label: "Formula", value: definition.formula } : null,
+    definition.runtimeStatus ? { label: "Runtime", value: definition.runtimeStatus } : null,
+    definition.testStatus ? { label: "Tests", value: definition.testStatus } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+}
+
 export default function ParametersEnhanced() {
   const { snapshot, loading, error, refresh, updateControl } = useMonitoring();
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -202,6 +218,15 @@ export default function ParametersEnhanced() {
                               <div className="mt-1 text-xs font-mono text-primary break-all">{definition.keyName ?? "Unmapped"}</div>
                               <div className="mt-1 text-xs text-muted-foreground/80 break-words">{definition.keyPath}</div>
                               {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400 break-words">{definition.writableReason}</div> : null}
+                              {researchRows(definition).length ? (
+                                <div className="mt-3 space-y-1 text-xs text-muted-foreground/90">
+                                  {researchRows(definition).map((row) => (
+                                    <div key={row.label} className="break-words">
+                                      <span className="font-semibold text-foreground/80">{row.label}:</span> {row.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
                             </td>
                             <td className="px-4 py-3 text-right align-top">
                               <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>

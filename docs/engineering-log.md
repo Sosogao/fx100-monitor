@@ -722,3 +722,14 @@ Reason:
 ## Step 39: documented control-surface boundaries
 - Added an explicit control-surface map to the README and operator troubleshooting guide.
 - This documents the separation between market parameters, protocol-global controls, Keys2 scalar ops, and Keys2 registry/probe views.
+
+
+## Step 40: surfaced parameter-research metadata in the monitor UI
+- Synced the FX100Keys research into the monitor control-surface definitions.
+- `Risk Parameters` and `Protocol Ops` rows now show:
+  - business meaning
+  - risk controlled
+  - formula / runtime note
+  - runtime status
+  - test status
+- This keeps the monitor usable as an operator-facing parameter book instead of a raw key/value table.

@@ -35,6 +35,11 @@ export interface FieldDefinitionMeta {
   keyPath: string;
   writable: boolean;
   writableReason?: string;
+  businessMeaning?: string;
+  riskControlled?: string;
+  formula?: string;
+  runtimeStatus?: string;
+  testStatus?: string;
 }
 
 interface WritableFieldControl extends FieldDefinitionMeta {
@@ -130,6 +135,460 @@ function getWriterPrivateKey() {
 export function isWriteEnabled() {
   return getWriterPrivateKey().length > 0;
 }
+
+const parameterResearchMap: Record<string, Omit<FieldDefinitionMeta, "keyName" | "keyPath" | "writable">> = {
+  openFeeRatio: {
+    businessMeaning: "Base trading fee on position increases/decreases.",
+    riskControlled: "Revenue capture and trader friction.",
+    formula: "positionFeeAmount = sizeDeltaUsd * positionFeeFactor / collateralTokenPrice.min",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Strong unit and integration fee coverage.",
+  },
+  closeFeeRatio: {
+    businessMeaning: "Base trading fee on close/decrease path.",
+    riskControlled: "Revenue capture and close-path friction.",
+    formula: "positionFeeAmount = sizeDeltaUsd * positionFeeFactor / collateralTokenPrice.min",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Strong unit and integration fee coverage.",
+  },
+  constantSpread: {
+    businessMeaning: "Fixed spread floor added to every position impact quote.",
+    riskControlled: "Prevents zero-friction trading and covers baseline adverse selection.",
+    formula: "dynamicSpread = constantSpread + depthSpread + skewSpread",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered in price/impact tests.",
+  },
+  liquidationFeeFactor: {
+    businessMeaning: "Percentage liquidation fee charged on liquidated notional.",
+    riskControlled: "Keeper incentives and liquidation-cost internalization.",
+    formula: "liquidationFeeUsd = sizeInUsd * liquidationFeeFactor",
+    runtimeStatus: "Active in liquidation pricing path.",
+    testStatus: "Fork liquidation tests cover fee application.",
+  },
+  maxPriceDeviation: {
+    businessMeaning: "Maximum allowed deviation versus reference/oracle price.",
+    riskControlled: "Oracle corruption and stale/manipulated price protection.",
+    formula: "abs(primary - ref) / ref <= MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR",
+    runtimeStatus: "Active in oracle validation path.",
+    testStatus: "Direct oracle validation tests exist.",
+  },
+  priceImpactNormal: {
+    businessMeaning: "Core curvature control for depth-based price impact.",
+    riskControlled: "Large-order slippage and adverse inventory taking.",
+    formula: "depthSpread = min(max(exp(orderSize / (depth * priceImpactParameter)) - 1, orderSize / depth) / 100, MAX_PRICE_IMPACT_SPREAD)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage.",
+  },
+  maxPriceImpactSpread: {
+    businessMeaning: "Global cap on the depth spread component.",
+    riskControlled: "Runaway spread on extreme order sizes or bad depth values.",
+    formula: "depthSpread <= MAX_PRICE_IMPACT_SPREAD",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Direct cap tests exist.",
+  },
+  positionImpactFactorPositive: {
+    businessMeaning: "Positive-side position impact scalar.",
+    riskControlled: "Controls how much favorable impact can be credited.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification.",
+  },
+  positionImpactFactorNegative: {
+    businessMeaning: "Negative-side position impact scalar.",
+    riskControlled: "Controls how aggressively unfavorable impact is applied.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification.",
+  },
+  positionImpactExponentPositive: {
+    businessMeaning: "Exponent control for positive impact curve.",
+    riskControlled: "Shape of favorable impact scaling.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification.",
+  },
+  positionImpactExponentNegative: {
+    businessMeaning: "Exponent control for negative impact curve.",
+    riskControlled: "Shape of unfavorable impact scaling.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification.",
+  },
+  maxPositionImpactFactorPositive: {
+    businessMeaning: "Cap on positive position impact.",
+    riskControlled: "Limits overly favorable execution credit.",
+    formula: "maxPositiveImpactUsd = sizeDeltaUsd * maxPositionImpactFactor",
+    runtimeStatus: "Active in live pricing path.",
+    testStatus: "Needs more direct cap-focused tests.",
+  },
+  maxPositionImpactFactorNegative: {
+    businessMeaning: "Cap on negative position impact.",
+    riskControlled: "Limits worst-case negative impact applied per trade.",
+    formula: "Negative impact is clamped by the configured max factor.",
+    runtimeStatus: "Active in live pricing path.",
+    testStatus: "Needs more direct cap-focused tests.",
+  },
+  minPosUsd: {
+    businessMeaning: "Minimum allowed position size.",
+    riskControlled: "Dust positions, griefing, and uneconomic keeper work.",
+    formula: "sizeDeltaUsd >= MIN_POSITION_SIZE_USD",
+    runtimeStatus: "Active in open/modify validation.",
+    testStatus: "Covered in position/risk tests.",
+  },
+  minCollateralUsd: {
+    businessMeaning: "Minimum required collateral in USD terms.",
+    riskControlled: "Under-collateralized tiny positions.",
+    formula: "collateralUsd >= MIN_COLLATERAL_USD",
+    runtimeStatus: "Active in collateral validation.",
+    testStatus: "Covered in collateral/risk tests.",
+  },
+  singlePosCapUsd: {
+    businessMeaning: "Maximum allowed position size per market side/trade path.",
+    riskControlled: "Single-position concentration risk.",
+    formula: "sizeInUsd <= MAX_POSITION_SIZE_USD",
+    runtimeStatus: "Active in open/increase validation.",
+    testStatus: "Covered in position-limit tests.",
+  },
+  maxOpenInterestFactorLong: {
+    businessMeaning: "TVL-scaled soft OI cap for the long side.",
+    riskControlled: "Crowded-side growth and pool over-utilization.",
+    formula: "cumulativeOpenCosts <= poolUsd * maxOpenInterestFactor",
+    runtimeStatus: "Active in reserve/capacity checks.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  maxOpenInterestFactorShort: {
+    businessMeaning: "TVL-scaled soft OI cap for the short side.",
+    riskControlled: "Crowded-side growth and pool over-utilization.",
+    formula: "cumulativeOpenCosts <= poolUsd * maxOpenInterestFactor",
+    runtimeStatus: "Active in reserve/capacity checks.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  reserveFactorLong: {
+    businessMeaning: "Generic reserve ceiling for long-side usage.",
+    riskControlled: "Pool over-reservation.",
+    formula: "reservedUsd <= poolUsd * reserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  reserveFactorShort: {
+    businessMeaning: "Generic reserve ceiling for short-side usage.",
+    riskControlled: "Pool over-reservation.",
+    formula: "reservedUsd <= poolUsd * reserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  oiReserveFactorLong: {
+    businessMeaning: "OI-specific reserve ceiling for long-side usage.",
+    riskControlled: "Open-interest-specific reserve overuse.",
+    formula: "reservedUsd <= poolUsd * openInterestReserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  oiReserveFactorShort: {
+    businessMeaning: "OI-specific reserve ceiling for short-side usage.",
+    riskControlled: "Open-interest-specific reserve overuse.",
+    formula: "reservedUsd <= poolUsd * openInterestReserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists.",
+  },
+  minCollateralFactor: {
+    businessMeaning: "Base minimum collateral factor for the market.",
+    riskControlled: "Leverage floor and insolvency risk.",
+    formula: "collateralRatio >= MIN_COLLATERAL_FACTOR",
+    runtimeStatus: "Active in position validation.",
+    testStatus: "Covered in collateral and risk tests.",
+  },
+  minCollateralFactorForOIMultiplierLong: {
+    businessMeaning: "Dynamic collateral-factor add-on for long OI growth.",
+    riskControlled: "Crowding-sensitive leverage tightening.",
+    formula: "minCollateralFactorForOI = nextOpenInterest * multiplierFactor",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Runtime confirmed; direct dedicated test still thin.",
+  },
+  minCollateralFactorForOIMultiplierShort: {
+    businessMeaning: "Dynamic collateral-factor add-on for short OI growth.",
+    riskControlled: "Crowding-sensitive leverage tightening.",
+    formula: "minCollateralFactorForOI = nextOpenInterest * multiplierFactor",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Runtime confirmed; direct dedicated test still thin.",
+  },
+  fundingFloorApr: {
+    businessMeaning: "Minimum baseline annualized funding floor.",
+    riskControlled: "Funding curve collapsing to zero when some carry is required.",
+    formula: "f_long = clamp(floor + base * skew, min, max)",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists.",
+  },
+  fundingBaseApr: {
+    businessMeaning: "Base annualized funding sensitivity to skew.",
+    riskControlled: "Keeps imbalanced sides paying carry.",
+    formula: "f_long = clamp(floor + base * skew, min, max)",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists.",
+  },
+  fundingEmergencyApr: {
+    businessMeaning: "Upper annualized funding bound.",
+    riskControlled: "Runaway funding values and unstable carry.",
+    formula: "funding <= MAX_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists.",
+  },
+  minFundingRate: {
+    businessMeaning: "Lower funding bound.",
+    riskControlled: "Unbounded negative funding.",
+    formula: "funding >= MIN_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists.",
+  },
+  maxFundingRate: {
+    businessMeaning: "Upper funding bound.",
+    riskControlled: "Unbounded positive funding.",
+    formula: "funding <= MAX_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists.",
+  },
+  skewEmaMinutes: {
+    businessMeaning: "Packed runtime state for skew EMA sampling horizon.",
+    riskControlled: "Funding responsiveness versus noise.",
+    formula: "Stored packed state; not a direct editable config field in monitor.",
+    runtimeStatus: "Runtime state, not direct config.",
+    testStatus: "Covered indirectly via funding flow.",
+  },
+  skewImpactFactor: {
+    businessMeaning: "Skew-sensitive spread/impact scalar.",
+    riskControlled: "Crowded-side execution pricing.",
+    formula: "rawSkewImpact = skewFactor * (nextLong - nextShort) / (nextLong + nextShort)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests.",
+  },
+  skewClampLiveMin: {
+    businessMeaning: "Lower clamp for skew impact.",
+    riskControlled: "Prevents skew impact from collapsing too low.",
+    formula: "skewImpact = clamp(rawSkewImpact, MIN_SKEW_IMPACT, MAX_SKEW_IMPACT)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests.",
+  },
+  skewClampLiveMax: {
+    businessMeaning: "Upper clamp for skew impact.",
+    riskControlled: "Prevents skew impact from exploding too high.",
+    formula: "skewImpact = clamp(rawSkewImpact, MIN_SKEW_IMPACT, MAX_SKEW_IMPACT)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests.",
+  },
+  orderbookDepthLong: {
+    businessMeaning: "Depth parameter used for long-open depth impact.",
+    riskControlled: "Slippage on long-side entry.",
+    formula: "depthSpread uses ASK_ORDER_BOOK_DEPTH for long-open path",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage.",
+  },
+  orderbookDepthShort: {
+    businessMeaning: "Depth parameter used for short/open-close counterpart path.",
+    riskControlled: "Slippage on the non-long-open branch.",
+    formula: "depthSpread uses BID_ORDER_BOOK_DEPTH outside long-open path",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage.",
+  },
+  graceBaseMinutes: {
+    businessMeaning: "Base post-open liquidation grace window.",
+    riskControlled: "Immediate post-entry liquidation risk.",
+    formula: "graceSeconds = baseGraceSeconds * tierMultiplier / 1e18",
+    runtimeStatus: "Active on increase/open path.",
+    testStatus: "Covered in fork and integration liquidation tests.",
+  },
+};
+
+const protocolOpsResearchMap: Record<string, Omit<FieldDefinitionMeta, "keyName" | "keyPath" | "writable">> = {
+  minOracleSigners: {
+    businessMeaning: "Minimum signer quorum for oracle attestations.",
+    riskControlled: "Single-signer or weak-consensus oracle acceptance.",
+    formula: "Validation requires signer count >= MIN_ORACLE_SIGNERS.",
+    runtimeStatus: "Config-visible; not fully traced in this pass.",
+    testStatus: "Needs focused signer-path verification.",
+  },
+  minOracleBlockConfirmations: {
+    businessMeaning: "Minimum block confirmations before accepting oracle data.",
+    riskControlled: "Reorg and low-confirmation oracle reads.",
+    formula: "Validation requires confirmation count >= MIN_ORACLE_BLOCK_CONFIRMATIONS.",
+    runtimeStatus: "Config-visible; not fully traced in this pass.",
+    testStatus: "Needs focused confirmation-path verification.",
+  },
+  maxOraclePriceAgeSec: {
+    businessMeaning: "Maximum age for standard oracle prices.",
+    riskControlled: "Stale pricing.",
+    formula: "validatedPrice.timestamp + maxAge >= block.timestamp",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist.",
+  },
+  maxAtomicOraclePriceAgeSec: {
+    businessMeaning: "Maximum age for atomic-operation oracle prices.",
+    riskControlled: "Stale atomic pricing.",
+    formula: "Atomic path uses MAX_ATOMIC_ORACLE_PRICE_AGE instead of normal max age.",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist.",
+  },
+  maxOracleTimestampRangeSec: {
+    businessMeaning: "Maximum timestamp spread across oracle inputs.",
+    riskControlled: "Cross-token timestamp incoherence.",
+    formula: "maxTimestamp - minTimestamp <= MAX_ORACLE_TIMESTAMP_RANGE",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist.",
+  },
+  sequencerGraceDurationSec: {
+    businessMeaning: "Delay after sequencer recovery before trusting oracle updates.",
+    riskControlled: "Bad L2 oracle reads immediately after sequencer outage.",
+    formula: "Oracle path rejects prices until sequencer grace has elapsed.",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Integration coverage exists.",
+  },
+  maxOracleRefPriceDeviationPct: {
+    businessMeaning: "Maximum allowed deviation versus reference price.",
+    riskControlled: "Manipulated or corrupted primary prices.",
+    formula: "abs(primary - ref) / ref <= MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist.",
+  },
+  createDepositGasLimit: {
+    businessMeaning: "Keeper gas budget for create-deposit path.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  depositGasLimit: {
+    businessMeaning: "Keeper gas budget for deposit execution.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  createWithdrawalGasLimit: {
+    businessMeaning: "Keeper gas budget for create-withdrawal path.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  withdrawalGasLimit: {
+    businessMeaning: "Keeper gas budget for withdrawal execution.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  singleSwapGasLimit: {
+    businessMeaning: "Keeper gas budget for a single swap path.",
+    riskControlled: "Underfunded swap execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  increaseOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for increase-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  decreaseOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for decrease-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  swapOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for swap-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation.",
+  },
+  tokenTransferGasLimit: {
+    businessMeaning: "Gas allowance for ERC20 transfer helper path.",
+    riskControlled: "Token transfer OOG failures.",
+    formula: "Transfer helper uses configured gas limit when sending tokens.",
+    runtimeStatus: "Operationally important; ERC20-specific use not fully traced here.",
+    testStatus: "Fork failures showed this matters; direct path coverage still thin.",
+  },
+  nativeTokenTransferGasLimit: {
+    businessMeaning: "Gas allowance for native-token/WNT transfer helper path.",
+    riskControlled: "Native transfer OOG failures.",
+    formula: "Transfer helper uses configured gas limit when sending native token.",
+    runtimeStatus: "Clearly active.",
+    testStatus: "Fork execution failures confirmed operational importance.",
+  },
+  createOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Widely covered indirectly via handler flows.",
+  },
+  executeOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Widely covered indirectly via handler flows.",
+  },
+  updateOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order update path.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Handler-path coverage exists indirectly.",
+  },
+  cancelOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order cancel path.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Handler-path coverage exists indirectly.",
+  },
+  createDepositDisabled: {
+    businessMeaning: "Emergency kill switch for deposit creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage.",
+  },
+  executeDepositDisabled: {
+    businessMeaning: "Emergency kill switch for deposit execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage.",
+  },
+  createWithdrawalDisabled: {
+    businessMeaning: "Emergency kill switch for withdrawal creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage.",
+  },
+  executeWithdrawalDisabled: {
+    businessMeaning: "Emergency kill switch for withdrawal execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage.",
+  },
+  subaccountDisabled: {
+    businessMeaning: "Emergency kill switch for subaccount flows.",
+    riskControlled: "Integration / delegation surface during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Subaccount router path confirms runtime usage.",
+  },
+  gaslessDisabled: {
+    businessMeaning: "Emergency kill switch for gasless flow.",
+    riskControlled: "Relay / gasless integration surface during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Config-visible operational control.",
+    testStatus: "Needs more focused direct tests.",
+  },
+};
 
 const parameterControlMap: Record<string, WritableFieldControl> = {
   openFeeRatio: { surface: "parameters", keyName: "FX100Keys.POSITION_FEE_FACTOR", keyPath: "FX100Keys.positionFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "POSITION_FEE_FACTOR", valueEncoding: "factor-percent" },
@@ -241,11 +700,11 @@ function metaFor(control: WritableFieldControl | undefined): FieldDefinitionMeta
 }
 
 export function decorateParameterDefinition(definition: ParameterFieldDefinition): ParameterFieldDefinition {
-  return { ...definition, ...metaFor(parameterControlMap[definition.key]) };
+  return { ...definition, ...metaFor(parameterControlMap[definition.key]), ...parameterResearchMap[definition.key] };
 }
 
 export function decorateProtocolOpsDefinition(definition: ProtocolOpsFieldDefinition): ProtocolOpsFieldDefinition {
-  return { ...definition, ...metaFor(protocolOpsControlMap[definition.key]) };
+  return { ...definition, ...metaFor(protocolOpsControlMap[definition.key]), ...protocolOpsResearchMap[definition.key] };
 }
 
 function resolveControl(input: MonitoringControlUpdateInput) {

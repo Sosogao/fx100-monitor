@@ -174,6 +174,11 @@ export interface ParameterFieldDefinition {
   keyPath?: string;
   writable?: boolean;
   writableReason?: string;
+  businessMeaning?: string;
+  riskControlled?: string;
+  formula?: string;
+  runtimeStatus?: string;
+  testStatus?: string;
 }
 
 export interface ParameterValueSet {
@@ -210,6 +215,11 @@ export interface ProtocolOpsFieldDefinition {
   keyPath?: string;
   writable?: boolean;
   writableReason?: string;
+  businessMeaning?: string;
+  riskControlled?: string;
+  formula?: string;
+  runtimeStatus?: string;
+  testStatus?: string;
 }
 
 export interface ProtocolOpsSnapshot {
