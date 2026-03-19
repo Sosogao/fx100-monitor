@@ -82,6 +82,20 @@ export default function DistributionRegistry() {
           <CardHeader>
             <CardTitle className="text-primary">{section.title}</CardTitle>
             <CardDescription>{section.description}</CardDescription>
+            {section.businessMeaning || section.runtimeStatus ? (
+              <div className="space-y-1 text-xs text-muted-foreground/90">
+                {section.businessMeaning ? (
+                  <div>
+                    <span className="font-semibold text-foreground/80">Meaning:</span> {section.businessMeaning}
+                  </div>
+                ) : null}
+                {section.runtimeStatus ? (
+                  <div>
+                    <span className="font-semibold text-foreground/80">Runtime:</span> {section.runtimeStatus}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded border border-border bg-background/40">

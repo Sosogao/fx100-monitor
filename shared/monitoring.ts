@@ -232,6 +232,11 @@ export interface DistributionOpsFieldDefinition {
   label: string;
   category: string;
   unit: string;
+  businessMeaning?: string;
+  riskControlled?: string;
+  formula?: string;
+  runtimeStatus?: string;
+  testStatus?: string;
 }
 
 export interface DistributionOpsSnapshot {
@@ -249,6 +254,8 @@ export interface DistributionRegistryRow {
 export interface DistributionRegistrySection {
   title: string;
   description: string;
+  businessMeaning?: string;
+  runtimeStatus?: string;
   rows: DistributionRegistryRow[];
 }
 

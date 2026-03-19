@@ -733,3 +733,9 @@ Reason:
   - runtime status
   - test status
 - This keeps the monitor usable as an operator-facing parameter book instead of a raw key/value table.
+
+
+## Step 41: extended research metadata to distribution pages
+- Added the same operator-facing research pattern to `Distribution Ops`.
+- Added section-level business/runtime explanations to `Distribution Registry`.
+- This keeps Keys2 surfaces readable as control surfaces instead of opaque registry dumps.
