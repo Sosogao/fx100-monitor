@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 import type { MonitoringControlUpdateInput } from "@shared/monitoring";
 
@@ -64,16 +63,14 @@ function promptValue(currentValue: string | number | boolean) {
 
 export default function ParametersEnhanced() {
   const { snapshot, loading, error, refresh, updateControl } = useMonitoring();
-  const [search, setSearch] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const parameters = snapshot?.parameters ?? [];
-  const filtered = useMemo(
-    () => parameters.filter((item) => item.symbol.toLowerCase().includes(search.toLowerCase()) || item.tier.toLowerCase().includes(search.toLowerCase())),
-    [parameters, search],
+  const selected = useMemo(
+    () => parameters.find((item) => item.symbol === (selectedSymbol ?? parameters[0]?.symbol)) ?? null,
+    [parameters, selectedSymbol],
   );
-  const selected = useMemo(() => filtered.find((item) => item.symbol === (selectedSymbol ?? filtered[0]?.symbol)) ?? null, [filtered, selectedSymbol]);
 
   const saveField = async (fieldKey: string, currentValue: string | number | boolean) => {
     if (!selected) return;
@@ -140,116 +137,115 @@ export default function ParametersEnhanced() {
         <div>If disabled, set <code>FX100_MONITOR_WRITE_PRIVATE_KEY</code> or a compatible deployer key in the monitor runtime.</div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <Card className="bg-card/50 border-primary/20 tech-border">
-          <CardHeader>
-            <CardTitle className="text-primary">Market Parameter Book</CardTitle>
-            <CardDescription>Search a market and inspect baseline/current/recommended values plus the underlying FX100 key mapping.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-10 bg-background/50 border-primary/20" placeholder="Search by symbol or tier" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Market Parameter Book</CardTitle>
+          <CardDescription>Select a market, then inspect and edit the underlying risk keys below.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Asset</div>
+              <select
+                className="h-11 min-w-[220px] rounded border border-primary/20 bg-background/60 px-3 text-sm outline-none focus:border-primary/50"
+                value={selected?.symbol ?? ""}
+                onChange={(event) => setSelectedSymbol(event.target.value)}
+              >
+                {parameters.map((item) => (
+                  <option key={item.symbol} value={item.symbol}>
+                    {item.symbol} · {item.tier}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="space-y-3">
-              {filtered.map((item) => (
-                <button
-                  key={item.symbol}
-                  type="button"
-                  onClick={() => setSelectedSymbol(item.symbol)}
-                  className={`w-full rounded border p-3 text-left transition-colors ${selected?.symbol === item.symbol ? "border-primary/50 bg-primary/10" : "border-border bg-background/40 hover:border-primary/25"}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{item.symbol}</div>
-                      <div className="text-xs text-muted-foreground">{item.tier}</div>
-                    </div>
-                    <Badge className={alertBadge(item.alertLevel)}>{item.alertLevel.toUpperCase()}</Badge>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+            {selected ? <Badge className={alertBadge(selected.alertLevel)}>{selected.symbol} · {selected.alertLevel.toUpperCase()}</Badge> : null}
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="bg-card/50 border-primary/20 tech-border">
-          <CardHeader>
-            <CardTitle className="text-primary">Parameter Diff Matrix</CardTitle>
-            <CardDescription>{selected ? `${selected.symbol} current vs baseline vs recommended` : "Select a market"}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {selected ? categories.map((category) => {
-              const defs = snapshot.parameterDefinitions.filter((definition) => definition.category === category);
-              return (
-                <div key={category} className="space-y-3">
-                  <div className="text-sm font-semibold text-primary uppercase tracking-wide">{category}</div>
-                  <div className="overflow-x-auto rounded border border-border bg-background/40">
-                    <table className="min-w-full text-sm">
-                      <thead className="border-b border-border text-xs uppercase text-muted-foreground">
-                        <tr>
-                          <th className="px-4 py-3 text-left">Field</th>
-                          <th className="px-4 py-3 text-right">Baseline</th>
-                          <th className="px-4 py-3 text-right">Current</th>
-                          <th className="px-4 py-3 text-right">Recommended</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {defs.map((definition) => {
-                          const writable = definition.writable === true && snapshot.environment.writeEnabled === true;
-                          const value = selected.current[definition.key];
-                          const rowSavingKey = `${selected.symbol}:${definition.key}`;
-                          return (
-                            <tr key={definition.key} className="border-b border-border/60 last:border-b-0 align-top">
-                              <td className="px-4 py-3 text-muted-foreground">
-                                <div>{definition.label}</div>
-                                <div className="mt-1 text-xs font-mono text-primary">{definition.keyName ?? "Unmapped"}</div>
-                                <div className="mt-1 text-xs text-muted-foreground/80">{definition.keyPath}</div>
-                                {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400">{definition.writableReason}</div> : null}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>
-                                <div className="mt-1 flex justify-end">
-                                  <Badge variant="outline" className={sourceBadge(selected.baselineSources[definition.key])}>{sourceLabel(selected.baselineSources[definition.key])}</Badge>
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Parameter Diff Matrix</CardTitle>
+          <CardDescription>{selected ? `${selected.symbol} current vs baseline vs recommended` : "Select a market"}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {selected ? categories.map((category) => {
+            const defs = snapshot.parameterDefinitions.filter((definition) => definition.category === category);
+            return (
+              <div key={category} className="space-y-3">
+                <div className="text-sm font-semibold text-primary uppercase tracking-wide">{category}</div>
+                <div className="overflow-x-auto rounded border border-border bg-background/40">
+                  <table className="w-full min-w-[1320px] text-sm table-fixed">
+                    <colgroup>
+                      <col className="w-[36%]" />
+                      <col className="w-[18%]" />
+                      <col className="w-[24%]" />
+                      <col className="w-[22%]" />
+                    </colgroup>
+                    <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Field</th>
+                        <th className="px-4 py-3 text-right">Baseline</th>
+                        <th className="px-4 py-3 text-right">Current</th>
+                        <th className="px-4 py-3 text-right">Recommended</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {defs.map((definition) => {
+                        const writable = definition.writable === true && snapshot.environment.writeEnabled === true;
+                        const value = selected.current[definition.key];
+                        const rowSavingKey = `${selected.symbol}:${definition.key}`;
+                        return (
+                          <tr key={definition.key} className="border-b border-border/60 last:border-b-0 align-top">
+                            <td className="px-4 py-3 text-muted-foreground break-words">
+                              <div>{definition.label}</div>
+                              <div className="mt-1 text-xs font-mono text-primary break-all">{definition.keyName ?? "Unmapped"}</div>
+                              <div className="mt-1 text-xs text-muted-foreground/80 break-words">{definition.keyPath}</div>
+                              {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400 break-words">{definition.writableReason}</div> : null}
+                            </td>
+                            <td className="px-4 py-3 text-right align-top">
+                              <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>
+                              <div className="mt-1 flex justify-end">
+                                <Badge variant="outline" className={sourceBadge(selected.baselineSources[definition.key])}>{sourceLabel(selected.baselineSources[definition.key])}</Badge>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right text-foreground align-top">
+                              <div>{formatValue(value, definition.unit)}</div>
+                              <div className="mt-1 flex justify-end gap-2 flex-wrap">
+                                <Badge variant="outline" className={sourceBadge(selected.currentSources[definition.key])}>{sourceLabel(selected.currentSources[definition.key])}</Badge>
+                                {definition.writable ? <Badge variant="outline" className="border-primary/30 text-primary">editable</Badge> : null}
+                              </div>
+                              {definition.writable ? (
+                                <div className="mt-2 flex justify-end">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!writable || savingKey === rowSavingKey}
+                                    onClick={() => void saveField(definition.key, value)}
+                                  >
+                                    {savingKey === rowSavingKey ? "Saving..." : "Edit"}
+                                  </Button>
                                 </div>
-                              </td>
-                              <td className="px-4 py-3 text-right text-foreground">
-                                <div>{formatValue(value, definition.unit)}</div>
-                                <div className="mt-1 flex justify-end gap-2">
-                                  <Badge variant="outline" className={sourceBadge(selected.currentSources[definition.key])}>{sourceLabel(selected.currentSources[definition.key])}</Badge>
-                                  {definition.writable ? <Badge variant="outline" className="border-primary/30 text-primary">editable</Badge> : null}
-                                </div>
-                                {definition.writable ? (
-                                  <div className="mt-2 flex justify-end">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={!writable || savingKey === rowSavingKey}
-                                      onClick={() => void saveField(definition.key, value)}
-                                    >
-                                      {savingKey === rowSavingKey ? "Saving..." : "Edit"}
-                                    </Button>
-                                  </div>
-                                ) : null}
-                              </td>
-                              <td className="px-4 py-3 text-right text-primary">
-                                <div>{formatValue(selected.recommended[definition.key], definition.unit)}</div>
-                                <div className="mt-1 flex justify-end">
-                                  <Badge variant="outline" className={sourceBadge(selected.recommendedSources[definition.key])}>{sourceLabel(selected.recommendedSources[definition.key])}</Badge>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-3 text-right text-primary align-top">
+                              <div>{formatValue(selected.recommended[definition.key], definition.unit)}</div>
+                              <div className="mt-1 flex justify-end">
+                                <Badge variant="outline" className={sourceBadge(selected.recommendedSources[definition.key])}>{sourceLabel(selected.recommendedSources[definition.key])}</Badge>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              );
-            }) : null}
-          </CardContent>
-        </Card>
-      </div>
+              </div>
+            );
+          }) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }
