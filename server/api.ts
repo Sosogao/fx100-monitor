@@ -1,6 +1,7 @@
-import type { MonitoringSnapshot } from "../shared/monitoring";
+import type { MonitoringControlUpdateInput, MonitoringSnapshot } from "../shared/monitoring";
 import { appendHistoryPoint, applyHistoricalSeries, loadHistory, snapshotToHistoryPoint } from "./data/history";
 import { buildMonitoringSnapshot } from "./data/snapshot";
+import { applyMonitoringControlUpdate } from "./data/controlSurface";
 import { basefx100Sepolia0312 } from "./config/fx100";
 
 const SNAPSHOT_TTL_MS = 15_000;
@@ -76,6 +77,15 @@ async function refreshSnapshot(force = false) {
 
 export async function getSnapshotPayload(force = false) {
   return refreshSnapshot(force);
+}
+
+
+export async function updateControlPayload(input: MonitoringControlUpdateInput) {
+  const result = await applyMonitoringControlUpdate(input);
+  cachedSnapshot = null;
+  cachedAt = 0;
+  const snapshot = await refreshSnapshot(true);
+  return { ...result, snapshot };
 }
 
 export async function getHistoryPayload() {

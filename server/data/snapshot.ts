@@ -25,6 +25,7 @@ import type {
   RecoveryRecord,
 } from "../../shared/monitoring";
 import { basefx100Sepolia0312 } from "../config/fx100";
+import { decorateParameterDefinition, decorateProtocolOpsDefinition, isWriteEnabled } from "./controlSurface";
 
 const projectRoot = process.cwd();
 
@@ -255,7 +256,7 @@ const assetSeeds: Record<string, AssetSeed> = {
 };
 
 
-const parameterDefinitions: ParameterFieldDefinition[] = [
+const rawParameterDefinitions: ParameterFieldDefinition[] = [
   { category: "Fees", label: "Open Fee Ratio", key: "openFeeRatio", unit: "%" },
   { category: "Fees", label: "Close Fee Ratio", key: "closeFeeRatio", unit: "%" },
   { category: "Fees", label: "Constant Spread", key: "constantSpread", unit: "%" },
@@ -317,7 +318,7 @@ const parameterDefinitions: ParameterFieldDefinition[] = [
   { category: "LP", label: "LP NAV", key: "lpNavUsd", unit: "$" },
 ];
 
-const protocolOpsDefinitions: ProtocolOpsFieldDefinition[] = [
+const rawProtocolOpsDefinitions: ProtocolOpsFieldDefinition[] = [
   { category: "Oracle", label: "Min Oracle Signers", key: "minOracleSigners", unit: "" },
   { category: "Oracle", label: "Min Block Confirmations", key: "minOracleBlockConfirmations", unit: "" },
   { category: "Oracle", label: "Max Oracle Price Age", key: "maxOraclePriceAgeSec", unit: "s" },
@@ -378,6 +379,9 @@ const distributionOpsDefinitions: DistributionOpsFieldDefinition[] = [
   { category: "Referral Snapshot", label: "Referral Rewards Amount (CORE_USDC)", key: "feeDistributorReferralRewardsAmountCoreUsdc", unit: "$" },
   { category: "Referral Snapshot", label: "Referral Rewards Deposited (CORE_USDC)", key: "feeDistributorReferralRewardsDepositedCoreUsdc", unit: "$" },
 ];
+
+const parameterDefinitions: ParameterFieldDefinition[] = rawParameterDefinitions.map(decorateParameterDefinition);
+const protocolOpsDefinitions: ProtocolOpsFieldDefinition[] = rawProtocolOpsDefinitions.map(decorateProtocolOpsDefinition);
 
 const tierTemplates: Record<string, ParameterValueSet> = {
   "Tier 1": {
@@ -2133,6 +2137,7 @@ export async function buildMonitoringSnapshot(): Promise<MonitoringSnapshot> {
       chainId: liveState.chainId,
       blockNumber: liveState.blockNumber,
       readStatus: liveState.readStatus,
+      writeEnabled: isWriteEnabled(),
     },
     dashboard,
     markets,

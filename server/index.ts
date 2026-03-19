@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getHealthPayload, getHistoryPayload, getSnapshotPayload } from "./api";
+import { getHealthPayload, getHistoryPayload, getSnapshotPayload, updateControlPayload } from "./api";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +36,15 @@ async function startServer() {
     try {
       res.setHeader("Cache-Control", "no-store");
       res.json(await getHistoryPayload());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/monitoring/update", async (req, res, next) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await updateControlPayload(req.body));
     } catch (error) {
       next(error);
     }

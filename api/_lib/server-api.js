@@ -545,6 +545,18 @@ function toQuantity(value) {
 
 // ../../../node_modules/ethers/lib.esm/utils/base58.js
 var Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+var Lookup = null;
+function getAlpha(letter) {
+  if (Lookup == null) {
+    Lookup = {};
+    for (let i = 0; i < Alphabet.length; i++) {
+      Lookup[Alphabet[i]] = BigInt(i);
+    }
+  }
+  const result = Lookup[letter];
+  assertArgument(result != null, `invalid base58 value`, "letter", letter);
+  return result;
+}
 var BN_02 = BigInt(0);
 var BN_58 = BigInt(58);
 function encodeBase58(_value) {
@@ -560,6 +572,14 @@ function encodeBase58(_value) {
       break;
     }
     result = Alphabet[0] + result;
+  }
+  return result;
+}
+function decodeBase58(value) {
+  let result = BN_02;
+  for (let i = 0; i < value.length; i++) {
+    result *= BN_58;
+    result += getAlpha(value[i]);
   }
   return result;
 }
@@ -1536,14 +1556,14 @@ var FetchResponse = class _FetchResponse {
    *  call, causes the request to retry as if throttled for %%stall%%
    *  milliseconds.
    */
-  throwThrottleError(message, stall2) {
-    if (stall2 == null) {
-      stall2 = -1;
+  throwThrottleError(message, stall4) {
+    if (stall4 == null) {
+      stall4 = -1;
     } else {
-      assertArgument(Number.isInteger(stall2) && stall2 >= 0, "invalid stall timeout", "stall", stall2);
+      assertArgument(Number.isInteger(stall4) && stall4 >= 0, "invalid stall timeout", "stall", stall4);
     }
     const error = new Error(message || "throttling requests");
-    defineProperties(error, { stall: stall2, throttle: true });
+    defineProperties(error, { stall: stall4, throttle: true });
     throw error;
   }
   /**
@@ -2242,6 +2262,33 @@ function formatUnits(value, unit) {
   }
   return FixedNumber.fromValue(value, decimals, { decimals, width: 512 }).toString();
 }
+function parseUnits(value, unit) {
+  assertArgument(typeof value === "string", "value must be a string", "value", value);
+  let decimals = 18;
+  if (typeof unit === "string") {
+    const index = names.indexOf(unit);
+    assertArgument(index >= 0, "invalid unit", "unit", unit);
+    decimals = 3 * index;
+  } else if (unit != null) {
+    decimals = getNumber(unit, "unit");
+  }
+  return FixedNumber.fromString(value, { decimals, width: 512 }).value;
+}
+
+// ../../../node_modules/ethers/lib.esm/utils/uuid.js
+function uuidV4(randomBytes4) {
+  const bytes3 = getBytes(randomBytes4, "randomBytes");
+  bytes3[6] = bytes3[6] & 15 | 64;
+  bytes3[8] = bytes3[8] & 63 | 128;
+  const value = hexlify(bytes3);
+  return [
+    value.substring(2, 10),
+    value.substring(10, 14),
+    value.substring(14, 18),
+    value.substring(18, 22),
+    value.substring(22, 34)
+  ].join("-");
+}
 
 // ../../../node_modules/ethers/lib.esm/abi/coders/abstract-coder.js
 var WordSize = 32;
@@ -2618,6 +2665,29 @@ var Reader = class _Reader {
 // ../../../node_modules/ethers/lib.esm/crypto/crypto.js
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from "crypto";
 
+// ../../../node_modules/ethers/lib.esm/crypto/hmac.js
+var locked2 = false;
+var _computeHmac = function(algorithm, key, data) {
+  return createHmac(algorithm, key).update(data).digest();
+};
+var __computeHmac = _computeHmac;
+function computeHmac(algorithm, _key, _data) {
+  const key = getBytes(_key, "key");
+  const data = getBytes(_data, "data");
+  return hexlify(__computeHmac(algorithm, key, data));
+}
+computeHmac._ = _computeHmac;
+computeHmac.lock = function() {
+  locked2 = true;
+};
+computeHmac.register = function(func) {
+  if (locked2) {
+    throw new Error("computeHmac is locked");
+  }
+  __computeHmac = func;
+};
+Object.freeze(computeHmac);
+
 // ../../../node_modules/ethers/node_modules/@noble/hashes/esm/_assert.js
 function number(n2) {
   if (!Number.isSafeInteger(n2) || n2 < 0)
@@ -2628,6 +2698,12 @@ function bytes(b2, ...lengths) {
     throw new Error("Expected Uint8Array");
   if (lengths.length > 0 && !lengths.includes(b2.length))
     throw new Error(`Expected Uint8Array of length ${lengths}, not of length=${b2.length}`);
+}
+function hash(hash3) {
+  if (typeof hash3 !== "function" || typeof hash3.create !== "function")
+    throw new Error("Hash should be wrapped by utils.wrapConstructor");
+  number(hash3.outputLen);
+  number(hash3.blockLen);
 }
 function exists(instance, checkFinished = true) {
   if (instance.destroyed)
@@ -2668,9 +2744,24 @@ var rotlBL = (h, l, s) => h << s - 32 | l >>> 64 - s;
 // ../../../node_modules/ethers/node_modules/@noble/hashes/esm/utils.js
 var u8a = (a) => a instanceof Uint8Array;
 var u32 = (arr) => new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
+var createView = (arr) => new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+var rotr = (word, shift) => word << 32 - shift | word >>> shift;
 var isLE = new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68;
 if (!isLE)
   throw new Error("Non little-endian hardware is not supported");
+var nextTick = async () => {
+};
+async function asyncLoop(iters, tick, cb) {
+  let ts = Date.now();
+  for (let i = 0; i < iters; i++) {
+    cb(i);
+    const diff = Date.now() - ts;
+    if (diff >= 0 && diff < tick)
+      continue;
+    await nextTick();
+    ts += diff;
+  }
+}
 function utf8ToBytes(str) {
   if (typeof str !== "string")
     throw new Error(`utf8ToBytes expected string, got ${typeof str}`);
@@ -2690,6 +2781,12 @@ var Hash = class {
   }
 };
 var toStr = {}.toString;
+function checkOpts(defaults, opts) {
+  if (opts !== void 0 && toStr.call(opts) !== "[object Object]")
+    throw new Error("Options should be object or undefined");
+  const merged = Object.assign(defaults, opts);
+  return merged;
+}
 function wrapConstructor(hashCons) {
   const hashC = (msg) => hashCons().update(toBytes(msg)).digest();
   const tmp = hashCons();
@@ -2888,7 +2985,7 @@ var shake128 = /* @__PURE__ */ genShake(31, 168, 128 / 8);
 var shake256 = /* @__PURE__ */ genShake(31, 136, 256 / 8);
 
 // ../../../node_modules/ethers/lib.esm/crypto/keccak.js
-var locked2 = false;
+var locked3 = false;
 var _keccak256 = function(data) {
   return keccak_256(data);
 };
@@ -2899,146 +2996,17 @@ function keccak256(_data) {
 }
 keccak256._ = _keccak256;
 keccak256.lock = function() {
-  locked2 = true;
+  locked3 = true;
 };
 keccak256.register = function(func) {
-  if (locked2) {
+  if (locked3) {
     throw new TypeError("keccak256 is locked");
   }
   __keccak256 = func;
 };
 Object.freeze(keccak256);
 
-// ../../../node_modules/ethers/lib.esm/crypto/sha2.js
-var _sha256 = function(data) {
-  return createHash("sha256").update(data).digest();
-};
-var _sha512 = function(data) {
-  return createHash("sha512").update(data).digest();
-};
-var __sha256 = _sha256;
-var __sha512 = _sha512;
-var locked256 = false;
-var locked512 = false;
-function sha256(_data) {
-  const data = getBytes(_data, "data");
-  return hexlify(__sha256(data));
-}
-sha256._ = _sha256;
-sha256.lock = function() {
-  locked256 = true;
-};
-sha256.register = function(func) {
-  if (locked256) {
-    throw new Error("sha256 is locked");
-  }
-  __sha256 = func;
-};
-Object.freeze(sha256);
-function sha512(_data) {
-  const data = getBytes(_data, "data");
-  return hexlify(__sha512(data));
-}
-sha512._ = _sha512;
-sha512.lock = function() {
-  locked512 = true;
-};
-sha512.register = function(func) {
-  if (locked512) {
-    throw new Error("sha512 is locked");
-  }
-  __sha512 = func;
-};
-Object.freeze(sha256);
-
-// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_assert.js
-function number2(n2) {
-  if (!Number.isSafeInteger(n2) || n2 < 0)
-    throw new Error(`Wrong positive integer: ${n2}`);
-}
-function bytes2(b2, ...lengths) {
-  if (!(b2 instanceof Uint8Array))
-    throw new Error("Expected Uint8Array");
-  if (lengths.length > 0 && !lengths.includes(b2.length))
-    throw new Error(`Expected Uint8Array of length ${lengths}, not of length=${b2.length}`);
-}
-function hash(hash2) {
-  if (typeof hash2 !== "function" || typeof hash2.create !== "function")
-    throw new Error("Hash should be wrapped by utils.wrapConstructor");
-  number2(hash2.outputLen);
-  number2(hash2.blockLen);
-}
-function exists2(instance, checkFinished = true) {
-  if (instance.destroyed)
-    throw new Error("Hash instance has been destroyed");
-  if (checkFinished && instance.finished)
-    throw new Error("Hash#digest() has already been called");
-}
-function output2(out, instance) {
-  bytes2(out);
-  const min = instance.outputLen;
-  if (out.length < min) {
-    throw new Error(`digestInto() expects output buffer of length at least ${min}`);
-  }
-}
-
-// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/cryptoNode.js
-import * as nc from "node:crypto";
-var crypto = nc && typeof nc === "object" && "webcrypto" in nc ? nc.webcrypto : void 0;
-
-// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/utils.js
-var u8a2 = (a) => a instanceof Uint8Array;
-var createView = (arr) => new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
-var rotr = (word, shift) => word << 32 - shift | word >>> shift;
-var isLE2 = new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68;
-if (!isLE2)
-  throw new Error("Non little-endian hardware is not supported");
-function utf8ToBytes2(str) {
-  if (typeof str !== "string")
-    throw new Error(`utf8ToBytes expected string, got ${typeof str}`);
-  return new Uint8Array(new TextEncoder().encode(str));
-}
-function toBytes2(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes2(data);
-  if (!u8a2(data))
-    throw new Error(`expected Uint8Array, got ${typeof data}`);
-  return data;
-}
-function concatBytes(...arrays) {
-  const r = new Uint8Array(arrays.reduce((sum, a) => sum + a.length, 0));
-  let pad = 0;
-  arrays.forEach((a) => {
-    if (!u8a2(a))
-      throw new Error("Uint8Array expected");
-    r.set(a, pad);
-    pad += a.length;
-  });
-  return r;
-}
-var Hash2 = class {
-  // Safe version that clones internal state
-  clone() {
-    return this._cloneInto();
-  }
-};
-var toStr2 = {}.toString;
-function wrapConstructor2(hashCons) {
-  const hashC = (msg) => hashCons().update(toBytes2(msg)).digest();
-  const tmp = hashCons();
-  hashC.outputLen = tmp.outputLen;
-  hashC.blockLen = tmp.blockLen;
-  hashC.create = () => hashCons();
-  return hashC;
-}
-function randomBytes2(bytesLength = 32) {
-  if (crypto && typeof crypto.getRandomValues === "function") {
-    return crypto.getRandomValues(new Uint8Array(bytesLength));
-  }
-  throw new Error("crypto.getRandomValues must be defined");
-}
-
-// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_sha2.js
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/_sha2.js
 function setBigUint64(view, byteOffset, value, isLE3) {
   if (typeof view.setBigUint64 === "function")
     return view.setBigUint64(byteOffset, value, isLE3);
@@ -3051,7 +3019,7 @@ function setBigUint64(view, byteOffset, value, isLE3) {
   view.setUint32(byteOffset + h, wh, isLE3);
   view.setUint32(byteOffset + l, wl, isLE3);
 }
-var SHA2 = class extends Hash2 {
+var SHA2 = class extends Hash {
   constructor(blockLen, outputLen, padOffset, isLE3) {
     super();
     this.blockLen = blockLen;
@@ -3066,9 +3034,9 @@ var SHA2 = class extends Hash2 {
     this.view = createView(this.buffer);
   }
   update(data) {
-    exists2(this);
+    exists(this);
     const { view, buffer, blockLen } = this;
-    data = toBytes2(data);
+    data = toBytes(data);
     const len = data.length;
     for (let pos = 0; pos < len; ) {
       const take = Math.min(blockLen - this.pos, len - pos);
@@ -3091,8 +3059,8 @@ var SHA2 = class extends Hash2 {
     return this;
   }
   digestInto(out) {
-    exists2(this);
-    output2(out, this);
+    exists(this);
+    output(out, this);
     this.finished = true;
     const { buffer, view, blockLen, isLE: isLE3 } = this;
     let { pos } = this;
@@ -3138,7 +3106,170 @@ var SHA2 = class extends Hash2 {
   }
 };
 
-// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/sha256.js
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/ripemd160.js
+var Rho = /* @__PURE__ */ new Uint8Array([7, 4, 13, 1, 10, 6, 15, 3, 12, 0, 9, 5, 2, 14, 11, 8]);
+var Id = /* @__PURE__ */ Uint8Array.from({ length: 16 }, (_, i) => i);
+var Pi = /* @__PURE__ */ Id.map((i) => (9 * i + 5) % 16);
+var idxL = [Id];
+var idxR = [Pi];
+for (let i = 0; i < 4; i++)
+  for (let j of [idxL, idxR])
+    j.push(j[i].map((k) => Rho[k]));
+var shifts = /* @__PURE__ */ [
+  [11, 14, 15, 12, 5, 8, 7, 9, 11, 13, 14, 15, 6, 7, 9, 8],
+  [12, 13, 11, 15, 6, 9, 9, 7, 12, 15, 11, 13, 7, 8, 7, 7],
+  [13, 15, 14, 11, 7, 7, 6, 8, 13, 14, 13, 12, 5, 5, 6, 9],
+  [14, 11, 12, 14, 8, 6, 5, 5, 15, 12, 15, 14, 9, 9, 8, 6],
+  [15, 12, 13, 13, 9, 5, 8, 6, 14, 11, 12, 11, 8, 6, 5, 5]
+].map((i) => new Uint8Array(i));
+var shiftsL = /* @__PURE__ */ idxL.map((idx, i) => idx.map((j) => shifts[i][j]));
+var shiftsR = /* @__PURE__ */ idxR.map((idx, i) => idx.map((j) => shifts[i][j]));
+var Kl = /* @__PURE__ */ new Uint32Array([
+  0,
+  1518500249,
+  1859775393,
+  2400959708,
+  2840853838
+]);
+var Kr = /* @__PURE__ */ new Uint32Array([
+  1352829926,
+  1548603684,
+  1836072691,
+  2053994217,
+  0
+]);
+var rotl = (word, shift) => word << shift | word >>> 32 - shift;
+function f(group, x, y, z) {
+  if (group === 0)
+    return x ^ y ^ z;
+  else if (group === 1)
+    return x & y | ~x & z;
+  else if (group === 2)
+    return (x | ~y) ^ z;
+  else if (group === 3)
+    return x & z | y & ~z;
+  else
+    return x ^ (y | ~z);
+}
+var BUF = /* @__PURE__ */ new Uint32Array(16);
+var RIPEMD160 = class extends SHA2 {
+  constructor() {
+    super(64, 20, 8, true);
+    this.h0 = 1732584193 | 0;
+    this.h1 = 4023233417 | 0;
+    this.h2 = 2562383102 | 0;
+    this.h3 = 271733878 | 0;
+    this.h4 = 3285377520 | 0;
+  }
+  get() {
+    const { h0, h1, h2, h3, h4 } = this;
+    return [h0, h1, h2, h3, h4];
+  }
+  set(h0, h1, h2, h3, h4) {
+    this.h0 = h0 | 0;
+    this.h1 = h1 | 0;
+    this.h2 = h2 | 0;
+    this.h3 = h3 | 0;
+    this.h4 = h4 | 0;
+  }
+  process(view, offset) {
+    for (let i = 0; i < 16; i++, offset += 4)
+      BUF[i] = view.getUint32(offset, true);
+    let al = this.h0 | 0, ar = al, bl = this.h1 | 0, br = bl, cl = this.h2 | 0, cr = cl, dl = this.h3 | 0, dr = dl, el = this.h4 | 0, er = el;
+    for (let group = 0; group < 5; group++) {
+      const rGroup = 4 - group;
+      const hbl = Kl[group], hbr = Kr[group];
+      const rl = idxL[group], rr = idxR[group];
+      const sl = shiftsL[group], sr = shiftsR[group];
+      for (let i = 0; i < 16; i++) {
+        const tl = rotl(al + f(group, bl, cl, dl) + BUF[rl[i]] + hbl, sl[i]) + el | 0;
+        al = el, el = dl, dl = rotl(cl, 10) | 0, cl = bl, bl = tl;
+      }
+      for (let i = 0; i < 16; i++) {
+        const tr = rotl(ar + f(rGroup, br, cr, dr) + BUF[rr[i]] + hbr, sr[i]) + er | 0;
+        ar = er, er = dr, dr = rotl(cr, 10) | 0, cr = br, br = tr;
+      }
+    }
+    this.set(this.h1 + cl + dr | 0, this.h2 + dl + er | 0, this.h3 + el + ar | 0, this.h4 + al + br | 0, this.h0 + bl + cr | 0);
+  }
+  roundClean() {
+    BUF.fill(0);
+  }
+  destroy() {
+    this.destroyed = true;
+    this.buffer.fill(0);
+    this.set(0, 0, 0, 0, 0);
+  }
+};
+var ripemd160 = /* @__PURE__ */ wrapConstructor(() => new RIPEMD160());
+
+// ../../../node_modules/ethers/lib.esm/crypto/ripemd160.js
+var locked4 = false;
+var _ripemd160 = function(data) {
+  return ripemd160(data);
+};
+var __ripemd160 = _ripemd160;
+function ripemd1602(_data) {
+  const data = getBytes(_data, "data");
+  return hexlify(__ripemd160(data));
+}
+ripemd1602._ = _ripemd160;
+ripemd1602.lock = function() {
+  locked4 = true;
+};
+ripemd1602.register = function(func) {
+  if (locked4) {
+    throw new TypeError("ripemd160 is locked");
+  }
+  __ripemd160 = func;
+};
+Object.freeze(ripemd1602);
+
+// ../../../node_modules/ethers/lib.esm/crypto/pbkdf2.js
+var locked5 = false;
+var _pbkdf2 = function(password, salt, iterations, keylen, algo) {
+  return pbkdf2Sync(password, salt, iterations, keylen, algo);
+};
+var __pbkdf2 = _pbkdf2;
+function pbkdf2(_password, _salt, iterations, keylen, algo) {
+  const password = getBytes(_password, "password");
+  const salt = getBytes(_salt, "salt");
+  return hexlify(__pbkdf2(password, salt, iterations, keylen, algo));
+}
+pbkdf2._ = _pbkdf2;
+pbkdf2.lock = function() {
+  locked5 = true;
+};
+pbkdf2.register = function(func) {
+  if (locked5) {
+    throw new Error("pbkdf2 is locked");
+  }
+  __pbkdf2 = func;
+};
+Object.freeze(pbkdf2);
+
+// ../../../node_modules/ethers/lib.esm/crypto/random.js
+var locked6 = false;
+var _randomBytes = function(length) {
+  return new Uint8Array(randomBytes(length));
+};
+var __randomBytes = _randomBytes;
+function randomBytes2(length) {
+  return __randomBytes(length);
+}
+randomBytes2._ = _randomBytes;
+randomBytes2.lock = function() {
+  locked6 = true;
+};
+randomBytes2.register = function(func) {
+  if (locked6) {
+    throw new Error("randomBytes is locked");
+  }
+  __randomBytes = func;
+};
+Object.freeze(randomBytes2);
+
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/sha256.js
 var Chi = (a, b2, c) => a & b2 ^ ~a & c;
 var Maj = (a, b2, c) => a & b2 ^ a & c ^ b2 & c;
 var SHA256_K = /* @__PURE__ */ new Uint32Array([
@@ -3258,17 +3389,17 @@ var SHA256 = class extends SHA2 {
     let { A, B, C, D, E, F, G, H } = this;
     for (let i = 0; i < 64; i++) {
       const sigma1 = rotr(E, 6) ^ rotr(E, 11) ^ rotr(E, 25);
-      const T12 = H + sigma1 + Chi(E, F, G) + SHA256_K[i] + SHA256_W[i] | 0;
+      const T13 = H + sigma1 + Chi(E, F, G) + SHA256_K[i] + SHA256_W[i] | 0;
       const sigma0 = rotr(A, 2) ^ rotr(A, 13) ^ rotr(A, 22);
-      const T2 = sigma0 + Maj(A, B, C) | 0;
+      const T22 = sigma0 + Maj(A, B, C) | 0;
       H = G;
       G = F;
       F = E;
-      E = D + T12 | 0;
+      E = D + T13 | 0;
       D = C;
       C = B;
       B = A;
-      A = T12 + T2 | 0;
+      A = T13 + T22 | 0;
     }
     A = A + this.A | 0;
     B = B + this.B | 0;
@@ -3288,7 +3419,718 @@ var SHA256 = class extends SHA2 {
     this.buffer.fill(0);
   }
 };
-var sha2562 = /* @__PURE__ */ wrapConstructor2(() => new SHA256());
+var sha256 = /* @__PURE__ */ wrapConstructor(() => new SHA256());
+
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/hmac.js
+var HMAC = class extends Hash {
+  constructor(hash3, _key) {
+    super();
+    this.finished = false;
+    this.destroyed = false;
+    hash(hash3);
+    const key = toBytes(_key);
+    this.iHash = hash3.create();
+    if (typeof this.iHash.update !== "function")
+      throw new Error("Expected instance of class which extends utils.Hash");
+    this.blockLen = this.iHash.blockLen;
+    this.outputLen = this.iHash.outputLen;
+    const blockLen = this.blockLen;
+    const pad = new Uint8Array(blockLen);
+    pad.set(key.length > blockLen ? hash3.create().update(key).digest() : key);
+    for (let i = 0; i < pad.length; i++)
+      pad[i] ^= 54;
+    this.iHash.update(pad);
+    this.oHash = hash3.create();
+    for (let i = 0; i < pad.length; i++)
+      pad[i] ^= 54 ^ 92;
+    this.oHash.update(pad);
+    pad.fill(0);
+  }
+  update(buf) {
+    exists(this);
+    this.iHash.update(buf);
+    return this;
+  }
+  digestInto(out) {
+    exists(this);
+    bytes(out, this.outputLen);
+    this.finished = true;
+    this.iHash.digestInto(out);
+    this.oHash.update(out);
+    this.oHash.digestInto(out);
+    this.destroy();
+  }
+  digest() {
+    const out = new Uint8Array(this.oHash.outputLen);
+    this.digestInto(out);
+    return out;
+  }
+  _cloneInto(to) {
+    to || (to = Object.create(Object.getPrototypeOf(this), {}));
+    const { oHash, iHash, finished, destroyed, blockLen, outputLen } = this;
+    to = to;
+    to.finished = finished;
+    to.destroyed = destroyed;
+    to.blockLen = blockLen;
+    to.outputLen = outputLen;
+    to.oHash = oHash._cloneInto(to.oHash);
+    to.iHash = iHash._cloneInto(to.iHash);
+    return to;
+  }
+  destroy() {
+    this.destroyed = true;
+    this.oHash.destroy();
+    this.iHash.destroy();
+  }
+};
+var hmac = (hash3, key, message) => new HMAC(hash3, key).update(message).digest();
+hmac.create = (hash3, key) => new HMAC(hash3, key);
+
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/pbkdf2.js
+function pbkdf2Init(hash3, _password, _salt, _opts) {
+  hash(hash3);
+  const opts = checkOpts({ dkLen: 32, asyncTick: 10 }, _opts);
+  const { c, dkLen, asyncTick } = opts;
+  number(c);
+  number(dkLen);
+  number(asyncTick);
+  if (c < 1)
+    throw new Error("PBKDF2: iterations (c) should be >= 1");
+  const password = toBytes(_password);
+  const salt = toBytes(_salt);
+  const DK = new Uint8Array(dkLen);
+  const PRF = hmac.create(hash3, password);
+  const PRFSalt = PRF._cloneInto().update(salt);
+  return { c, dkLen, asyncTick, DK, PRF, PRFSalt };
+}
+function pbkdf2Output(PRF, PRFSalt, DK, prfW, u) {
+  PRF.destroy();
+  PRFSalt.destroy();
+  if (prfW)
+    prfW.destroy();
+  u.fill(0);
+  return DK;
+}
+function pbkdf22(hash3, password, salt, opts) {
+  const { c, dkLen, DK, PRF, PRFSalt } = pbkdf2Init(hash3, password, salt, opts);
+  let prfW;
+  const arr = new Uint8Array(4);
+  const view = createView(arr);
+  const u = new Uint8Array(PRF.outputLen);
+  for (let ti = 1, pos = 0; pos < dkLen; ti++, pos += PRF.outputLen) {
+    const Ti = DK.subarray(pos, pos + PRF.outputLen);
+    view.setInt32(0, ti, false);
+    (prfW = PRFSalt._cloneInto(prfW)).update(arr).digestInto(u);
+    Ti.set(u.subarray(0, Ti.length));
+    for (let ui = 1; ui < c; ui++) {
+      PRF._cloneInto(prfW).update(u).digestInto(u);
+      for (let i = 0; i < Ti.length; i++)
+        Ti[i] ^= u[i];
+    }
+  }
+  return pbkdf2Output(PRF, PRFSalt, DK, prfW, u);
+}
+
+// ../../../node_modules/ethers/node_modules/@noble/hashes/esm/scrypt.js
+var rotl2 = (a, b2) => a << b2 | a >>> 32 - b2;
+function XorAndSalsa(prev, pi, input, ii, out, oi) {
+  let y00 = prev[pi++] ^ input[ii++], y01 = prev[pi++] ^ input[ii++];
+  let y02 = prev[pi++] ^ input[ii++], y03 = prev[pi++] ^ input[ii++];
+  let y04 = prev[pi++] ^ input[ii++], y05 = prev[pi++] ^ input[ii++];
+  let y06 = prev[pi++] ^ input[ii++], y07 = prev[pi++] ^ input[ii++];
+  let y08 = prev[pi++] ^ input[ii++], y09 = prev[pi++] ^ input[ii++];
+  let y10 = prev[pi++] ^ input[ii++], y11 = prev[pi++] ^ input[ii++];
+  let y12 = prev[pi++] ^ input[ii++], y13 = prev[pi++] ^ input[ii++];
+  let y14 = prev[pi++] ^ input[ii++], y15 = prev[pi++] ^ input[ii++];
+  let x00 = y00, x01 = y01, x02 = y02, x03 = y03, x04 = y04, x05 = y05, x06 = y06, x07 = y07, x08 = y08, x09 = y09, x10 = y10, x11 = y11, x12 = y12, x13 = y13, x14 = y14, x15 = y15;
+  for (let i = 0; i < 8; i += 2) {
+    x04 ^= rotl2(x00 + x12 | 0, 7);
+    x08 ^= rotl2(x04 + x00 | 0, 9);
+    x12 ^= rotl2(x08 + x04 | 0, 13);
+    x00 ^= rotl2(x12 + x08 | 0, 18);
+    x09 ^= rotl2(x05 + x01 | 0, 7);
+    x13 ^= rotl2(x09 + x05 | 0, 9);
+    x01 ^= rotl2(x13 + x09 | 0, 13);
+    x05 ^= rotl2(x01 + x13 | 0, 18);
+    x14 ^= rotl2(x10 + x06 | 0, 7);
+    x02 ^= rotl2(x14 + x10 | 0, 9);
+    x06 ^= rotl2(x02 + x14 | 0, 13);
+    x10 ^= rotl2(x06 + x02 | 0, 18);
+    x03 ^= rotl2(x15 + x11 | 0, 7);
+    x07 ^= rotl2(x03 + x15 | 0, 9);
+    x11 ^= rotl2(x07 + x03 | 0, 13);
+    x15 ^= rotl2(x11 + x07 | 0, 18);
+    x01 ^= rotl2(x00 + x03 | 0, 7);
+    x02 ^= rotl2(x01 + x00 | 0, 9);
+    x03 ^= rotl2(x02 + x01 | 0, 13);
+    x00 ^= rotl2(x03 + x02 | 0, 18);
+    x06 ^= rotl2(x05 + x04 | 0, 7);
+    x07 ^= rotl2(x06 + x05 | 0, 9);
+    x04 ^= rotl2(x07 + x06 | 0, 13);
+    x05 ^= rotl2(x04 + x07 | 0, 18);
+    x11 ^= rotl2(x10 + x09 | 0, 7);
+    x08 ^= rotl2(x11 + x10 | 0, 9);
+    x09 ^= rotl2(x08 + x11 | 0, 13);
+    x10 ^= rotl2(x09 + x08 | 0, 18);
+    x12 ^= rotl2(x15 + x14 | 0, 7);
+    x13 ^= rotl2(x12 + x15 | 0, 9);
+    x14 ^= rotl2(x13 + x12 | 0, 13);
+    x15 ^= rotl2(x14 + x13 | 0, 18);
+  }
+  out[oi++] = y00 + x00 | 0;
+  out[oi++] = y01 + x01 | 0;
+  out[oi++] = y02 + x02 | 0;
+  out[oi++] = y03 + x03 | 0;
+  out[oi++] = y04 + x04 | 0;
+  out[oi++] = y05 + x05 | 0;
+  out[oi++] = y06 + x06 | 0;
+  out[oi++] = y07 + x07 | 0;
+  out[oi++] = y08 + x08 | 0;
+  out[oi++] = y09 + x09 | 0;
+  out[oi++] = y10 + x10 | 0;
+  out[oi++] = y11 + x11 | 0;
+  out[oi++] = y12 + x12 | 0;
+  out[oi++] = y13 + x13 | 0;
+  out[oi++] = y14 + x14 | 0;
+  out[oi++] = y15 + x15 | 0;
+}
+function BlockMix(input, ii, out, oi, r) {
+  let head = oi + 0;
+  let tail = oi + 16 * r;
+  for (let i = 0; i < 16; i++)
+    out[tail + i] = input[ii + (2 * r - 1) * 16 + i];
+  for (let i = 0; i < r; i++, head += 16, ii += 16) {
+    XorAndSalsa(out, tail, input, ii, out, head);
+    if (i > 0)
+      tail += 16;
+    XorAndSalsa(out, head, input, ii += 16, out, tail);
+  }
+}
+function scryptInit(password, salt, _opts) {
+  const opts = checkOpts({
+    dkLen: 32,
+    asyncTick: 10,
+    maxmem: 1024 ** 3 + 1024
+  }, _opts);
+  const { N: N3, r, p, dkLen, asyncTick, maxmem, onProgress } = opts;
+  number(N3);
+  number(r);
+  number(p);
+  number(dkLen);
+  number(asyncTick);
+  number(maxmem);
+  if (onProgress !== void 0 && typeof onProgress !== "function")
+    throw new Error("progressCb should be function");
+  const blockSize = 128 * r;
+  const blockSize32 = blockSize / 4;
+  if (N3 <= 1 || (N3 & N3 - 1) !== 0 || N3 >= 2 ** (blockSize / 8) || N3 > 2 ** 32) {
+    throw new Error("Scrypt: N must be larger than 1, a power of 2, less than 2^(128 * r / 8) and less than 2^32");
+  }
+  if (p < 0 || p > (2 ** 32 - 1) * 32 / blockSize) {
+    throw new Error("Scrypt: p must be a positive integer less than or equal to ((2^32 - 1) * 32) / (128 * r)");
+  }
+  if (dkLen < 0 || dkLen > (2 ** 32 - 1) * 32) {
+    throw new Error("Scrypt: dkLen should be positive integer less than or equal to (2^32 - 1) * 32");
+  }
+  const memUsed = blockSize * (N3 + p);
+  if (memUsed > maxmem) {
+    throw new Error(`Scrypt: parameters too large, ${memUsed} (128 * r * (N + p)) > ${maxmem} (maxmem)`);
+  }
+  const B = pbkdf22(sha256, password, salt, { c: 1, dkLen: blockSize * p });
+  const B32 = u32(B);
+  const V = u32(new Uint8Array(blockSize * N3));
+  const tmp = u32(new Uint8Array(blockSize));
+  let blockMixCb = () => {
+  };
+  if (onProgress) {
+    const totalBlockMix = 2 * N3 * p;
+    const callbackPer = Math.max(Math.floor(totalBlockMix / 1e4), 1);
+    let blockMixCnt = 0;
+    blockMixCb = () => {
+      blockMixCnt++;
+      if (onProgress && (!(blockMixCnt % callbackPer) || blockMixCnt === totalBlockMix))
+        onProgress(blockMixCnt / totalBlockMix);
+    };
+  }
+  return { N: N3, r, p, dkLen, blockSize32, V, B32, B, tmp, blockMixCb, asyncTick };
+}
+function scryptOutput(password, dkLen, B, V, tmp) {
+  const res = pbkdf22(sha256, password, B, { c: 1, dkLen });
+  B.fill(0);
+  V.fill(0);
+  tmp.fill(0);
+  return res;
+}
+function scrypt(password, salt, opts) {
+  const { N: N3, r, p, dkLen, blockSize32, V, B32, B, tmp, blockMixCb } = scryptInit(password, salt, opts);
+  for (let pi = 0; pi < p; pi++) {
+    const Pi2 = blockSize32 * pi;
+    for (let i = 0; i < blockSize32; i++)
+      V[i] = B32[Pi2 + i];
+    for (let i = 0, pos = 0; i < N3 - 1; i++) {
+      BlockMix(V, pos, V, pos += blockSize32, r);
+      blockMixCb();
+    }
+    BlockMix(V, (N3 - 1) * blockSize32, B32, Pi2, r);
+    blockMixCb();
+    for (let i = 0; i < N3; i++) {
+      const j = B32[Pi2 + blockSize32 - 16] % N3;
+      for (let k = 0; k < blockSize32; k++)
+        tmp[k] = B32[Pi2 + k] ^ V[j * blockSize32 + k];
+      BlockMix(tmp, 0, B32, Pi2, r);
+      blockMixCb();
+    }
+  }
+  return scryptOutput(password, dkLen, B, V, tmp);
+}
+async function scryptAsync(password, salt, opts) {
+  const { N: N3, r, p, dkLen, blockSize32, V, B32, B, tmp, blockMixCb, asyncTick } = scryptInit(password, salt, opts);
+  for (let pi = 0; pi < p; pi++) {
+    const Pi2 = blockSize32 * pi;
+    for (let i = 0; i < blockSize32; i++)
+      V[i] = B32[Pi2 + i];
+    let pos = 0;
+    await asyncLoop(N3 - 1, asyncTick, () => {
+      BlockMix(V, pos, V, pos += blockSize32, r);
+      blockMixCb();
+    });
+    BlockMix(V, (N3 - 1) * blockSize32, B32, Pi2, r);
+    blockMixCb();
+    await asyncLoop(N3, asyncTick, () => {
+      const j = B32[Pi2 + blockSize32 - 16] % N3;
+      for (let k = 0; k < blockSize32; k++)
+        tmp[k] = B32[Pi2 + k] ^ V[j * blockSize32 + k];
+      BlockMix(tmp, 0, B32, Pi2, r);
+      blockMixCb();
+    });
+  }
+  return scryptOutput(password, dkLen, B, V, tmp);
+}
+
+// ../../../node_modules/ethers/lib.esm/crypto/scrypt.js
+var lockedSync = false;
+var lockedAsync = false;
+var _scryptAsync = async function(passwd, salt, N3, r, p, dkLen, onProgress) {
+  return await scryptAsync(passwd, salt, { N: N3, r, p, dkLen, onProgress });
+};
+var _scryptSync = function(passwd, salt, N3, r, p, dkLen) {
+  return scrypt(passwd, salt, { N: N3, r, p, dkLen });
+};
+var __scryptAsync = _scryptAsync;
+var __scryptSync = _scryptSync;
+async function scrypt2(_passwd, _salt, N3, r, p, dkLen, progress) {
+  const passwd = getBytes(_passwd, "passwd");
+  const salt = getBytes(_salt, "salt");
+  return hexlify(await __scryptAsync(passwd, salt, N3, r, p, dkLen, progress));
+}
+scrypt2._ = _scryptAsync;
+scrypt2.lock = function() {
+  lockedAsync = true;
+};
+scrypt2.register = function(func) {
+  if (lockedAsync) {
+    throw new Error("scrypt is locked");
+  }
+  __scryptAsync = func;
+};
+Object.freeze(scrypt2);
+function scryptSync(_passwd, _salt, N3, r, p, dkLen) {
+  const passwd = getBytes(_passwd, "passwd");
+  const salt = getBytes(_salt, "salt");
+  return hexlify(__scryptSync(passwd, salt, N3, r, p, dkLen));
+}
+scryptSync._ = _scryptSync;
+scryptSync.lock = function() {
+  lockedSync = true;
+};
+scryptSync.register = function(func) {
+  if (lockedSync) {
+    throw new Error("scryptSync is locked");
+  }
+  __scryptSync = func;
+};
+Object.freeze(scryptSync);
+
+// ../../../node_modules/ethers/lib.esm/crypto/sha2.js
+var _sha256 = function(data) {
+  return createHash("sha256").update(data).digest();
+};
+var _sha512 = function(data) {
+  return createHash("sha512").update(data).digest();
+};
+var __sha256 = _sha256;
+var __sha512 = _sha512;
+var locked256 = false;
+var locked512 = false;
+function sha2562(_data) {
+  const data = getBytes(_data, "data");
+  return hexlify(__sha256(data));
+}
+sha2562._ = _sha256;
+sha2562.lock = function() {
+  locked256 = true;
+};
+sha2562.register = function(func) {
+  if (locked256) {
+    throw new Error("sha256 is locked");
+  }
+  __sha256 = func;
+};
+Object.freeze(sha2562);
+function sha512(_data) {
+  const data = getBytes(_data, "data");
+  return hexlify(__sha512(data));
+}
+sha512._ = _sha512;
+sha512.lock = function() {
+  locked512 = true;
+};
+sha512.register = function(func) {
+  if (locked512) {
+    throw new Error("sha512 is locked");
+  }
+  __sha512 = func;
+};
+Object.freeze(sha2562);
+
+// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_assert.js
+function number2(n2) {
+  if (!Number.isSafeInteger(n2) || n2 < 0)
+    throw new Error(`Wrong positive integer: ${n2}`);
+}
+function bytes2(b2, ...lengths) {
+  if (!(b2 instanceof Uint8Array))
+    throw new Error("Expected Uint8Array");
+  if (lengths.length > 0 && !lengths.includes(b2.length))
+    throw new Error(`Expected Uint8Array of length ${lengths}, not of length=${b2.length}`);
+}
+function hash2(hash3) {
+  if (typeof hash3 !== "function" || typeof hash3.create !== "function")
+    throw new Error("Hash should be wrapped by utils.wrapConstructor");
+  number2(hash3.outputLen);
+  number2(hash3.blockLen);
+}
+function exists2(instance, checkFinished = true) {
+  if (instance.destroyed)
+    throw new Error("Hash instance has been destroyed");
+  if (checkFinished && instance.finished)
+    throw new Error("Hash#digest() has already been called");
+}
+function output2(out, instance) {
+  bytes2(out);
+  const min = instance.outputLen;
+  if (out.length < min) {
+    throw new Error(`digestInto() expects output buffer of length at least ${min}`);
+  }
+}
+
+// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/cryptoNode.js
+import * as nc from "node:crypto";
+var crypto = nc && typeof nc === "object" && "webcrypto" in nc ? nc.webcrypto : void 0;
+
+// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/utils.js
+var u8a2 = (a) => a instanceof Uint8Array;
+var createView2 = (arr) => new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+var rotr2 = (word, shift) => word << 32 - shift | word >>> shift;
+var isLE2 = new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68;
+if (!isLE2)
+  throw new Error("Non little-endian hardware is not supported");
+function utf8ToBytes2(str) {
+  if (typeof str !== "string")
+    throw new Error(`utf8ToBytes expected string, got ${typeof str}`);
+  return new Uint8Array(new TextEncoder().encode(str));
+}
+function toBytes2(data) {
+  if (typeof data === "string")
+    data = utf8ToBytes2(data);
+  if (!u8a2(data))
+    throw new Error(`expected Uint8Array, got ${typeof data}`);
+  return data;
+}
+function concatBytes(...arrays) {
+  const r = new Uint8Array(arrays.reduce((sum, a) => sum + a.length, 0));
+  let pad = 0;
+  arrays.forEach((a) => {
+    if (!u8a2(a))
+      throw new Error("Uint8Array expected");
+    r.set(a, pad);
+    pad += a.length;
+  });
+  return r;
+}
+var Hash2 = class {
+  // Safe version that clones internal state
+  clone() {
+    return this._cloneInto();
+  }
+};
+var toStr2 = {}.toString;
+function wrapConstructor2(hashCons) {
+  const hashC = (msg) => hashCons().update(toBytes2(msg)).digest();
+  const tmp = hashCons();
+  hashC.outputLen = tmp.outputLen;
+  hashC.blockLen = tmp.blockLen;
+  hashC.create = () => hashCons();
+  return hashC;
+}
+function randomBytes3(bytesLength = 32) {
+  if (crypto && typeof crypto.getRandomValues === "function") {
+    return crypto.getRandomValues(new Uint8Array(bytesLength));
+  }
+  throw new Error("crypto.getRandomValues must be defined");
+}
+
+// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_sha2.js
+function setBigUint642(view, byteOffset, value, isLE3) {
+  if (typeof view.setBigUint64 === "function")
+    return view.setBigUint64(byteOffset, value, isLE3);
+  const _32n2 = BigInt(32);
+  const _u32_max = BigInt(4294967295);
+  const wh = Number(value >> _32n2 & _u32_max);
+  const wl = Number(value & _u32_max);
+  const h = isLE3 ? 4 : 0;
+  const l = isLE3 ? 0 : 4;
+  view.setUint32(byteOffset + h, wh, isLE3);
+  view.setUint32(byteOffset + l, wl, isLE3);
+}
+var SHA22 = class extends Hash2 {
+  constructor(blockLen, outputLen, padOffset, isLE3) {
+    super();
+    this.blockLen = blockLen;
+    this.outputLen = outputLen;
+    this.padOffset = padOffset;
+    this.isLE = isLE3;
+    this.finished = false;
+    this.length = 0;
+    this.pos = 0;
+    this.destroyed = false;
+    this.buffer = new Uint8Array(blockLen);
+    this.view = createView2(this.buffer);
+  }
+  update(data) {
+    exists2(this);
+    const { view, buffer, blockLen } = this;
+    data = toBytes2(data);
+    const len = data.length;
+    for (let pos = 0; pos < len; ) {
+      const take = Math.min(blockLen - this.pos, len - pos);
+      if (take === blockLen) {
+        const dataView = createView2(data);
+        for (; blockLen <= len - pos; pos += blockLen)
+          this.process(dataView, pos);
+        continue;
+      }
+      buffer.set(data.subarray(pos, pos + take), this.pos);
+      this.pos += take;
+      pos += take;
+      if (this.pos === blockLen) {
+        this.process(view, 0);
+        this.pos = 0;
+      }
+    }
+    this.length += data.length;
+    this.roundClean();
+    return this;
+  }
+  digestInto(out) {
+    exists2(this);
+    output2(out, this);
+    this.finished = true;
+    const { buffer, view, blockLen, isLE: isLE3 } = this;
+    let { pos } = this;
+    buffer[pos++] = 128;
+    this.buffer.subarray(pos).fill(0);
+    if (this.padOffset > blockLen - pos) {
+      this.process(view, 0);
+      pos = 0;
+    }
+    for (let i = pos; i < blockLen; i++)
+      buffer[i] = 0;
+    setBigUint642(view, blockLen - 8, BigInt(this.length * 8), isLE3);
+    this.process(view, 0);
+    const oview = createView2(out);
+    const len = this.outputLen;
+    if (len % 4)
+      throw new Error("_sha2: outputLen should be aligned to 32bit");
+    const outLen = len / 4;
+    const state = this.get();
+    if (outLen > state.length)
+      throw new Error("_sha2: outputLen bigger than state");
+    for (let i = 0; i < outLen; i++)
+      oview.setUint32(4 * i, state[i], isLE3);
+  }
+  digest() {
+    const { buffer, outputLen } = this;
+    this.digestInto(buffer);
+    const res = buffer.slice(0, outputLen);
+    this.destroy();
+    return res;
+  }
+  _cloneInto(to) {
+    to || (to = new this.constructor());
+    to.set(...this.get());
+    const { blockLen, buffer, length, finished, destroyed, pos } = this;
+    to.length = length;
+    to.pos = pos;
+    to.finished = finished;
+    to.destroyed = destroyed;
+    if (length % blockLen)
+      to.buffer.set(buffer);
+    return to;
+  }
+};
+
+// ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/sha256.js
+var Chi2 = (a, b2, c) => a & b2 ^ ~a & c;
+var Maj2 = (a, b2, c) => a & b2 ^ a & c ^ b2 & c;
+var SHA256_K2 = /* @__PURE__ */ new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+var IV2 = /* @__PURE__ */ new Uint32Array([
+  1779033703,
+  3144134277,
+  1013904242,
+  2773480762,
+  1359893119,
+  2600822924,
+  528734635,
+  1541459225
+]);
+var SHA256_W2 = /* @__PURE__ */ new Uint32Array(64);
+var SHA2562 = class extends SHA22 {
+  constructor() {
+    super(64, 32, 8, false);
+    this.A = IV2[0] | 0;
+    this.B = IV2[1] | 0;
+    this.C = IV2[2] | 0;
+    this.D = IV2[3] | 0;
+    this.E = IV2[4] | 0;
+    this.F = IV2[5] | 0;
+    this.G = IV2[6] | 0;
+    this.H = IV2[7] | 0;
+  }
+  get() {
+    const { A, B, C, D, E, F, G, H } = this;
+    return [A, B, C, D, E, F, G, H];
+  }
+  // prettier-ignore
+  set(A, B, C, D, E, F, G, H) {
+    this.A = A | 0;
+    this.B = B | 0;
+    this.C = C | 0;
+    this.D = D | 0;
+    this.E = E | 0;
+    this.F = F | 0;
+    this.G = G | 0;
+    this.H = H | 0;
+  }
+  process(view, offset) {
+    for (let i = 0; i < 16; i++, offset += 4)
+      SHA256_W2[i] = view.getUint32(offset, false);
+    for (let i = 16; i < 64; i++) {
+      const W15 = SHA256_W2[i - 15];
+      const W2 = SHA256_W2[i - 2];
+      const s0 = rotr2(W15, 7) ^ rotr2(W15, 18) ^ W15 >>> 3;
+      const s1 = rotr2(W2, 17) ^ rotr2(W2, 19) ^ W2 >>> 10;
+      SHA256_W2[i] = s1 + SHA256_W2[i - 7] + s0 + SHA256_W2[i - 16] | 0;
+    }
+    let { A, B, C, D, E, F, G, H } = this;
+    for (let i = 0; i < 64; i++) {
+      const sigma1 = rotr2(E, 6) ^ rotr2(E, 11) ^ rotr2(E, 25);
+      const T13 = H + sigma1 + Chi2(E, F, G) + SHA256_K2[i] + SHA256_W2[i] | 0;
+      const sigma0 = rotr2(A, 2) ^ rotr2(A, 13) ^ rotr2(A, 22);
+      const T22 = sigma0 + Maj2(A, B, C) | 0;
+      H = G;
+      G = F;
+      F = E;
+      E = D + T13 | 0;
+      D = C;
+      C = B;
+      B = A;
+      A = T13 + T22 | 0;
+    }
+    A = A + this.A | 0;
+    B = B + this.B | 0;
+    C = C + this.C | 0;
+    D = D + this.D | 0;
+    E = E + this.E | 0;
+    F = F + this.F | 0;
+    G = G + this.G | 0;
+    H = H + this.H | 0;
+    this.set(A, B, C, D, E, F, G, H);
+  }
+  roundClean() {
+    SHA256_W2.fill(0);
+  }
+  destroy() {
+    this.set(0, 0, 0, 0, 0, 0, 0, 0);
+    this.buffer.fill(0);
+  }
+};
+var sha2563 = /* @__PURE__ */ wrapConstructor2(() => new SHA2562());
 
 // ../../../node_modules/@noble/curves/esm/abstract/utils.js
 var utils_exports = {};
@@ -3562,12 +4404,12 @@ function invert(number3, modulo) {
 }
 function tonelliShanks(P) {
   const legendreC = (P - _1n3) / _2n3;
-  let Q, S, Z;
-  for (Q = P - _1n3, S = 0; Q % _2n3 === _0n3; Q /= _2n3, S++)
+  let Q, S2, Z;
+  for (Q = P - _1n3, S2 = 0; Q % _2n3 === _0n3; Q /= _2n3, S2++)
     ;
   for (Z = _2n3; Z < P && pow(Z, legendreC, P) !== P - _1n3; Z++)
     ;
-  if (S === 1) {
+  if (S2 === 1) {
     const p1div4 = (P + _1n3) / _4n;
     return function tonelliFast(Fp2, n2) {
       const root = Fp2.pow(n2, p1div4);
@@ -3580,7 +4422,7 @@ function tonelliShanks(P) {
   return function tonelliSlow(Fp2, n2) {
     if (Fp2.pow(n2, legendreC) === Fp2.neg(Fp2.ONE))
       throw new Error("Cannot find square root");
-    let r = S;
+    let r = S2;
     let g = Fp2.pow(Fp2.mul(Fp2.ONE, Z), Q);
     let x = Fp2.pow(n2, Q1div2);
     let b2 = Fp2.pow(n2, Q);
@@ -3661,37 +4503,37 @@ function validateField(field) {
   }, initial);
   return validateObject(field, opts);
 }
-function FpPow(f, num, power) {
+function FpPow(f2, num, power) {
   if (power < _0n3)
     throw new Error("Expected power > 0");
   if (power === _0n3)
-    return f.ONE;
+    return f2.ONE;
   if (power === _1n3)
     return num;
-  let p = f.ONE;
+  let p = f2.ONE;
   let d = num;
   while (power > _0n3) {
     if (power & _1n3)
-      p = f.mul(p, d);
-    d = f.sqr(d);
+      p = f2.mul(p, d);
+    d = f2.sqr(d);
     power >>= _1n3;
   }
   return p;
 }
-function FpInvertBatch(f, nums) {
+function FpInvertBatch(f2, nums) {
   const tmp = new Array(nums.length);
   const lastMultiplied = nums.reduce((acc, num, i) => {
-    if (f.is0(num))
+    if (f2.is0(num))
       return acc;
     tmp[i] = acc;
-    return f.mul(acc, num);
-  }, f.ONE);
-  const inverted = f.inv(lastMultiplied);
+    return f2.mul(acc, num);
+  }, f2.ONE);
+  const inverted = f2.inv(lastMultiplied);
   nums.reduceRight((acc, num, i) => {
-    if (f.is0(num))
+    if (f2.is0(num))
       return acc;
-    tmp[i] = f.mul(acc, tmp[i]);
-    return f.mul(acc, num);
+    tmp[i] = f2.mul(acc, tmp[i]);
+    return f2.mul(acc, num);
   }, inverted);
   return tmp;
 }
@@ -3707,7 +4549,7 @@ function Field(ORDER, bitLen2, isLE3 = false, redef = {}) {
   if (BYTES > 2048)
     throw new Error("Field lengths over 2048 bytes are not supported");
   const sqrtP = FpSqrt(ORDER);
-  const f = Object.freeze({
+  const f2 = Object.freeze({
     ORDER,
     BITS,
     BYTES,
@@ -3728,7 +4570,7 @@ function Field(ORDER, bitLen2, isLE3 = false, redef = {}) {
     add: (lhs, rhs) => mod(lhs + rhs, ORDER),
     sub: (lhs, rhs) => mod(lhs - rhs, ORDER),
     mul: (lhs, rhs) => mod(lhs * rhs, ORDER),
-    pow: (num, power) => FpPow(f, num, power),
+    pow: (num, power) => FpPow(f2, num, power),
     div: (lhs, rhs) => mod(lhs * invert(rhs, ORDER), ORDER),
     // Same as above, but doesn't normalize
     sqrN: (num) => num * num,
@@ -3736,8 +4578,8 @@ function Field(ORDER, bitLen2, isLE3 = false, redef = {}) {
     subN: (lhs, rhs) => lhs - rhs,
     mulN: (lhs, rhs) => lhs * rhs,
     inv: (num) => invert(num, ORDER),
-    sqrt: redef.sqrt || ((n2) => sqrtP(f, n2)),
-    invertBatch: (lst) => FpInvertBatch(f, lst),
+    sqrt: redef.sqrt || ((n2) => sqrtP(f2, n2)),
+    invertBatch: (lst) => FpInvertBatch(f2, lst),
     // TODO: do we really need constant cmov?
     // We don't have const-time bigints anyway, so probably will be not very useful
     cmov: (a, b2, c) => c ? b2 : a,
@@ -3748,7 +4590,7 @@ function Field(ORDER, bitLen2, isLE3 = false, redef = {}) {
       return isLE3 ? bytesToNumberLE(bytes3) : bytesToNumberBE(bytes3);
     }
   });
-  return Object.freeze(f);
+  return Object.freeze(f2);
 }
 function getFieldBytesLength(fieldOrder) {
   if (typeof fieldOrder !== "bigint")
@@ -3834,7 +4676,7 @@ function wNAF(c, bits) {
     wNAF(W, precomputes, n2) {
       const { windows, windowSize } = opts(W);
       let p = c.ZERO;
-      let f = c.BASE;
+      let f2 = c.BASE;
       const mask2 = BigInt(2 ** W - 1);
       const maxNumber = 2 ** W;
       const shiftBy = BigInt(W);
@@ -3851,12 +4693,12 @@ function wNAF(c, bits) {
         const cond1 = window % 2 !== 0;
         const cond2 = wbits < 0;
         if (wbits === 0) {
-          f = f.add(constTimeNegate(cond1, precomputes[offset1]));
+          f2 = f2.add(constTimeNegate(cond1, precomputes[offset1]));
         } else {
           p = p.add(constTimeNegate(cond2, precomputes[offset2]));
         }
       }
-      return { p, f };
+      return { p, f: f2 };
     },
     wNAFCached(P, precomputesMap, n2, transform) {
       const W = P._WINDOW_SIZE || 1;
@@ -4115,9 +4957,9 @@ function weierstrassPoints(opts) {
       assertPrjPoint(other);
       const { px: X1, py: Y1, pz: Z1 } = this;
       const { px: X2, py: Y2, pz: Z2 } = other;
-      const U1 = Fp2.eql(Fp2.mul(X1, Z2), Fp2.mul(X2, Z1));
-      const U2 = Fp2.eql(Fp2.mul(Y1, Z2), Fp2.mul(Y2, Z1));
-      return U1 && U2;
+      const U12 = Fp2.eql(Fp2.mul(X1, Z2), Fp2.mul(X2, Z1));
+      const U22 = Fp2.eql(Fp2.mul(Y1, Z2), Fp2.mul(Y2, Z1));
+      return U12 && U22;
     }
     /**
      * Flips point to one corresponding to (x, -y) in Affine coordinates.
@@ -4291,9 +5133,9 @@ function weierstrassPoints(opts) {
         point = k1p.add(k2p);
         fake = f1p.add(f2p);
       } else {
-        const { p, f } = this.wNAF(n2);
+        const { p, f: f2 } = this.wNAF(n2);
         point = p;
-        fake = f;
+        fake = f2;
       }
       return Point2.normalizeZ([point, fake])[0];
     }
@@ -4577,13 +5419,13 @@ function weierstrass(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k) => k in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash2, randomBytes: randomBytes4 } = CURVE;
+    const { hash: hash3, randomBytes: randomBytes4 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
     msgHash = ensureBytes("msgHash", msgHash);
     if (prehash)
-      msgHash = ensureBytes("prehashed msgHash", hash2(msgHash));
+      msgHash = ensureBytes("prehashed msgHash", hash3(msgHash));
     const h1int = bits2int_modN(msgHash);
     const d = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d), int2octets(h1int)];
@@ -4682,25 +5524,25 @@ function weierstrass(curveDef) {
 }
 
 // ../../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/hmac.js
-var HMAC = class extends Hash2 {
-  constructor(hash2, _key) {
+var HMAC2 = class extends Hash2 {
+  constructor(hash3, _key) {
     super();
     this.finished = false;
     this.destroyed = false;
-    hash(hash2);
+    hash2(hash3);
     const key = toBytes2(_key);
-    this.iHash = hash2.create();
+    this.iHash = hash3.create();
     if (typeof this.iHash.update !== "function")
       throw new Error("Expected instance of class which extends utils.Hash");
     this.blockLen = this.iHash.blockLen;
     this.outputLen = this.iHash.outputLen;
     const blockLen = this.blockLen;
     const pad = new Uint8Array(blockLen);
-    pad.set(key.length > blockLen ? hash2.create().update(key).digest() : key);
+    pad.set(key.length > blockLen ? hash3.create().update(key).digest() : key);
     for (let i = 0; i < pad.length; i++)
       pad[i] ^= 54;
     this.iHash.update(pad);
-    this.oHash = hash2.create();
+    this.oHash = hash3.create();
     for (let i = 0; i < pad.length; i++)
       pad[i] ^= 54 ^ 92;
     this.oHash.update(pad);
@@ -4743,19 +5585,19 @@ var HMAC = class extends Hash2 {
     this.iHash.destroy();
   }
 };
-var hmac = (hash2, key, message) => new HMAC(hash2, key).update(message).digest();
-hmac.create = (hash2, key) => new HMAC(hash2, key);
+var hmac2 = (hash3, key, message) => new HMAC2(hash3, key).update(message).digest();
+hmac2.create = (hash3, key) => new HMAC2(hash3, key);
 
 // ../../../node_modules/@noble/curves/esm/_shortw_utils.js
-function getHash(hash2) {
+function getHash(hash3) {
   return {
-    hash: hash2,
-    hmac: (key, ...msgs) => hmac(hash2, key, concatBytes(...msgs)),
-    randomBytes: randomBytes2
+    hash: hash3,
+    hmac: (key, ...msgs) => hmac2(hash3, key, concatBytes(...msgs)),
+    randomBytes: randomBytes3
   };
 }
 function createCurve(curveDef, defHash) {
-  const create = (hash2) => weierstrass({ ...curveDef, ...getHash(hash2) });
+  const create = (hash3) => weierstrass({ ...curveDef, ...getHash(hash3) });
   return Object.freeze({ ...create(defHash), create });
 }
 
@@ -4829,7 +5671,7 @@ var secp256k1 = createCurve({
       return { k1neg, k1, k2neg, k2 };
     }
   }
-}, sha2562);
+}, sha2563);
 var _0n6 = BigInt(0);
 var Point = secp256k1.ProjectivePoint;
 
@@ -4838,6 +5680,9 @@ var ZeroAddress = "0x0000000000000000000000000000000000000000";
 
 // ../../../node_modules/ethers/lib.esm/constants/hashes.js
 var ZeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+// ../../../node_modules/ethers/lib.esm/constants/strings.js
+var MessagePrefix = "Ethereum Signed Message:\n";
 
 // ../../../node_modules/ethers/lib.esm/crypto/signature.js
 var BN_04 = BigInt(0);
@@ -5334,11 +6179,11 @@ function ibanChecksum(address) {
     let block = expanded.substring(0, safeDigits);
     expanded = parseInt(block, 10) % 97 + expanded.substring(block.length);
   }
-  let checksum = String(98 - parseInt(expanded, 10) % 97);
-  while (checksum.length < 2) {
-    checksum = "0" + checksum;
+  let checksum2 = String(98 - parseInt(expanded, 10) % 97);
+  while (checksum2.length < 2) {
+    checksum2 = "0" + checksum2;
   }
-  return checksum;
+  return checksum2;
 }
 var Base36 = (function() {
   ;
@@ -6600,13 +7445,13 @@ function decode_arithmetic(bytes3) {
     }
     return read_buffer >> --read_width & 1;
   }
-  const N2 = 31;
-  const FULL = 2 ** N2;
+  const N3 = 31;
+  const FULL = 2 ** N3;
   const HALF = FULL >>> 1;
   const QRTR = HALF >> 1;
   const MASK = FULL - 1;
   let register = 0;
-  for (let i = 0; i < N2; i++) register = register << 1 | read_bit();
+  for (let i = 0; i < N3; i++) register = register << 1 | read_bit();
   let symbols = [];
   let low = 0;
   let range = FULL;
@@ -6753,20 +7598,20 @@ function read_replacement_table(w, next) {
 function read_trie(next) {
   let ret = [];
   let sorted = read_sorted(next);
-  expand(decode([]), []);
+  expand(decode2([]), []);
   return ret;
-  function decode(Q) {
-    let S = next();
+  function decode2(Q) {
+    let S2 = next();
     let B = read_array_while(() => {
       let cps = read_sorted(next).map((i) => sorted[i]);
-      if (cps.length) return decode(cps);
+      if (cps.length) return decode2(cps);
     });
-    return { S, B, Q };
+    return { S: S2, B, Q };
   }
-  function expand({ S, B }, cps, saved) {
-    if (S & 4 && saved === cps[cps.length - 1]) return;
-    if (S & 2) saved = cps[cps.length - 1];
-    if (S & 1) ret.push(cps);
+  function expand({ S: S2, B }, cps, saved) {
+    if (S2 & 4 && saved === cps[cps.length - 1]) return;
+    if (S2 & 2) saved = cps[cps.length - 1];
+    if (S2 & 1) ret.push(cps);
     for (let br of B) {
       for (let cp of br.Q) {
         expand(br, [...cps, cp], saved);
@@ -7021,16 +7866,16 @@ function init() {
     return set;
   };
   GROUPS = read_array_while((i) => {
-    let N2 = read_array_while(r).map((x) => x + 96);
-    if (N2.length) {
+    let N3 = read_array_while(r).map((x) => x + 96);
+    if (N3.length) {
       let R = i >= unrestricted;
-      N2[0] -= 32;
-      N2 = str_from_cps(N2);
-      if (R) N2 = `Restricted[${N2}]`;
+      N3[0] -= 32;
+      N3 = str_from_cps(N3);
+      if (R) N3 = `Restricted[${N3}]`;
       let P = read_chunked();
       let Q = read_chunked();
       let M = !r();
-      return { N: N2, P, Q, M, R };
+      return { N: N3, P, Q, M, R };
     }
   });
   WHOLE_VALID = read_sorted_set();
@@ -7470,12 +8315,12 @@ var BN_282 = BigInt(28);
 var BN_352 = BigInt(35);
 var BN_MAX_UINT = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 var BLOB_SIZE = 4096 * 32;
-function getVersionedHash(version2, hash2) {
+function getVersionedHash(version2, hash3) {
   let versioned = version2.toString(16);
   while (versioned.length < 2) {
     versioned = "0" + versioned;
   }
-  versioned += sha256(hash2).substring(4);
+  versioned += sha2562(hash3).substring(4);
   return "0x" + versioned;
 }
 function handleAddress(value) {
@@ -8400,6 +9245,18 @@ var Transaction = class _Transaction {
     return result;
   }
 };
+
+// ../../../node_modules/ethers/lib.esm/hash/message.js
+function hashMessage(message) {
+  if (typeof message === "string") {
+    message = toUtf8Bytes(message);
+  }
+  return keccak256(concat([
+    toUtf8Bytes(MessagePrefix),
+    toUtf8Bytes(String(message.length)),
+    message
+  ]));
+}
 
 // ../../../node_modules/ethers/lib.esm/hash/typed-data.js
 var padding = new Uint8Array(32);
@@ -10133,7 +10990,7 @@ var paramTypeBytes = new RegExp(/^bytes([0-9]*)$/);
 var paramTypeNumber = new RegExp(/^(u?int)([0-9]*)$/);
 var defaultCoder = null;
 var defaultMaxInflation = 1024;
-function getBuiltinCallException(action, tx, data, abiCoder2) {
+function getBuiltinCallException(action, tx, data, abiCoder3) {
   let message = "missing revert data";
   let reason = null;
   const invocation = null;
@@ -10149,7 +11006,7 @@ function getBuiltinCallException(action, tx, data, abiCoder2) {
       message += " (could not decode reason; invalid data length)";
     } else if (hexlify(bytes3.slice(0, 4)) === "0x08c379a0") {
       try {
-        reason = abiCoder2.decode(["string"], bytes3.slice(4))[0];
+        reason = abiCoder3.decode(["string"], bytes3.slice(4))[0];
         revert = {
           signature: "Error(string)",
           name: "Error",
@@ -10161,7 +11018,7 @@ function getBuiltinCallException(action, tx, data, abiCoder2) {
       }
     } else if (hexlify(bytes3.slice(0, 4)) === "0x4e487b71") {
       try {
-        const code = Number(abiCoder2.decode(["uint256"], bytes3.slice(4))[0]);
+        const code = Number(abiCoder3.decode(["uint256"], bytes3.slice(4))[0]);
         revert = {
           signature: "Panic(uint256)",
           name: "Panic",
@@ -10418,8 +11275,8 @@ var Indexed = class {
   /**
    *  @_ignore:
    */
-  constructor(hash2) {
-    defineProperties(this, { hash: hash2, _isIndexed: true });
+  constructor(hash3) {
+    defineProperties(this, { hash: hash3, _isIndexed: true });
   }
 };
 var PanicReasons2 = {
@@ -10556,7 +11413,7 @@ var Interface = class _Interface {
    */
   format(minimal) {
     const format = minimal ? "minimal" : "full";
-    const abi = this.fragments.map((f) => f.format(format));
+    const abi = this.fragments.map((f2) => f2.format(format));
     return abi;
   }
   /**
@@ -10564,7 +11421,7 @@ var Interface = class _Interface {
    *  returns.
    */
   formatJson() {
-    const abi = this.fragments.map((f) => f.format("json"));
+    const abi = this.fragments.map((f2) => f2.format("json"));
     return JSON.stringify(abi.map((j) => JSON.parse(j)));
   }
   /**
@@ -10914,9 +11771,9 @@ var Interface = class _Interface {
    */
   decodeErrorResult(fragment, data) {
     if (typeof fragment === "string") {
-      const f = this.getError(fragment);
-      assertArgument(f, "unknown error", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getError(fragment);
+      assertArgument(f2, "unknown error", "fragment", fragment);
+      fragment = f2;
     }
     assertArgument(dataSlice(data, 0, 4) === fragment.selector, `data signature does not match error ${fragment.name}.`, "data", data);
     return this._decodeParams(fragment.inputs, dataSlice(data, 4));
@@ -10931,9 +11788,9 @@ var Interface = class _Interface {
    */
   encodeErrorResult(fragment, values) {
     if (typeof fragment === "string") {
-      const f = this.getError(fragment);
-      assertArgument(f, "unknown error", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getError(fragment);
+      assertArgument(f2, "unknown error", "fragment", fragment);
+      fragment = f2;
     }
     return concat([
       fragment.selector,
@@ -10950,9 +11807,9 @@ var Interface = class _Interface {
    */
   decodeFunctionData(fragment, data) {
     if (typeof fragment === "string") {
-      const f = this.getFunction(fragment);
-      assertArgument(f, "unknown function", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getFunction(fragment);
+      assertArgument(f2, "unknown function", "fragment", fragment);
+      fragment = f2;
     }
     assertArgument(dataSlice(data, 0, 4) === fragment.selector, `data signature does not match function ${fragment.name}.`, "data", data);
     return this._decodeParams(fragment.inputs, dataSlice(data, 4));
@@ -10964,9 +11821,9 @@ var Interface = class _Interface {
    */
   encodeFunctionData(fragment, values) {
     if (typeof fragment === "string") {
-      const f = this.getFunction(fragment);
-      assertArgument(f, "unknown function", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getFunction(fragment);
+      assertArgument(f2, "unknown function", "fragment", fragment);
+      fragment = f2;
     }
     return concat([
       fragment.selector,
@@ -10984,9 +11841,9 @@ var Interface = class _Interface {
    */
   decodeFunctionResult(fragment, data) {
     if (typeof fragment === "string") {
-      const f = this.getFunction(fragment);
-      assertArgument(f, "unknown function", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getFunction(fragment);
+      assertArgument(f2, "unknown function", "fragment", fragment);
+      fragment = f2;
     }
     let message = "invalid length for result data";
     const bytes3 = getBytesCopy(data);
@@ -11044,9 +11901,9 @@ var Interface = class _Interface {
    */
   encodeFunctionResult(fragment, values) {
     if (typeof fragment === "string") {
-      const f = this.getFunction(fragment);
-      assertArgument(f, "unknown function", "fragment", fragment);
-      fragment = f;
+      const f2 = this.getFunction(fragment);
+      assertArgument(f2, "unknown function", "fragment", fragment);
+      fragment = f2;
     }
     return hexlify(this.#abiCoder.encode(fragment.outputs, values || []));
   }
@@ -11083,9 +11940,9 @@ var Interface = class _Interface {
   // Create the filter for the event with search criteria (e.g. for eth_filterLog)
   encodeFilterTopics(fragment, values) {
     if (typeof fragment === "string") {
-      const f = this.getEvent(fragment);
-      assertArgument(f, "unknown event", "eventFragment", fragment);
-      fragment = f;
+      const f2 = this.getEvent(fragment);
+      assertArgument(f2, "unknown event", "eventFragment", fragment);
+      fragment = f2;
     }
     assert(values.length <= fragment.inputs.length, `too many arguments for ${fragment.format()}`, "UNEXPECTED_ARGUMENT", { count: values.length, expectedCount: fragment.inputs.length });
     const topics = [];
@@ -11132,9 +11989,9 @@ var Interface = class _Interface {
   }
   encodeEventLog(fragment, values) {
     if (typeof fragment === "string") {
-      const f = this.getEvent(fragment);
-      assertArgument(f, "unknown event", "eventFragment", fragment);
-      fragment = f;
+      const f2 = this.getEvent(fragment);
+      assertArgument(f2, "unknown event", "eventFragment", fragment);
+      fragment = f2;
     }
     const topics = [];
     const dataTypes = [];
@@ -11168,9 +12025,9 @@ var Interface = class _Interface {
   // Decode a filter for the event and the search criteria
   decodeEventLog(fragment, data, topics) {
     if (typeof fragment === "string") {
-      const f = this.getEvent(fragment);
-      assertArgument(f, "unknown event", "eventFragment", fragment);
-      fragment = f;
+      const f2 = this.getEvent(fragment);
+      assertArgument(f2, "unknown event", "eventFragment", fragment);
+      fragment = f2;
     }
     if (topics != null && !fragment.anonymous) {
       const eventTopic = fragment.topicHash;
@@ -11581,7 +12438,7 @@ var Block = class {
    *  Returns a JSON-friendly value.
    */
   toJSON() {
-    const { baseFeePerGas, difficulty, extraData, gasLimit, gasUsed, hash: hash2, miner, prevRandao, nonce, number: number3, parentHash, parentBeaconBlockRoot, stateRoot, receiptsRoot, timestamp, transactions } = this;
+    const { baseFeePerGas, difficulty, extraData, gasLimit, gasUsed, hash: hash3, miner, prevRandao, nonce, number: number3, parentHash, parentBeaconBlockRoot, stateRoot, receiptsRoot, timestamp, transactions } = this;
     return {
       _type: "Block",
       baseFeePerGas: toJson(baseFeePerGas),
@@ -11591,7 +12448,7 @@ var Block = class {
       gasUsed: toJson(gasUsed),
       blobGasUsed: toJson(this.blobGasUsed),
       excessBlobGas: toJson(this.excessBlobGas),
-      hash: hash2,
+      hash: hash3,
       miner,
       prevRandao,
       nonce,
@@ -11642,16 +12499,16 @@ var Block = class {
     if (typeof indexOrHash === "number") {
       tx = this.#transactions[indexOrHash];
     } else {
-      const hash2 = indexOrHash.toLowerCase();
+      const hash3 = indexOrHash.toLowerCase();
       for (const v of this.#transactions) {
         if (typeof v === "string") {
-          if (v !== hash2) {
+          if (v !== hash3) {
             continue;
           }
           tx = v;
           break;
         } else {
-          if (v.hash === hash2) {
+          if (v.hash === hash3) {
             continue;
           }
           tx = v;
@@ -11978,7 +12835,7 @@ var TransactionReceipt = class {
       to,
       from,
       contractAddress,
-      hash: hash2,
+      hash: hash3,
       index,
       blockHash,
       blockNumber,
@@ -12000,7 +12857,7 @@ var TransactionReceipt = class {
       blobGasUsed: toJson(this.blobGasUsed),
       blobGasPrice: toJson(this.blobGasPrice),
       gasUsed: toJson(this.gasUsed),
-      hash: hash2,
+      hash: hash3,
       index,
       logs,
       logsBloom,
@@ -12227,7 +13084,7 @@ var TransactionResponse = class _TransactionResponse {
    *  Returns a JSON-compatible representation of this transaction.
    */
   toJSON() {
-    const { blockNumber, blockHash, index, hash: hash2, type, to, from, nonce, data, signature, accessList, blobVersionedHashes } = this;
+    const { blockNumber, blockHash, index, hash: hash3, type, to, from, nonce, data, signature, accessList, blobVersionedHashes } = this;
     return {
       _type: "TransactionResponse",
       accessList,
@@ -12239,7 +13096,7 @@ var TransactionResponse = class _TransactionResponse {
       from,
       gasLimit: toJson(this.gasLimit),
       gasPrice: toJson(this.gasPrice),
-      hash: hash2,
+      hash: hash3,
       maxFeePerGas: toJson(this.maxFeePerGas),
       maxPriorityFeePerGas: toJson(this.maxPriorityFeePerGas),
       maxFeePerBlobGas: toJson(this.maxFeePerBlobGas),
@@ -12346,8 +13203,8 @@ var TransactionResponse = class _TransactionResponse {
         if (block == null) {
           return;
         }
-        for (const hash2 of block) {
-          if (hash2 === this.hash) {
+        for (const hash3 of block) {
+          if (hash3 === this.hash) {
             return;
           }
         }
@@ -13406,7 +14263,7 @@ var BaseContract = class _BaseContract {
   /**
    *  @_ignore:
    */
-  async queryTransaction(hash2) {
+  async queryTransaction(hash3) {
     throw new Error("@TODO");
   }
   /*
@@ -14862,9 +15719,9 @@ var PollingTransactionSubscriber = class extends OnBlockSubscriber {
    *  Create a new **PollingTransactionSubscriber** attached to
    *  %%provider%%, listening for %%hash%%.
    */
-  constructor(provider, hash2) {
+  constructor(provider, hash3) {
     super(provider);
-    this.#hash = hash2;
+    this.#hash = hash3;
   }
   async _poll(blockNumber, provider) {
     const tx = await provider.getTransactionReceipt(this.#hash);
@@ -15018,8 +15875,8 @@ async function getSubscription(_event, provider) {
     }
   }
   if (isHexString(_event, 32)) {
-    const hash2 = _event.toLowerCase();
-    return { type: "transaction", tag: getTag("tx", { hash: hash2 }), hash: hash2 };
+    const hash3 = _event.toLowerCase();
+    return { type: "transaction", tag: getTag("tx", { hash: hash3 }), hash: hash3 };
   }
   if (_event.orphan) {
     const event = _event;
@@ -15623,7 +16480,7 @@ var AbstractProvider = class {
   }
   // Write
   async broadcastTransaction(signedTx) {
-    const { blockNumber, hash: hash2, network } = await resolveProperties({
+    const { blockNumber, hash: hash3, network } = await resolveProperties({
       blockNumber: this.getBlockNumber(),
       hash: this._perform({
         method: "broadcastTransaction",
@@ -15632,7 +16489,7 @@ var AbstractProvider = class {
       network: this.getNetwork()
     });
     const tx = Transaction.from(signedTx);
-    if (tx.hash !== hash2) {
+    if (tx.hash !== hash3) {
       throw new Error("@TODO: the returned hash did not match");
     }
     return this._wrapTransactionResponse(tx, network).replaceableTransaction(blockNumber);
@@ -15666,26 +16523,26 @@ var AbstractProvider = class {
     }
     return this._wrapBlock(params, network);
   }
-  async getTransaction(hash2) {
+  async getTransaction(hash3) {
     const { network, params } = await resolveProperties({
       network: this.getNetwork(),
-      params: this.#perform({ method: "getTransaction", hash: hash2 })
+      params: this.#perform({ method: "getTransaction", hash: hash3 })
     });
     if (params == null) {
       return null;
     }
     return this._wrapTransactionResponse(params, network);
   }
-  async getTransactionReceipt(hash2) {
+  async getTransactionReceipt(hash3) {
     const { network, params } = await resolveProperties({
       network: this.getNetwork(),
-      params: this.#perform({ method: "getTransactionReceipt", hash: hash2 })
+      params: this.#perform({ method: "getTransactionReceipt", hash: hash3 })
     });
     if (params == null) {
       return null;
     }
     if (params.gasPrice == null && params.effectiveGasPrice == null) {
-      const tx = await this.#perform({ method: "getTransaction", hash: hash2 });
+      const tx = await this.#perform({ method: "getTransaction", hash: hash3 });
       if (tx == null) {
         throw new Error("report this; could not find tx or effectiveGasPrice");
       }
@@ -15693,10 +16550,10 @@ var AbstractProvider = class {
     }
     return this._wrapTransactionReceipt(params, network);
   }
-  async getTransactionResult(hash2) {
+  async getTransactionResult(hash3) {
     const { result } = await resolveProperties({
       network: this.getNetwork(),
-      result: this.#perform({ method: "getTransactionResult", hash: hash2 })
+      result: this.#perform({ method: "getTransactionResult", hash: hash3 })
     });
     if (result == null) {
       return null;
@@ -15770,16 +16627,16 @@ var AbstractProvider = class {
     }
     return null;
   }
-  async waitForTransaction(hash2, _confirms, timeout) {
+  async waitForTransaction(hash3, _confirms, timeout) {
     const confirms = _confirms != null ? _confirms : 1;
     if (confirms === 0) {
-      return this.getTransactionReceipt(hash2);
+      return this.getTransactionReceipt(hash3);
     }
     return new Promise(async (resolve, reject) => {
       let timer = null;
       const listener = (async (blockNumber) => {
         try {
-          const receipt = await this.getTransactionReceipt(hash2);
+          const receipt = await this.getTransactionReceipt(hash3);
           if (receipt != null) {
             if (blockNumber - receipt.blockNumber + 1 >= confirms) {
               resolve(receipt);
@@ -16399,6 +17256,38 @@ var AbstractSigner = class {
     return await provider.broadcastTransaction(await this.signTransaction(txObj));
   }
 };
+var VoidSigner = class _VoidSigner extends AbstractSigner {
+  /**
+   *  The signer address.
+   */
+  address;
+  /**
+   *  Creates a new **VoidSigner** with %%address%% attached to
+   *  %%provider%%.
+   */
+  constructor(address, provider) {
+    super(provider);
+    defineProperties(this, { address });
+  }
+  async getAddress() {
+    return this.address;
+  }
+  connect(provider) {
+    return new _VoidSigner(this.address, provider);
+  }
+  #throwUnsupported(suffix, operation) {
+    assert(false, `VoidSigner cannot sign ${suffix}`, "UNSUPPORTED_OPERATION", { operation });
+  }
+  async signTransaction(tx) {
+    this.#throwUnsupported("transactions", "signTransaction");
+  }
+  async signMessage(message) {
+    this.#throwUnsupported("messages", "signMessage");
+  }
+  async signTypedData(domain, types, value) {
+    this.#throwUnsupported("typed-data", "signTypedData");
+  }
+};
 
 // ../../../node_modules/ethers/lib.esm/providers/subscriber-filterid.js
 function copy3(obj) {
@@ -16645,13 +17534,13 @@ var JsonRpcSigner = class extends AbstractSigner {
   }
   async sendTransaction(tx) {
     const blockNumber = await this.provider.getBlockNumber();
-    const hash2 = await this.sendUncheckedTransaction(tx);
+    const hash3 = await this.sendUncheckedTransaction(tx);
     return await new Promise((resolve, reject) => {
       const timeouts = [1e3, 100];
       let invalids = 0;
       const checkTx = async () => {
         try {
-          const tx2 = await this.provider.getTransaction(hash2);
+          const tx2 = await this.provider.getTransaction(hash3);
           if (tx2 != null) {
             resolve(tx2.replaceableTransaction(blockNumber));
             return;
@@ -16661,7 +17550,7 @@ var JsonRpcSigner = class extends AbstractSigner {
             if (error.info == null) {
               error.info = {};
             }
-            error.info.sendTransactionHash = hash2;
+            error.info.sendTransactionHash = hash3;
             reject(error);
             return;
           }
@@ -16670,7 +17559,7 @@ var JsonRpcSigner = class extends AbstractSigner {
             if (error.info == null) {
               error.info = {};
             }
-            error.info.sendTransactionHash = hash2;
+            error.info.sendTransactionHash = hash3;
             if (invalids > 10) {
               reject(error);
               return;
@@ -17385,6 +18274,1633 @@ function spelunkMessage(value) {
   return result;
 }
 
+// ../../../node_modules/ethers/lib.esm/wallet/base-wallet.js
+var BaseWallet = class _BaseWallet extends AbstractSigner {
+  /**
+   *  The wallet address.
+   */
+  address;
+  #signingKey;
+  /**
+   *  Creates a new BaseWallet for %%privateKey%%, optionally
+   *  connected to %%provider%%.
+   *
+   *  If %%provider%% is not specified, only offline methods can
+   *  be used.
+   */
+  constructor(privateKey, provider) {
+    super(provider);
+    assertArgument(privateKey && typeof privateKey.sign === "function", "invalid private key", "privateKey", "[ REDACTED ]");
+    this.#signingKey = privateKey;
+    const address = computeAddress(this.signingKey.publicKey);
+    defineProperties(this, { address });
+  }
+  // Store private values behind getters to reduce visibility
+  // in console.log
+  /**
+   *  The [[SigningKey]] used for signing payloads.
+   */
+  get signingKey() {
+    return this.#signingKey;
+  }
+  /**
+   *  The private key for this wallet.
+   */
+  get privateKey() {
+    return this.signingKey.privateKey;
+  }
+  async getAddress() {
+    return this.address;
+  }
+  connect(provider) {
+    return new _BaseWallet(this.#signingKey, provider);
+  }
+  async signTransaction(tx) {
+    const { to, from } = await resolveProperties({
+      to: tx.to ? resolveAddress(tx.to, this.provider) : void 0,
+      from: tx.from ? resolveAddress(tx.from, this.provider) : void 0
+    });
+    if (to != null) {
+      tx.to = to;
+    }
+    if (from != null) {
+      tx.from = from;
+    }
+    if (tx.from != null) {
+      assertArgument(getAddress(tx.from) === this.address, "transaction from address mismatch", "tx.from", tx.from);
+      delete tx.from;
+    }
+    const btx = Transaction.from(tx);
+    btx.signature = this.signingKey.sign(btx.unsignedHash);
+    return btx.serialized;
+  }
+  async signMessage(message) {
+    return this.signMessageSync(message);
+  }
+  // @TODO: Add a secialized signTx and signTyped sync that enforces
+  // all parameters are known?
+  /**
+   *  Returns the signature for %%message%% signed with this wallet.
+   */
+  signMessageSync(message) {
+    return this.signingKey.sign(hashMessage(message)).serialized;
+  }
+  async signTypedData(domain, types, value) {
+    const populated = await TypedDataEncoder.resolveNames(domain, types, value, async (name) => {
+      assert(this.provider != null, "cannot resolve ENS names without a provider", "UNSUPPORTED_OPERATION", {
+        operation: "resolveName",
+        info: { name }
+      });
+      const address = await this.provider.resolveName(name);
+      assert(address != null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
+        value: name
+      });
+      return address;
+    });
+    return this.signingKey.sign(TypedDataEncoder.hash(populated.domain, types, populated.value)).serialized;
+  }
+};
+
+// ../../../node_modules/ethers/lib.esm/wordlists/decode-owl.js
+var subsChrs = " !#$%&'()*+,-./<=>?@[]^_`{|}~";
+var Word = /^[a-z]*$/i;
+function unfold(words2, sep) {
+  let initial = 97;
+  return words2.reduce((accum, word) => {
+    if (word === sep) {
+      initial++;
+    } else if (word.match(Word)) {
+      accum.push(String.fromCharCode(initial) + word);
+    } else {
+      initial = 97;
+      accum.push(word);
+    }
+    return accum;
+  }, []);
+}
+function decode(data, subs) {
+  for (let i = subsChrs.length - 1; i >= 0; i--) {
+    data = data.split(subsChrs[i]).join(subs.substring(2 * i, 2 * i + 2));
+  }
+  const clumps = [];
+  const leftover = data.replace(/(:|([0-9])|([A-Z][a-z]*))/g, (all, item, semi, word) => {
+    if (semi) {
+      for (let i = parseInt(semi); i >= 0; i--) {
+        clumps.push(";");
+      }
+    } else {
+      clumps.push(item.toLowerCase());
+    }
+    return "";
+  });
+  if (leftover) {
+    throw new Error(`leftovers: ${JSON.stringify(leftover)}`);
+  }
+  return unfold(unfold(clumps, ";"), ":");
+}
+function decodeOwl(data) {
+  assertArgument(data[0] === "0", "unsupported auwl data", "data", data);
+  return decode(data.substring(1 + 2 * subsChrs.length), data.substring(1, 1 + 2 * subsChrs.length));
+}
+
+// ../../../node_modules/ethers/lib.esm/wordlists/wordlist.js
+var Wordlist = class {
+  locale;
+  /**
+   *  Creates a new Wordlist instance.
+   *
+   *  Sub-classes MUST call this if they provide their own constructor,
+   *  passing in the locale string of the language.
+   *
+   *  Generally there is no need to create instances of a Wordlist,
+   *  since each language-specific Wordlist creates an instance and
+   *  there is no state kept internally, so they are safe to share.
+   */
+  constructor(locale) {
+    defineProperties(this, { locale });
+  }
+  /**
+   *  Sub-classes may override this to provide a language-specific
+   *  method for spliting %%phrase%% into individual words.
+   *
+   *  By default, %%phrase%% is split using any sequences of
+   *  white-space as defined by regular expressions (i.e. ``/\s+/``).
+   */
+  split(phrase) {
+    return phrase.toLowerCase().split(/\s+/g);
+  }
+  /**
+   *  Sub-classes may override this to provider a language-specific
+   *  method for joining %%words%% into a phrase.
+   *
+   *  By default, %%words%% are joined by a single space.
+   */
+  join(words2) {
+    return words2.join(" ");
+  }
+};
+
+// ../../../node_modules/ethers/lib.esm/wordlists/wordlist-owl.js
+var WordlistOwl = class extends Wordlist {
+  #data;
+  #checksum;
+  /**
+   *  Creates a new Wordlist for %%locale%% using the OWL %%data%%
+   *  and validated against the %%checksum%%.
+   */
+  constructor(locale, data, checksum2) {
+    super(locale);
+    this.#data = data;
+    this.#checksum = checksum2;
+    this.#words = null;
+  }
+  /**
+   *  The OWL-encoded data.
+   */
+  get _data() {
+    return this.#data;
+  }
+  /**
+   *  Decode all the words for the wordlist.
+   */
+  _decodeWords() {
+    return decodeOwl(this.#data);
+  }
+  #words;
+  #loadWords() {
+    if (this.#words == null) {
+      const words2 = this._decodeWords();
+      const checksum2 = id(words2.join("\n") + "\n");
+      if (checksum2 !== this.#checksum) {
+        throw new Error(`BIP39 Wordlist for ${this.locale} FAILED`);
+      }
+      this.#words = words2;
+    }
+    return this.#words;
+  }
+  getWord(index) {
+    const words2 = this.#loadWords();
+    assertArgument(index >= 0 && index < words2.length, `invalid word index: ${index}`, "index", index);
+    return words2[index];
+  }
+  getWordIndex(word) {
+    return this.#loadWords().indexOf(word);
+  }
+};
+
+// ../../../node_modules/ethers/lib.esm/wordlists/lang-en.js
+var words = "0erleonalorenseinceregesticitStanvetearctssi#ch2Athck&tneLl0And#Il.yLeOutO=S|S%b/ra@SurdU'0Ce[Cid|CountCu'Hie=IdOu,-Qui*Ro[TT]T%T*[Tu$0AptDD-tD*[Ju,M.UltV<)Vi)0Rob-0FairF%dRaid0A(EEntRee0Ead0MRRp%tS!_rmBumCoholErtI&LLeyLowMo,O}PhaReadySoT Ways0A>urAz(gOngOuntU'd0Aly,Ch%Ci|G G!GryIm$K!Noun)Nu$O` Sw T&naTiqueXietyY1ArtOlogyPe?P!Pro=Ril1ChCt-EaEnaGueMMedM%MyOundR<+Re,Ri=RowTTefa@Ti,Tw%k0KPe@SaultSetSi,SumeThma0H!>OmTa{T&dT.udeTra@0Ct]D.Gu,NtTh%ToTumn0Era+OcadoOid0AkeA*AyEsomeFulKw?d0Is:ByChel%C#D+GL<)Lc#y~MbooN<aNn RRelyRga(R*lSeS-SketTt!3A^AnAutyCau'ComeEfF%eG(Ha=H(dLie=LowLtN^Nef./TrayTt Twe&Y#d3Cyc!DKeNdOlogyRdR`Tt _{AdeAmeAnketA,EakE[IndOodO[omOu'UeUrUsh_rdAtDyIlMbNeNusOkO,Rd R(gRrowSsTtomUn)XY_{etA(AndA[A=EadEezeI{Id+IefIghtIngIskOccoliOk&OnzeOomO` OwnUsh2Bb!DdyD+tFf$oIldLbLkL!tNd!Nk Rd&Rg R,SS(e[SyTt Y Zz:Bba+B(B!CtusGeKe~LmM aMpNN$N)lNdyNn#NoeNvasNy#Pab!P.$Pta(RRb#RdRgoRpetRryRtSeShS(o/!Su$TT$ogT^Teg%yTt!UghtU'Ut]Ve3Il(gL yM|NsusNturyRe$Rta(_irAlkAmp]An+AosApt Ar+A'AtEapE{Ee'EfErryE,I{&IefIldIm}yOi)Oo'R#-U{!UnkUrn0G?Nnam#Rc!Tiz&TyVil_imApArifyAwAyE<ErkEv I{I|IffImbIn-IpO{OgO'O`OudOwnUbUmpU, Ut^_^A,C#utDeFfeeIlInL!@L%LumnMb(eMeMf%tM-Mm#Mp<yNc tNdu@NfirmNg*[N}@Nsid NtrolNv()OkOlPp PyR$ReRnR*@/Tt#U^UntryUp!Ur'Us(V Yo>_{Ad!AftAmA}AshAt AwlAzyEamEd.EekEwI{etImeIspIt-OpO[Ou^OwdUci$UelUi'Umb!Un^UshYY,$2BeLtu*PPbo?dRiousRr|Rta(R=Sh]/omTe3C!:DMa+MpN)Ng R(gShUght WnY3AlBa>BrisCadeCemb CideCl(eC%a>C*a'ErF&'F(eFyG*eLayLiv M<dMi'Ni$Nti,NyP?tP&dPos.P`PutyRi=ScribeS tSignSkSpair/royTailTe@VelopVi)Vo>3AgramAlAm#dAryCeE'lEtFf G.$Gn.yLemmaNn NosaurRe@RtSag*eScov Sea'ShSmi[S%d Splay/<)V tVideV%)Zzy5Ct%Cum|G~Lph(Ma(Na>NkeyN%OrSeUb!Ve_ftAg#AmaA,-AwEamE[IftIllInkIpI=OpUmY2CkMbNeR(g/T^Ty1Arf1Nam-:G G!RlyRnR`Sily/Sy1HoOlogyOnomy0GeItUca>1F%t0G1GhtTh 2BowD E@r-Eg<tEm|Eph<tEvat%I>Se0B?kBodyBra)Er+Ot]PloyPow Pty0Ab!A@DD![D%'EmyErgyF%)Ga+G(eH<)JoyLi,OughR-hRollSu*T Ti*TryVelope1Isode0U$Uip0AA'OdeOs]R%Upt0CapeSayS&)Ta>0Ern$H-s1Id&)IlOkeOl=1A@Amp!Ce[Ch<+C.eCludeCu'Ecu>Erci'Hau,Hib.I!I,ItOt-P<dPe@Pi*Pla(Po'P*[T&dTra0EEbrow:Br-CeCultyDeIntI`~L'MeMilyMousNNcyNtasyRmSh]TT$Th TigueUltV%.e3Atu*Bru?yD $EEdElMa!N)/iv$T^V W3B Ct]EldGu*LeLmLt N$NdNeNg NishReRmR,Sc$ShTT}[X_gAmeAshAtAv%EeIghtIpOatO{O%Ow UidUshY_mCusGIlLd~owOdOtR)Re,R+tRkRtu}RumRw?dSsil/ UndX_gi!AmeEqu|EshI&dIn+OgOntO,OwnOz&U.2ElNNnyRna)RyTu*:D+tInLaxy~ yMePRa+Rba+Rd&Rl-Rm|SSpTeTh U+Ze3N $NiusN*Nt!Nu(e/u*2O,0AntFtGg!Ng RaffeRlVe_dAn)A*A[IdeImp'ObeOomOryO=OwUe_tDde[LdOdO'RillaSpelSsipV nWn_bA)A(AntApeA[Av.yEatE&IdIefItOc yOupOwUnt_rdE[IdeIltIt?N3M:B.IrLfMm M, NdPpyRb%RdRshR=,TVeWkZ?d3AdAl`ArtAvyD+hogIght~oLmetLpNRo3Dd&Gh~NtPRe/%y5BbyCkeyLdLeLiday~owMeNeyOdPeRnRr%R'Sp.$/TelUrV 5BGeM<Mb!M%Nd*dNgryNtRd!RryRtSb<d3Brid:1EOn0EaEntifyLe2N%e4LLeg$L}[0A+Ita>M&'Mu}Pa@Po'Pro=Pul'0ChCludeComeC*a'DexD-a>Do%Du,ryF<tFl-tF%mHa!H .Iti$Je@JuryMa>N Noc|PutQuiryS<eSe@SideSpi*/$lTa@T e,ToVe,V.eVol=3On0L<dOla>Sue0Em1Ory:CketGu?RZz3AlousAns~yWel9BInKeUr}yY5D+I)MpNg!Ni%Nk/:Ng?oo3EnEpT^upY3CkDD}yNdNgdomSsTT^&TeTt&Wi4EeIfeO{Ow:BBelB%Dd DyKeMpNgua+PtopR+T T(UghUndryVaWWnWsu.Y Zy3Ad AfArnA=Ctu*FtGG$G&dIsu*M#NdNg`NsOp?dSs#Tt Vel3ArB tyBr?yC&'FeFtGhtKeMbM.NkOnQuid/Tt!VeZ?d5AdAnB, C$CkG-NelyNgOpTt yUdUn+VeY$5CkyGga+Mb N?N^Xury3R-s:Ch(eDG-G}tIdIlInJ%KeMm$NNa+Nda>NgoNs]Nu$P!Rb!R^Rg(R(eRketRria+SkSs/ T^T i$ThTrixTt XimumZe3AdowAnAsu*AtCh<-D$DiaLodyLtMb M%yNt]NuRcyR+R.RryShSsa+T$Thod3Dd!DnightLk~]M-NdNimumN%Nu>Rac!Rr%S ySs/akeXXedXtu*5Bi!DelDifyMM|N.%NkeyN, N`OnR$ReRn(gSqu.oTh T]T%Unta(U'VeVie5ChFf(LeLtiplySc!SeumShroomS-/Tu$3Self/ yTh:I=MePk(Rrow/yT]Tu*3ArCkEdGati=G!@I` PhewR=/TTw%kUtr$V WsXt3CeGht5B!I'M(eeOd!Rm$R`SeTab!TeTh(gTi)VelW5C!?Mb R'T:K0EyJe@Li+Scu*S =Ta(Vious0CurE<Tob 0Or1FF Fi)T&2L1Ay0DI=Ymp-0It0CeEI#L(eLy1EnEraIn]Po'T]1An+B.Ch?dD D(?yG<I|Ig($Ph<0Tr-h0H 0Tdo%T TputTside0AlEnEr0NN 0Yg&0/ 0O}:CtDd!GeIrLa)LmNdaNelN-N` P RadeR|RkRrotRtySsT^ThTi|TrolTt nU'VeYm|3A)AnutArAs<tL-<NN$tyNcilOp!Pp Rfe@Rm.Rs#T2O}OtoRa'Ys-$0AnoCn-Ctu*E)GGe#~LotNkO} Pe/olT^Zza_)A}tA,-A>AyEa'Ed+U{UgUn+2EmEtIntL?LeLi)NdNyOlPul?Rt]S.]Ssib!/TatoTt yV tyWd W _@i)Ai'Ed-tEf Epa*Es|EttyEv|I)IdeIm?yIntI%.yIs#Iva>IzeOb!mO)[Odu)Of.OgramOje@Omo>OofOp tyOsp O>@OudOvide2Bl-Dd(g~LpL'Mpk(N^PilPpyR^a'R.yRpo'R'ShTZz!3Ramid:99Al.yAntumArt E,]I{ItIzO>:Bb.Cco#CeCkD?DioIlInI'~yMpN^NdomN+PidReTeTh V&WZ%3AdyAlAs#BelBuildC$lCei=CipeC%dCyc!Du)F!@F%mFu'G]G*tGul?Je@LaxLea'LiefLyMa(Memb M(dMo=Nd NewNtOp&PairPeatPla)P%tQui*ScueSemb!Si,Sour)Sp#'SultTi*T*atTurnUn]Ve$ViewW?d2Y`m0BBb#CeChDeD+F!GhtGidNgOtPp!SkTu$V$V 5AdA,BotBu,CketM<)OfOkieOmSeTa>UghUndU>Y$5Bb DeGLeNNwayR$:DDd!D}[FeIlLadLm#L#LtLu>MeMp!NdTisfyToshiU)Usa+VeY1A!AnA*Att E}HemeHoolI&)I[%sOrp]OutRapRe&RiptRub1AAr^As#AtC#dC*tCt]Cur.yEdEkGm|Le@~M(?Ni%N'Nt&)RiesRvi)Ss]Tt!TupV&_dowAftAllowA*EdEllEriffIeldIftI}IpIv O{OeOotOpOrtOuld O=RimpRugUff!Y0Bl(gCkDeE+GhtGnL|Lk~yLv Mil?Mp!N)NgR&/ Tua>XZe1A>Et^IIllInIrtUll0AbAmEepEnd I)IdeIghtImOg<OtOwUsh0AllArtI!OkeOo`0A{AkeApIffOw0ApCc Ci$CkDaFtL?Ldi LidLut]L=Me#eNgOnRryRtUlUndUpUr)U`0A)A*Ati$AwnEakEci$EedEllEndH eI)Id IkeInIr.L.OilOns%O#OrtOtRayReadR(gY0Ua*UeezeUir*l_b!AdiumAffA+AirsAmpAndArtA>AyEakEelEmEpE*oI{IllIngO{Oma^O}OolOryO=Ra>gyReetRikeR#gRugg!Ud|UffUmb!Y!0Bje@Bm.BwayC)[ChDd&Ff G?G+,ItMm NNnyN'tP PplyP*meReRfa)R+Rpri'RroundR=ySpe@/a(1AllowAmpApArmE?EetIftImIngIt^Ord1MbolMptomRup/em:B!Ck!GIlL|LkNkPeR+tSk/eTtooXi3A^Am~NN<tNnisNtRm/Xt_nkAtEmeEnE%yE*EyIngIsOughtReeRi=RowUmbUnd 0CketDeG LtMb MeNyPRedSsueT!5A,BaccoDayDdl EGe` I!tK&MatoM%rowNeNgueNightOlO`PP-Pp!R^RnadoRtoi'SsT$Uri,W?dW WnY_{AdeAff-Ag-A(Ansf ApAshA=lAyEatEeEndI$IbeI{Igg ImIpOphyOub!U{UeUlyUmpetU,U`Y2BeIt]Mb!NaN}lRkeyRnRt!1El=EntyI)InI,O1PeP-$:5Ly5B*lla0Ab!Awa*C!Cov D DoFairFoldHappyIf%mIqueItIv 'KnownLo{TilUsu$Veil1Da>GradeHoldOnP Set1B<Ge0A+EEdEfulE![U$0Il.y:C<tCuumGueLidL!yL=NNishP%Rious/Ult3H-!L=tNd%Ntu*NueRbRifyRs]RyS'lT <3Ab!Br<tCiousCt%yDeoEw~a+Nta+Ol(Rtu$RusSaS.Su$T$Vid5C$I)IdLc<oLumeTeYa+:GeG#ItLk~LnutNtRfa*RmRri%ShSp/eT VeY3Al`Ap#ArA'lA` BDd(gEk&dIrdLcome/T_!AtEatEelEnE*IpIsp 0DeD`FeLd~NNdowNeNgNkNn Nt ReSdomSeShT}[5LfM<Nd OdOlRdRkRldRryR`_pE{E,!I,I>Ong::Rd3Ar~ow9UUngU`:3BraRo9NeO";
+var checksum = "0x3c8acc1e7b08d8e76f9fda015ef48dc8c710a73cb7e0f77b2c18a9b5a7adde60";
+var wordlist = null;
+var LangEn = class _LangEn extends WordlistOwl {
+  /**
+   *  Creates a new instance of the English language Wordlist.
+   *
+   *  This should be unnecessary most of the time as the exported
+   *  [[langEn]] should suffice.
+   *
+   *  @_ignore:
+   */
+  constructor() {
+    super("en", words, checksum);
+  }
+  /**
+   *  Returns a singleton instance of a ``LangEn``, creating it
+   *  if this is the first time being called.
+   */
+  static wordlist() {
+    if (wordlist == null) {
+      wordlist = new _LangEn();
+    }
+    return wordlist;
+  }
+};
+
+// ../../../node_modules/ethers/lib.esm/wallet/mnemonic.js
+function getUpperMask(bits) {
+  return (1 << bits) - 1 << 8 - bits & 255;
+}
+function getLowerMask(bits) {
+  return (1 << bits) - 1 & 255;
+}
+function mnemonicToEntropy(mnemonic, wordlist2) {
+  assertNormalize("NFKD");
+  if (wordlist2 == null) {
+    wordlist2 = LangEn.wordlist();
+  }
+  const words2 = wordlist2.split(mnemonic);
+  assertArgument(words2.length % 3 === 0 && words2.length >= 12 && words2.length <= 24, "invalid mnemonic length", "mnemonic", "[ REDACTED ]");
+  const entropy = new Uint8Array(Math.ceil(11 * words2.length / 8));
+  let offset = 0;
+  for (let i = 0; i < words2.length; i++) {
+    let index = wordlist2.getWordIndex(words2[i].normalize("NFKD"));
+    assertArgument(index >= 0, `invalid mnemonic word at index ${i}`, "mnemonic", "[ REDACTED ]");
+    for (let bit = 0; bit < 11; bit++) {
+      if (index & 1 << 10 - bit) {
+        entropy[offset >> 3] |= 1 << 7 - offset % 8;
+      }
+      offset++;
+    }
+  }
+  const entropyBits = 32 * words2.length / 3;
+  const checksumBits = words2.length / 3;
+  const checksumMask = getUpperMask(checksumBits);
+  const checksum2 = getBytes(sha2562(entropy.slice(0, entropyBits / 8)))[0] & checksumMask;
+  assertArgument(checksum2 === (entropy[entropy.length - 1] & checksumMask), "invalid mnemonic checksum", "mnemonic", "[ REDACTED ]");
+  return hexlify(entropy.slice(0, entropyBits / 8));
+}
+function entropyToMnemonic(entropy, wordlist2) {
+  assertArgument(entropy.length % 4 === 0 && entropy.length >= 16 && entropy.length <= 32, "invalid entropy size", "entropy", "[ REDACTED ]");
+  if (wordlist2 == null) {
+    wordlist2 = LangEn.wordlist();
+  }
+  const indices = [0];
+  let remainingBits = 11;
+  for (let i = 0; i < entropy.length; i++) {
+    if (remainingBits > 8) {
+      indices[indices.length - 1] <<= 8;
+      indices[indices.length - 1] |= entropy[i];
+      remainingBits -= 8;
+    } else {
+      indices[indices.length - 1] <<= remainingBits;
+      indices[indices.length - 1] |= entropy[i] >> 8 - remainingBits;
+      indices.push(entropy[i] & getLowerMask(8 - remainingBits));
+      remainingBits += 3;
+    }
+  }
+  const checksumBits = entropy.length / 4;
+  const checksum2 = parseInt(sha2562(entropy).substring(2, 4), 16) & getUpperMask(checksumBits);
+  indices[indices.length - 1] <<= checksumBits;
+  indices[indices.length - 1] |= checksum2 >> 8 - checksumBits;
+  return wordlist2.join(indices.map((index) => wordlist2.getWord(index)));
+}
+var _guard5 = {};
+var Mnemonic = class _Mnemonic {
+  /**
+   *  The mnemonic phrase of 12, 15, 18, 21 or 24 words.
+   *
+   *  Use the [[wordlist]] ``split`` method to get the individual words.
+   */
+  phrase;
+  /**
+   *  The password used for this mnemonic. If no password is used this
+   *  is the empty string (i.e. ``""``) as per the specification.
+   */
+  password;
+  /**
+   *  The wordlist for this mnemonic.
+   */
+  wordlist;
+  /**
+   *  The underlying entropy which the mnemonic encodes.
+   */
+  entropy;
+  /**
+   *  @private
+   */
+  constructor(guard, entropy, phrase, password, wordlist2) {
+    if (password == null) {
+      password = "";
+    }
+    if (wordlist2 == null) {
+      wordlist2 = LangEn.wordlist();
+    }
+    assertPrivate(guard, _guard5, "Mnemonic");
+    defineProperties(this, { phrase, password, wordlist: wordlist2, entropy });
+  }
+  /**
+   *  Returns the seed for the mnemonic.
+   */
+  computeSeed() {
+    const salt = toUtf8Bytes("mnemonic" + this.password, "NFKD");
+    return pbkdf2(toUtf8Bytes(this.phrase, "NFKD"), salt, 2048, 64, "sha512");
+  }
+  /**
+   *  Creates a new Mnemonic for the %%phrase%%.
+   *
+   *  The default %%password%% is the empty string and the default
+   *  wordlist is the [English wordlists](LangEn).
+   */
+  static fromPhrase(phrase, password, wordlist2) {
+    const entropy = mnemonicToEntropy(phrase, wordlist2);
+    phrase = entropyToMnemonic(getBytes(entropy), wordlist2);
+    return new _Mnemonic(_guard5, entropy, phrase, password, wordlist2);
+  }
+  /**
+   *  Create a new **Mnemonic** from the %%entropy%%.
+   *
+   *  The default %%password%% is the empty string and the default
+   *  wordlist is the [English wordlists](LangEn).
+   */
+  static fromEntropy(_entropy, password, wordlist2) {
+    const entropy = getBytes(_entropy, "entropy");
+    const phrase = entropyToMnemonic(entropy, wordlist2);
+    return new _Mnemonic(_guard5, hexlify(entropy), phrase, password, wordlist2);
+  }
+  /**
+   *  Returns the phrase for %%mnemonic%%.
+   */
+  static entropyToPhrase(_entropy, wordlist2) {
+    const entropy = getBytes(_entropy, "entropy");
+    return entropyToMnemonic(entropy, wordlist2);
+  }
+  /**
+   *  Returns the entropy for %%phrase%%.
+   */
+  static phraseToEntropy(phrase, wordlist2) {
+    return mnemonicToEntropy(phrase, wordlist2);
+  }
+  /**
+   *  Returns true if %%phrase%% is a valid [[link-bip-39]] phrase.
+   *
+   *  This checks all the provided words belong to the %%wordlist%%,
+   *  that the length is valid and the checksum is correct.
+   */
+  static isValidMnemonic(phrase, wordlist2) {
+    try {
+      mnemonicToEntropy(phrase, wordlist2);
+      return true;
+    } catch (error) {
+    }
+    return false;
+  }
+};
+
+// ../../../node_modules/aes-js/lib.esm/aes.js
+var __classPrivateFieldGet = function(receiver, state, kind, f2) {
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a getter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+  return kind === "m" ? f2 : kind === "a" ? f2.call(receiver) : f2 ? f2.value : state.get(receiver);
+};
+var __classPrivateFieldSet = function(receiver, state, value, kind, f2) {
+  if (kind === "m") throw new TypeError("Private method is not writable");
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a setter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+  return kind === "a" ? f2.call(receiver, value) : f2 ? f2.value = value : state.set(receiver, value), value;
+};
+var _AES_key;
+var _AES_Kd;
+var _AES_Ke;
+var numberOfRounds = { 16: 10, 24: 12, 32: 14 };
+var rcon = [1, 2, 4, 8, 16, 32, 64, 128, 27, 54, 108, 216, 171, 77, 154, 47, 94, 188, 99, 198, 151, 53, 106, 212, 179, 125, 250, 239, 197, 145];
+var S = [99, 124, 119, 123, 242, 107, 111, 197, 48, 1, 103, 43, 254, 215, 171, 118, 202, 130, 201, 125, 250, 89, 71, 240, 173, 212, 162, 175, 156, 164, 114, 192, 183, 253, 147, 38, 54, 63, 247, 204, 52, 165, 229, 241, 113, 216, 49, 21, 4, 199, 35, 195, 24, 150, 5, 154, 7, 18, 128, 226, 235, 39, 178, 117, 9, 131, 44, 26, 27, 110, 90, 160, 82, 59, 214, 179, 41, 227, 47, 132, 83, 209, 0, 237, 32, 252, 177, 91, 106, 203, 190, 57, 74, 76, 88, 207, 208, 239, 170, 251, 67, 77, 51, 133, 69, 249, 2, 127, 80, 60, 159, 168, 81, 163, 64, 143, 146, 157, 56, 245, 188, 182, 218, 33, 16, 255, 243, 210, 205, 12, 19, 236, 95, 151, 68, 23, 196, 167, 126, 61, 100, 93, 25, 115, 96, 129, 79, 220, 34, 42, 144, 136, 70, 238, 184, 20, 222, 94, 11, 219, 224, 50, 58, 10, 73, 6, 36, 92, 194, 211, 172, 98, 145, 149, 228, 121, 231, 200, 55, 109, 141, 213, 78, 169, 108, 86, 244, 234, 101, 122, 174, 8, 186, 120, 37, 46, 28, 166, 180, 198, 232, 221, 116, 31, 75, 189, 139, 138, 112, 62, 181, 102, 72, 3, 246, 14, 97, 53, 87, 185, 134, 193, 29, 158, 225, 248, 152, 17, 105, 217, 142, 148, 155, 30, 135, 233, 206, 85, 40, 223, 140, 161, 137, 13, 191, 230, 66, 104, 65, 153, 45, 15, 176, 84, 187, 22];
+var Si = [82, 9, 106, 213, 48, 54, 165, 56, 191, 64, 163, 158, 129, 243, 215, 251, 124, 227, 57, 130, 155, 47, 255, 135, 52, 142, 67, 68, 196, 222, 233, 203, 84, 123, 148, 50, 166, 194, 35, 61, 238, 76, 149, 11, 66, 250, 195, 78, 8, 46, 161, 102, 40, 217, 36, 178, 118, 91, 162, 73, 109, 139, 209, 37, 114, 248, 246, 100, 134, 104, 152, 22, 212, 164, 92, 204, 93, 101, 182, 146, 108, 112, 72, 80, 253, 237, 185, 218, 94, 21, 70, 87, 167, 141, 157, 132, 144, 216, 171, 0, 140, 188, 211, 10, 247, 228, 88, 5, 184, 179, 69, 6, 208, 44, 30, 143, 202, 63, 15, 2, 193, 175, 189, 3, 1, 19, 138, 107, 58, 145, 17, 65, 79, 103, 220, 234, 151, 242, 207, 206, 240, 180, 230, 115, 150, 172, 116, 34, 231, 173, 53, 133, 226, 249, 55, 232, 28, 117, 223, 110, 71, 241, 26, 113, 29, 41, 197, 137, 111, 183, 98, 14, 170, 24, 190, 27, 252, 86, 62, 75, 198, 210, 121, 32, 154, 219, 192, 254, 120, 205, 90, 244, 31, 221, 168, 51, 136, 7, 199, 49, 177, 18, 16, 89, 39, 128, 236, 95, 96, 81, 127, 169, 25, 181, 74, 13, 45, 229, 122, 159, 147, 201, 156, 239, 160, 224, 59, 77, 174, 42, 245, 176, 200, 235, 187, 60, 131, 83, 153, 97, 23, 43, 4, 126, 186, 119, 214, 38, 225, 105, 20, 99, 85, 33, 12, 125];
+var T12 = [3328402341, 4168907908, 4000806809, 4135287693, 4294111757, 3597364157, 3731845041, 2445657428, 1613770832, 33620227, 3462883241, 1445669757, 3892248089, 3050821474, 1303096294, 3967186586, 2412431941, 528646813, 2311702848, 4202528135, 4026202645, 2992200171, 2387036105, 4226871307, 1101901292, 3017069671, 1604494077, 1169141738, 597466303, 1403299063, 3832705686, 2613100635, 1974974402, 3791519004, 1033081774, 1277568618, 1815492186, 2118074177, 4126668546, 2211236943, 1748251740, 1369810420, 3521504564, 4193382664, 3799085459, 2883115123, 1647391059, 706024767, 134480908, 2512897874, 1176707941, 2646852446, 806885416, 932615841, 168101135, 798661301, 235341577, 605164086, 461406363, 3756188221, 3454790438, 1311188841, 2142417613, 3933566367, 302582043, 495158174, 1479289972, 874125870, 907746093, 3698224818, 3025820398, 1537253627, 2756858614, 1983593293, 3084310113, 2108928974, 1378429307, 3722699582, 1580150641, 327451799, 2790478837, 3117535592, 0, 3253595436, 1075847264, 3825007647, 2041688520, 3059440621, 3563743934, 2378943302, 1740553945, 1916352843, 2487896798, 2555137236, 2958579944, 2244988746, 3151024235, 3320835882, 1336584933, 3992714006, 2252555205, 2588757463, 1714631509, 293963156, 2319795663, 3925473552, 67240454, 4269768577, 2689618160, 2017213508, 631218106, 1269344483, 2723238387, 1571005438, 2151694528, 93294474, 1066570413, 563977660, 1882732616, 4059428100, 1673313503, 2008463041, 2950355573, 1109467491, 537923632, 3858759450, 4260623118, 3218264685, 2177748300, 403442708, 638784309, 3287084079, 3193921505, 899127202, 2286175436, 773265209, 2479146071, 1437050866, 4236148354, 2050833735, 3362022572, 3126681063, 840505643, 3866325909, 3227541664, 427917720, 2655997905, 2749160575, 1143087718, 1412049534, 999329963, 193497219, 2353415882, 3354324521, 1807268051, 672404540, 2816401017, 3160301282, 369822493, 2916866934, 3688947771, 1681011286, 1949973070, 336202270, 2454276571, 201721354, 1210328172, 3093060836, 2680341085, 3184776046, 1135389935, 3294782118, 965841320, 831886756, 3554993207, 4068047243, 3588745010, 2345191491, 1849112409, 3664604599, 26054028, 2983581028, 2622377682, 1235855840, 3630984372, 2891339514, 4092916743, 3488279077, 3395642799, 4101667470, 1202630377, 268961816, 1874508501, 4034427016, 1243948399, 1546530418, 941366308, 1470539505, 1941222599, 2546386513, 3421038627, 2715671932, 3899946140, 1042226977, 2521517021, 1639824860, 227249030, 260737669, 3765465232, 2084453954, 1907733956, 3429263018, 2420656344, 100860677, 4160157185, 470683154, 3261161891, 1781871967, 2924959737, 1773779408, 394692241, 2579611992, 974986535, 664706745, 3655459128, 3958962195, 731420851, 571543859, 3530123707, 2849626480, 126783113, 865375399, 765172662, 1008606754, 361203602, 3387549984, 2278477385, 2857719295, 1344809080, 2782912378, 59542671, 1503764984, 160008576, 437062935, 1707065306, 3622233649, 2218934982, 3496503480, 2185314755, 697932208, 1512910199, 504303377, 2075177163, 2824099068, 1841019862, 739644986];
+var T2 = [2781242211, 2230877308, 2582542199, 2381740923, 234877682, 3184946027, 2984144751, 1418839493, 1348481072, 50462977, 2848876391, 2102799147, 434634494, 1656084439, 3863849899, 2599188086, 1167051466, 2636087938, 1082771913, 2281340285, 368048890, 3954334041, 3381544775, 201060592, 3963727277, 1739838676, 4250903202, 3930435503, 3206782108, 4149453988, 2531553906, 1536934080, 3262494647, 484572669, 2923271059, 1783375398, 1517041206, 1098792767, 49674231, 1334037708, 1550332980, 4098991525, 886171109, 150598129, 2481090929, 1940642008, 1398944049, 1059722517, 201851908, 1385547719, 1699095331, 1587397571, 674240536, 2704774806, 252314885, 3039795866, 151914247, 908333586, 2602270848, 1038082786, 651029483, 1766729511, 3447698098, 2682942837, 454166793, 2652734339, 1951935532, 775166490, 758520603, 3000790638, 4004797018, 4217086112, 4137964114, 1299594043, 1639438038, 3464344499, 2068982057, 1054729187, 1901997871, 2534638724, 4121318227, 1757008337, 0, 750906861, 1614815264, 535035132, 3363418545, 3988151131, 3201591914, 1183697867, 3647454910, 1265776953, 3734260298, 3566750796, 3903871064, 1250283471, 1807470800, 717615087, 3847203498, 384695291, 3313910595, 3617213773, 1432761139, 2484176261, 3481945413, 283769337, 100925954, 2180939647, 4037038160, 1148730428, 3123027871, 3813386408, 4087501137, 4267549603, 3229630528, 2315620239, 2906624658, 3156319645, 1215313976, 82966005, 3747855548, 3245848246, 1974459098, 1665278241, 807407632, 451280895, 251524083, 1841287890, 1283575245, 337120268, 891687699, 801369324, 3787349855, 2721421207, 3431482436, 959321879, 1469301956, 4065699751, 2197585534, 1199193405, 2898814052, 3887750493, 724703513, 2514908019, 2696962144, 2551808385, 3516813135, 2141445340, 1715741218, 2119445034, 2872807568, 2198571144, 3398190662, 700968686, 3547052216, 1009259540, 2041044702, 3803995742, 487983883, 1991105499, 1004265696, 1449407026, 1316239930, 504629770, 3683797321, 168560134, 1816667172, 3837287516, 1570751170, 1857934291, 4014189740, 2797888098, 2822345105, 2754712981, 936633572, 2347923833, 852879335, 1133234376, 1500395319, 3084545389, 2348912013, 1689376213, 3533459022, 3762923945, 3034082412, 4205598294, 133428468, 634383082, 2949277029, 2398386810, 3913789102, 403703816, 3580869306, 2297460856, 1867130149, 1918643758, 607656988, 4049053350, 3346248884, 1368901318, 600565992, 2090982877, 2632479860, 557719327, 3717614411, 3697393085, 2249034635, 2232388234, 2430627952, 1115438654, 3295786421, 2865522278, 3633334344, 84280067, 33027830, 303828494, 2747425121, 1600795957, 4188952407, 3496589753, 2434238086, 1486471617, 658119965, 3106381470, 953803233, 334231800, 3005978776, 857870609, 3151128937, 1890179545, 2298973838, 2805175444, 3056442267, 574365214, 2450884487, 550103529, 1233637070, 4289353045, 2018519080, 2057691103, 2399374476, 4166623649, 2148108681, 387583245, 3664101311, 836232934, 3330556482, 3100665960, 3280093505, 2955516313, 2002398509, 287182607, 3413881008, 4238890068, 3597515707, 975967766];
+var T3 = [1671808611, 2089089148, 2006576759, 2072901243, 4061003762, 1807603307, 1873927791, 3310653893, 810573872, 16974337, 1739181671, 729634347, 4263110654, 3613570519, 2883997099, 1989864566, 3393556426, 2191335298, 3376449993, 2106063485, 4195741690, 1508618841, 1204391495, 4027317232, 2917941677, 3563566036, 2734514082, 2951366063, 2629772188, 2767672228, 1922491506, 3227229120, 3082974647, 4246528509, 2477669779, 644500518, 911895606, 1061256767, 4144166391, 3427763148, 878471220, 2784252325, 3845444069, 4043897329, 1905517169, 3631459288, 827548209, 356461077, 67897348, 3344078279, 593839651, 3277757891, 405286936, 2527147926, 84871685, 2595565466, 118033927, 305538066, 2157648768, 3795705826, 3945188843, 661212711, 2999812018, 1973414517, 152769033, 2208177539, 745822252, 439235610, 455947803, 1857215598, 1525593178, 2700827552, 1391895634, 994932283, 3596728278, 3016654259, 695947817, 3812548067, 795958831, 2224493444, 1408607827, 3513301457, 0, 3979133421, 543178784, 4229948412, 2982705585, 1542305371, 1790891114, 3410398667, 3201918910, 961245753, 1256100938, 1289001036, 1491644504, 3477767631, 3496721360, 4012557807, 2867154858, 4212583931, 1137018435, 1305975373, 861234739, 2241073541, 1171229253, 4178635257, 33948674, 2139225727, 1357946960, 1011120188, 2679776671, 2833468328, 1374921297, 2751356323, 1086357568, 2408187279, 2460827538, 2646352285, 944271416, 4110742005, 3168756668, 3066132406, 3665145818, 560153121, 271589392, 4279952895, 4077846003, 3530407890, 3444343245, 202643468, 322250259, 3962553324, 1608629855, 2543990167, 1154254916, 389623319, 3294073796, 2817676711, 2122513534, 1028094525, 1689045092, 1575467613, 422261273, 1939203699, 1621147744, 2174228865, 1339137615, 3699352540, 577127458, 712922154, 2427141008, 2290289544, 1187679302, 3995715566, 3100863416, 339486740, 3732514782, 1591917662, 186455563, 3681988059, 3762019296, 844522546, 978220090, 169743370, 1239126601, 101321734, 611076132, 1558493276, 3260915650, 3547250131, 2901361580, 1655096418, 2443721105, 2510565781, 3828863972, 2039214713, 3878868455, 3359869896, 928607799, 1840765549, 2374762893, 3580146133, 1322425422, 2850048425, 1823791212, 1459268694, 4094161908, 3928346602, 1706019429, 2056189050, 2934523822, 135794696, 3134549946, 2022240376, 628050469, 779246638, 472135708, 2800834470, 3032970164, 3327236038, 3894660072, 3715932637, 1956440180, 522272287, 1272813131, 3185336765, 2340818315, 2323976074, 1888542832, 1044544574, 3049550261, 1722469478, 1222152264, 50660867, 4127324150, 236067854, 1638122081, 895445557, 1475980887, 3117443513, 2257655686, 3243809217, 489110045, 2662934430, 3778599393, 4162055160, 2561878936, 288563729, 1773916777, 3648039385, 2391345038, 2493985684, 2612407707, 505560094, 2274497927, 3911240169, 3460925390, 1442818645, 678973480, 3749357023, 2358182796, 2717407649, 2306869641, 219617805, 3218761151, 3862026214, 1120306242, 1756942440, 1103331905, 2578459033, 762796589, 252780047, 2966125488, 1425844308, 3151392187, 372911126];
+var T4 = [1667474886, 2088535288, 2004326894, 2071694838, 4075949567, 1802223062, 1869591006, 3318043793, 808472672, 16843522, 1734846926, 724270422, 4278065639, 3621216949, 2880169549, 1987484396, 3402253711, 2189597983, 3385409673, 2105378810, 4210693615, 1499065266, 1195886990, 4042263547, 2913856577, 3570689971, 2728590687, 2947541573, 2627518243, 2762274643, 1920112356, 3233831835, 3082273397, 4261223649, 2475929149, 640051788, 909531756, 1061110142, 4160160501, 3435941763, 875846760, 2779116625, 3857003729, 4059105529, 1903268834, 3638064043, 825316194, 353713962, 67374088, 3351728789, 589522246, 3284360861, 404236336, 2526454071, 84217610, 2593830191, 117901582, 303183396, 2155911963, 3806477791, 3958056653, 656894286, 2998062463, 1970642922, 151591698, 2206440989, 741110872, 437923380, 454765878, 1852748508, 1515908788, 2694904667, 1381168804, 993742198, 3604373943, 3014905469, 690584402, 3823320797, 791638366, 2223281939, 1398011302, 3520161977, 0, 3991743681, 538992704, 4244381667, 2981218425, 1532751286, 1785380564, 3419096717, 3200178535, 960056178, 1246420628, 1280103576, 1482221744, 3486468741, 3503319995, 4025428677, 2863326543, 4227536621, 1128514950, 1296947098, 859002214, 2240123921, 1162203018, 4193849577, 33687044, 2139062782, 1347481760, 1010582648, 2678045221, 2829640523, 1364325282, 2745433693, 1077985408, 2408548869, 2459086143, 2644360225, 943212656, 4126475505, 3166494563, 3065430391, 3671750063, 555836226, 269496352, 4294908645, 4092792573, 3537006015, 3452783745, 202118168, 320025894, 3974901699, 1600119230, 2543297077, 1145359496, 387397934, 3301201811, 2812801621, 2122220284, 1027426170, 1684319432, 1566435258, 421079858, 1936954854, 1616945344, 2172753945, 1330631070, 3705438115, 572679748, 707427924, 2425400123, 2290647819, 1179044492, 4008585671, 3099120491, 336870440, 3739122087, 1583276732, 185277718, 3688593069, 3772791771, 842159716, 976899700, 168435220, 1229577106, 101059084, 606366792, 1549591736, 3267517855, 3553849021, 2897014595, 1650632388, 2442242105, 2509612081, 3840161747, 2038008818, 3890688725, 3368567691, 926374254, 1835907034, 2374863873, 3587531953, 1313788572, 2846482505, 1819063512, 1448540844, 4109633523, 3941213647, 1701162954, 2054852340, 2930698567, 134748176, 3132806511, 2021165296, 623210314, 774795868, 471606328, 2795958615, 3031746419, 3334885783, 3907527627, 3722280097, 1953799400, 522133822, 1263263126, 3183336545, 2341176845, 2324333839, 1886425312, 1044267644, 3048588401, 1718004428, 1212733584, 50529542, 4143317495, 235803164, 1633788866, 892690282, 1465383342, 3115962473, 2256965911, 3250673817, 488449850, 2661202215, 3789633753, 4177007595, 2560144171, 286339874, 1768537042, 3654906025, 2391705863, 2492770099, 2610673197, 505291324, 2273808917, 3924369609, 3469625735, 1431699370, 673740880, 3755965093, 2358021891, 2711746649, 2307489801, 218961690, 3217021541, 3873845719, 1111672452, 1751693520, 1094828930, 2576986153, 757954394, 252645662, 2964376443, 1414855848, 3149649517, 370555436];
+var T5 = [1374988112, 2118214995, 437757123, 975658646, 1001089995, 530400753, 2902087851, 1273168787, 540080725, 2910219766, 2295101073, 4110568485, 1340463100, 3307916247, 641025152, 3043140495, 3736164937, 632953703, 1172967064, 1576976609, 3274667266, 2169303058, 2370213795, 1809054150, 59727847, 361929877, 3211623147, 2505202138, 3569255213, 1484005843, 1239443753, 2395588676, 1975683434, 4102977912, 2572697195, 666464733, 3202437046, 4035489047, 3374361702, 2110667444, 1675577880, 3843699074, 2538681184, 1649639237, 2976151520, 3144396420, 4269907996, 4178062228, 1883793496, 2403728665, 2497604743, 1383856311, 2876494627, 1917518562, 3810496343, 1716890410, 3001755655, 800440835, 2261089178, 3543599269, 807962610, 599762354, 33778362, 3977675356, 2328828971, 2809771154, 4077384432, 1315562145, 1708848333, 101039829, 3509871135, 3299278474, 875451293, 2733856160, 92987698, 2767645557, 193195065, 1080094634, 1584504582, 3178106961, 1042385657, 2531067453, 3711829422, 1306967366, 2438237621, 1908694277, 67556463, 1615861247, 429456164, 3602770327, 2302690252, 1742315127, 2968011453, 126454664, 3877198648, 2043211483, 2709260871, 2084704233, 4169408201, 0, 159417987, 841739592, 504459436, 1817866830, 4245618683, 260388950, 1034867998, 908933415, 168810852, 1750902305, 2606453969, 607530554, 202008497, 2472011535, 3035535058, 463180190, 2160117071, 1641816226, 1517767529, 470948374, 3801332234, 3231722213, 1008918595, 303765277, 235474187, 4069246893, 766945465, 337553864, 1475418501, 2943682380, 4003061179, 2743034109, 4144047775, 1551037884, 1147550661, 1543208500, 2336434550, 3408119516, 3069049960, 3102011747, 3610369226, 1113818384, 328671808, 2227573024, 2236228733, 3535486456, 2935566865, 3341394285, 496906059, 3702665459, 226906860, 2009195472, 733156972, 2842737049, 294930682, 1206477858, 2835123396, 2700099354, 1451044056, 573804783, 2269728455, 3644379585, 2362090238, 2564033334, 2801107407, 2776292904, 3669462566, 1068351396, 742039012, 1350078989, 1784663195, 1417561698, 4136440770, 2430122216, 775550814, 2193862645, 2673705150, 1775276924, 1876241833, 3475313331, 3366754619, 270040487, 3902563182, 3678124923, 3441850377, 1851332852, 3969562369, 2203032232, 3868552805, 2868897406, 566021896, 4011190502, 3135740889, 1248802510, 3936291284, 699432150, 832877231, 708780849, 3332740144, 899835584, 1951317047, 4236429990, 3767586992, 866637845, 4043610186, 1106041591, 2144161806, 395441711, 1984812685, 1139781709, 3433712980, 3835036895, 2664543715, 1282050075, 3240894392, 1181045119, 2640243204, 25965917, 4203181171, 4211818798, 3009879386, 2463879762, 3910161971, 1842759443, 2597806476, 933301370, 1509430414, 3943906441, 3467192302, 3076639029, 3776767469, 2051518780, 2631065433, 1441952575, 404016761, 1942435775, 1408749034, 1610459739, 3745345300, 2017778566, 3400528769, 3110650942, 941896748, 3265478751, 371049330, 3168937228, 675039627, 4279080257, 967311729, 135050206, 3635733660, 1683407248, 2076935265, 3576870512, 1215061108, 3501741890];
+var T6 = [1347548327, 1400783205, 3273267108, 2520393566, 3409685355, 4045380933, 2880240216, 2471224067, 1428173050, 4138563181, 2441661558, 636813900, 4233094615, 3620022987, 2149987652, 2411029155, 1239331162, 1730525723, 2554718734, 3781033664, 46346101, 310463728, 2743944855, 3328955385, 3875770207, 2501218972, 3955191162, 3667219033, 768917123, 3545789473, 692707433, 1150208456, 1786102409, 2029293177, 1805211710, 3710368113, 3065962831, 401639597, 1724457132, 3028143674, 409198410, 2196052529, 1620529459, 1164071807, 3769721975, 2226875310, 486441376, 2499348523, 1483753576, 428819965, 2274680428, 3075636216, 598438867, 3799141122, 1474502543, 711349675, 129166120, 53458370, 2592523643, 2782082824, 4063242375, 2988687269, 3120694122, 1559041666, 730517276, 2460449204, 4042459122, 2706270690, 3446004468, 3573941694, 533804130, 2328143614, 2637442643, 2695033685, 839224033, 1973745387, 957055980, 2856345839, 106852767, 1371368976, 4181598602, 1033297158, 2933734917, 1179510461, 3046200461, 91341917, 1862534868, 4284502037, 605657339, 2547432937, 3431546947, 2003294622, 3182487618, 2282195339, 954669403, 3682191598, 1201765386, 3917234703, 3388507166, 0, 2198438022, 1211247597, 2887651696, 1315723890, 4227665663, 1443857720, 507358933, 657861945, 1678381017, 560487590, 3516619604, 975451694, 2970356327, 261314535, 3535072918, 2652609425, 1333838021, 2724322336, 1767536459, 370938394, 182621114, 3854606378, 1128014560, 487725847, 185469197, 2918353863, 3106780840, 3356761769, 2237133081, 1286567175, 3152976349, 4255350624, 2683765030, 3160175349, 3309594171, 878443390, 1988838185, 3704300486, 1756818940, 1673061617, 3403100636, 272786309, 1075025698, 545572369, 2105887268, 4174560061, 296679730, 1841768865, 1260232239, 4091327024, 3960309330, 3497509347, 1814803222, 2578018489, 4195456072, 575138148, 3299409036, 446754879, 3629546796, 4011996048, 3347532110, 3252238545, 4270639778, 915985419, 3483825537, 681933534, 651868046, 2755636671, 3828103837, 223377554, 2607439820, 1649704518, 3270937875, 3901806776, 1580087799, 4118987695, 3198115200, 2087309459, 2842678573, 3016697106, 1003007129, 2802849917, 1860738147, 2077965243, 164439672, 4100872472, 32283319, 2827177882, 1709610350, 2125135846, 136428751, 3874428392, 3652904859, 3460984630, 3572145929, 3593056380, 2939266226, 824852259, 818324884, 3224740454, 930369212, 2801566410, 2967507152, 355706840, 1257309336, 4148292826, 243256656, 790073846, 2373340630, 1296297904, 1422699085, 3756299780, 3818836405, 457992840, 3099667487, 2135319889, 77422314, 1560382517, 1945798516, 788204353, 1521706781, 1385356242, 870912086, 325965383, 2358957921, 2050466060, 2388260884, 2313884476, 4006521127, 901210569, 3990953189, 1014646705, 1503449823, 1062597235, 2031621326, 3212035895, 3931371469, 1533017514, 350174575, 2256028891, 2177544179, 1052338372, 741876788, 1606591296, 1914052035, 213705253, 2334669897, 1107234197, 1899603969, 3725069491, 2631447780, 2422494913, 1635502980, 1893020342, 1950903388, 1120974935];
+var T7 = [2807058932, 1699970625, 2764249623, 1586903591, 1808481195, 1173430173, 1487645946, 59984867, 4199882800, 1844882806, 1989249228, 1277555970, 3623636965, 3419915562, 1149249077, 2744104290, 1514790577, 459744698, 244860394, 3235995134, 1963115311, 4027744588, 2544078150, 4190530515, 1608975247, 2627016082, 2062270317, 1507497298, 2200818878, 567498868, 1764313568, 3359936201, 2305455554, 2037970062, 1047239e3, 1910319033, 1337376481, 2904027272, 2892417312, 984907214, 1243112415, 830661914, 861968209, 2135253587, 2011214180, 2927934315, 2686254721, 731183368, 1750626376, 4246310725, 1820824798, 4172763771, 3542330227, 48394827, 2404901663, 2871682645, 671593195, 3254988725, 2073724613, 145085239, 2280796200, 2779915199, 1790575107, 2187128086, 472615631, 3029510009, 4075877127, 3802222185, 4107101658, 3201631749, 1646252340, 4270507174, 1402811438, 1436590835, 3778151818, 3950355702, 3963161475, 4020912224, 2667994737, 273792366, 2331590177, 104699613, 95345982, 3175501286, 2377486676, 1560637892, 3564045318, 369057872, 4213447064, 3919042237, 1137477952, 2658625497, 1119727848, 2340947849, 1530455833, 4007360968, 172466556, 266959938, 516552836, 0, 2256734592, 3980931627, 1890328081, 1917742170, 4294704398, 945164165, 3575528878, 958871085, 3647212047, 2787207260, 1423022939, 775562294, 1739656202, 3876557655, 2530391278, 2443058075, 3310321856, 547512796, 1265195639, 437656594, 3121275539, 719700128, 3762502690, 387781147, 218828297, 3350065803, 2830708150, 2848461854, 428169201, 122466165, 3720081049, 1627235199, 648017665, 4122762354, 1002783846, 2117360635, 695634755, 3336358691, 4234721005, 4049844452, 3704280881, 2232435299, 574624663, 287343814, 612205898, 1039717051, 840019705, 2708326185, 793451934, 821288114, 1391201670, 3822090177, 376187827, 3113855344, 1224348052, 1679968233, 2361698556, 1058709744, 752375421, 2431590963, 1321699145, 3519142200, 2734591178, 188127444, 2177869557, 3727205754, 2384911031, 3215212461, 2648976442, 2450346104, 3432737375, 1180849278, 331544205, 3102249176, 4150144569, 2952102595, 2159976285, 2474404304, 766078933, 313773861, 2570832044, 2108100632, 1668212892, 3145456443, 2013908262, 418672217, 3070356634, 2594734927, 1852171925, 3867060991, 3473416636, 3907448597, 2614737639, 919489135, 164948639, 2094410160, 2997825956, 590424639, 2486224549, 1723872674, 3157750862, 3399941250, 3501252752, 3625268135, 2555048196, 3673637356, 1343127501, 4130281361, 3599595085, 2957853679, 1297403050, 81781910, 3051593425, 2283490410, 532201772, 1367295589, 3926170974, 895287692, 1953757831, 1093597963, 492483431, 3528626907, 1446242576, 1192455638, 1636604631, 209336225, 344873464, 1015671571, 669961897, 3375740769, 3857572124, 2973530695, 3747192018, 1933530610, 3464042516, 935293895, 3454686199, 2858115069, 1863638845, 3683022916, 4085369519, 3292445032, 875313188, 1080017571, 3279033885, 621591778, 1233856572, 2504130317, 24197544, 3017672716, 3835484340, 3247465558, 2220981195, 3060847922, 1551124588, 1463996600];
+var T8 = [4104605777, 1097159550, 396673818, 660510266, 2875968315, 2638606623, 4200115116, 3808662347, 821712160, 1986918061, 3430322568, 38544885, 3856137295, 718002117, 893681702, 1654886325, 2975484382, 3122358053, 3926825029, 4274053469, 796197571, 1290801793, 1184342925, 3556361835, 2405426947, 2459735317, 1836772287, 1381620373, 3196267988, 1948373848, 3764988233, 3385345166, 3263785589, 2390325492, 1480485785, 3111247143, 3780097726, 2293045232, 548169417, 3459953789, 3746175075, 439452389, 1362321559, 1400849762, 1685577905, 1806599355, 2174754046, 137073913, 1214797936, 1174215055, 3731654548, 2079897426, 1943217067, 1258480242, 529487843, 1437280870, 3945269170, 3049390895, 3313212038, 923313619, 679998e3, 3215307299, 57326082, 377642221, 3474729866, 2041877159, 133361907, 1776460110, 3673476453, 96392454, 878845905, 2801699524, 777231668, 4082475170, 2330014213, 4142626212, 2213296395, 1626319424, 1906247262, 1846563261, 562755902, 3708173718, 1040559837, 3871163981, 1418573201, 3294430577, 114585348, 1343618912, 2566595609, 3186202582, 1078185097, 3651041127, 3896688048, 2307622919, 425408743, 3371096953, 2081048481, 1108339068, 2216610296, 0, 2156299017, 736970802, 292596766, 1517440620, 251657213, 2235061775, 2933202493, 758720310, 265905162, 1554391400, 1532285339, 908999204, 174567692, 1474760595, 4002861748, 2610011675, 3234156416, 3693126241, 2001430874, 303699484, 2478443234, 2687165888, 585122620, 454499602, 151849742, 2345119218, 3064510765, 514443284, 4044981591, 1963412655, 2581445614, 2137062819, 19308535, 1928707164, 1715193156, 4219352155, 1126790795, 600235211, 3992742070, 3841024952, 836553431, 1669664834, 2535604243, 3323011204, 1243905413, 3141400786, 4180808110, 698445255, 2653899549, 2989552604, 2253581325, 3252932727, 3004591147, 1891211689, 2487810577, 3915653703, 4237083816, 4030667424, 2100090966, 865136418, 1229899655, 953270745, 3399679628, 3557504664, 4118925222, 2061379749, 3079546586, 2915017791, 983426092, 2022837584, 1607244650, 2118541908, 2366882550, 3635996816, 972512814, 3283088770, 1568718495, 3499326569, 3576539503, 621982671, 2895723464, 410887952, 2623762152, 1002142683, 645401037, 1494807662, 2595684844, 1335535747, 2507040230, 4293295786, 3167684641, 367585007, 3885750714, 1865862730, 2668221674, 2960971305, 2763173681, 1059270954, 2777952454, 2724642869, 1320957812, 2194319100, 2429595872, 2815956275, 77089521, 3973773121, 3444575871, 2448830231, 1305906550, 4021308739, 2857194700, 2516901860, 3518358430, 1787304780, 740276417, 1699839814, 1592394909, 2352307457, 2272556026, 188821243, 1729977011, 3687994002, 274084841, 3594982253, 3613494426, 2701949495, 4162096729, 322734571, 2837966542, 1640576439, 484830689, 1202797690, 3537852828, 4067639125, 349075736, 3342319475, 4157467219, 4255800159, 1030690015, 1155237496, 2951971274, 1757691577, 607398968, 2738905026, 499347990, 3794078908, 1011452712, 227885567, 2818666809, 213114376, 3034881240, 1455525988, 3414450555, 850817237, 1817998408, 3092726480];
+var U1 = [0, 235474187, 470948374, 303765277, 941896748, 908933415, 607530554, 708780849, 1883793496, 2118214995, 1817866830, 1649639237, 1215061108, 1181045119, 1417561698, 1517767529, 3767586992, 4003061179, 4236429990, 4069246893, 3635733660, 3602770327, 3299278474, 3400528769, 2430122216, 2664543715, 2362090238, 2193862645, 2835123396, 2801107407, 3035535058, 3135740889, 3678124923, 3576870512, 3341394285, 3374361702, 3810496343, 3977675356, 4279080257, 4043610186, 2876494627, 2776292904, 3076639029, 3110650942, 2472011535, 2640243204, 2403728665, 2169303058, 1001089995, 899835584, 666464733, 699432150, 59727847, 226906860, 530400753, 294930682, 1273168787, 1172967064, 1475418501, 1509430414, 1942435775, 2110667444, 1876241833, 1641816226, 2910219766, 2743034109, 2976151520, 3211623147, 2505202138, 2606453969, 2302690252, 2269728455, 3711829422, 3543599269, 3240894392, 3475313331, 3843699074, 3943906441, 4178062228, 4144047775, 1306967366, 1139781709, 1374988112, 1610459739, 1975683434, 2076935265, 1775276924, 1742315127, 1034867998, 866637845, 566021896, 800440835, 92987698, 193195065, 429456164, 395441711, 1984812685, 2017778566, 1784663195, 1683407248, 1315562145, 1080094634, 1383856311, 1551037884, 101039829, 135050206, 437757123, 337553864, 1042385657, 807962610, 573804783, 742039012, 2531067453, 2564033334, 2328828971, 2227573024, 2935566865, 2700099354, 3001755655, 3168937228, 3868552805, 3902563182, 4203181171, 4102977912, 3736164937, 3501741890, 3265478751, 3433712980, 1106041591, 1340463100, 1576976609, 1408749034, 2043211483, 2009195472, 1708848333, 1809054150, 832877231, 1068351396, 766945465, 599762354, 159417987, 126454664, 361929877, 463180190, 2709260871, 2943682380, 3178106961, 3009879386, 2572697195, 2538681184, 2236228733, 2336434550, 3509871135, 3745345300, 3441850377, 3274667266, 3910161971, 3877198648, 4110568485, 4211818798, 2597806476, 2497604743, 2261089178, 2295101073, 2733856160, 2902087851, 3202437046, 2968011453, 3936291284, 3835036895, 4136440770, 4169408201, 3535486456, 3702665459, 3467192302, 3231722213, 2051518780, 1951317047, 1716890410, 1750902305, 1113818384, 1282050075, 1584504582, 1350078989, 168810852, 67556463, 371049330, 404016761, 841739592, 1008918595, 775550814, 540080725, 3969562369, 3801332234, 4035489047, 4269907996, 3569255213, 3669462566, 3366754619, 3332740144, 2631065433, 2463879762, 2160117071, 2395588676, 2767645557, 2868897406, 3102011747, 3069049960, 202008497, 33778362, 270040487, 504459436, 875451293, 975658646, 675039627, 641025152, 2084704233, 1917518562, 1615861247, 1851332852, 1147550661, 1248802510, 1484005843, 1451044056, 933301370, 967311729, 733156972, 632953703, 260388950, 25965917, 328671808, 496906059, 1206477858, 1239443753, 1543208500, 1441952575, 2144161806, 1908694277, 1675577880, 1842759443, 3610369226, 3644379585, 3408119516, 3307916247, 4011190502, 3776767469, 4077384432, 4245618683, 2809771154, 2842737049, 3144396420, 3043140495, 2673705150, 2438237621, 2203032232, 2370213795];
+var U2 = [0, 185469197, 370938394, 487725847, 741876788, 657861945, 975451694, 824852259, 1483753576, 1400783205, 1315723890, 1164071807, 1950903388, 2135319889, 1649704518, 1767536459, 2967507152, 3152976349, 2801566410, 2918353863, 2631447780, 2547432937, 2328143614, 2177544179, 3901806776, 3818836405, 4270639778, 4118987695, 3299409036, 3483825537, 3535072918, 3652904859, 2077965243, 1893020342, 1841768865, 1724457132, 1474502543, 1559041666, 1107234197, 1257309336, 598438867, 681933534, 901210569, 1052338372, 261314535, 77422314, 428819965, 310463728, 3409685355, 3224740454, 3710368113, 3593056380, 3875770207, 3960309330, 4045380933, 4195456072, 2471224067, 2554718734, 2237133081, 2388260884, 3212035895, 3028143674, 2842678573, 2724322336, 4138563181, 4255350624, 3769721975, 3955191162, 3667219033, 3516619604, 3431546947, 3347532110, 2933734917, 2782082824, 3099667487, 3016697106, 2196052529, 2313884476, 2499348523, 2683765030, 1179510461, 1296297904, 1347548327, 1533017514, 1786102409, 1635502980, 2087309459, 2003294622, 507358933, 355706840, 136428751, 53458370, 839224033, 957055980, 605657339, 790073846, 2373340630, 2256028891, 2607439820, 2422494913, 2706270690, 2856345839, 3075636216, 3160175349, 3573941694, 3725069491, 3273267108, 3356761769, 4181598602, 4063242375, 4011996048, 3828103837, 1033297158, 915985419, 730517276, 545572369, 296679730, 446754879, 129166120, 213705253, 1709610350, 1860738147, 1945798516, 2029293177, 1239331162, 1120974935, 1606591296, 1422699085, 4148292826, 4233094615, 3781033664, 3931371469, 3682191598, 3497509347, 3446004468, 3328955385, 2939266226, 2755636671, 3106780840, 2988687269, 2198438022, 2282195339, 2501218972, 2652609425, 1201765386, 1286567175, 1371368976, 1521706781, 1805211710, 1620529459, 2105887268, 1988838185, 533804130, 350174575, 164439672, 46346101, 870912086, 954669403, 636813900, 788204353, 2358957921, 2274680428, 2592523643, 2441661558, 2695033685, 2880240216, 3065962831, 3182487618, 3572145929, 3756299780, 3270937875, 3388507166, 4174560061, 4091327024, 4006521127, 3854606378, 1014646705, 930369212, 711349675, 560487590, 272786309, 457992840, 106852767, 223377554, 1678381017, 1862534868, 1914052035, 2031621326, 1211247597, 1128014560, 1580087799, 1428173050, 32283319, 182621114, 401639597, 486441376, 768917123, 651868046, 1003007129, 818324884, 1503449823, 1385356242, 1333838021, 1150208456, 1973745387, 2125135846, 1673061617, 1756818940, 2970356327, 3120694122, 2802849917, 2887651696, 2637442643, 2520393566, 2334669897, 2149987652, 3917234703, 3799141122, 4284502037, 4100872472, 3309594171, 3460984630, 3545789473, 3629546796, 2050466060, 1899603969, 1814803222, 1730525723, 1443857720, 1560382517, 1075025698, 1260232239, 575138148, 692707433, 878443390, 1062597235, 243256656, 91341917, 409198410, 325965383, 3403100636, 3252238545, 3704300486, 3620022987, 3874428392, 3990953189, 4042459122, 4227665663, 2460449204, 2578018489, 2226875310, 2411029155, 3198115200, 3046200461, 2827177882, 2743944855];
+var U3 = [0, 218828297, 437656594, 387781147, 875313188, 958871085, 775562294, 590424639, 1750626376, 1699970625, 1917742170, 2135253587, 1551124588, 1367295589, 1180849278, 1265195639, 3501252752, 3720081049, 3399941250, 3350065803, 3835484340, 3919042237, 4270507174, 4085369519, 3102249176, 3051593425, 2734591178, 2952102595, 2361698556, 2177869557, 2530391278, 2614737639, 3145456443, 3060847922, 2708326185, 2892417312, 2404901663, 2187128086, 2504130317, 2555048196, 3542330227, 3727205754, 3375740769, 3292445032, 3876557655, 3926170974, 4246310725, 4027744588, 1808481195, 1723872674, 1910319033, 2094410160, 1608975247, 1391201670, 1173430173, 1224348052, 59984867, 244860394, 428169201, 344873464, 935293895, 984907214, 766078933, 547512796, 1844882806, 1627235199, 2011214180, 2062270317, 1507497298, 1423022939, 1137477952, 1321699145, 95345982, 145085239, 532201772, 313773861, 830661914, 1015671571, 731183368, 648017665, 3175501286, 2957853679, 2807058932, 2858115069, 2305455554, 2220981195, 2474404304, 2658625497, 3575528878, 3625268135, 3473416636, 3254988725, 3778151818, 3963161475, 4213447064, 4130281361, 3599595085, 3683022916, 3432737375, 3247465558, 3802222185, 4020912224, 4172763771, 4122762354, 3201631749, 3017672716, 2764249623, 2848461854, 2331590177, 2280796200, 2431590963, 2648976442, 104699613, 188127444, 472615631, 287343814, 840019705, 1058709744, 671593195, 621591778, 1852171925, 1668212892, 1953757831, 2037970062, 1514790577, 1463996600, 1080017571, 1297403050, 3673637356, 3623636965, 3235995134, 3454686199, 4007360968, 3822090177, 4107101658, 4190530515, 2997825956, 3215212461, 2830708150, 2779915199, 2256734592, 2340947849, 2627016082, 2443058075, 172466556, 122466165, 273792366, 492483431, 1047239e3, 861968209, 612205898, 695634755, 1646252340, 1863638845, 2013908262, 1963115311, 1446242576, 1530455833, 1277555970, 1093597963, 1636604631, 1820824798, 2073724613, 1989249228, 1436590835, 1487645946, 1337376481, 1119727848, 164948639, 81781910, 331544205, 516552836, 1039717051, 821288114, 669961897, 719700128, 2973530695, 3157750862, 2871682645, 2787207260, 2232435299, 2283490410, 2667994737, 2450346104, 3647212047, 3564045318, 3279033885, 3464042516, 3980931627, 3762502690, 4150144569, 4199882800, 3070356634, 3121275539, 2904027272, 2686254721, 2200818878, 2384911031, 2570832044, 2486224549, 3747192018, 3528626907, 3310321856, 3359936201, 3950355702, 3867060991, 4049844452, 4234721005, 1739656202, 1790575107, 2108100632, 1890328081, 1402811438, 1586903591, 1233856572, 1149249077, 266959938, 48394827, 369057872, 418672217, 1002783846, 919489135, 567498868, 752375421, 209336225, 24197544, 376187827, 459744698, 945164165, 895287692, 574624663, 793451934, 1679968233, 1764313568, 2117360635, 1933530610, 1343127501, 1560637892, 1243112415, 1192455638, 3704280881, 3519142200, 3336358691, 3419915562, 3907448597, 3857572124, 4075877127, 4294704398, 3029510009, 3113855344, 2927934315, 2744104290, 2159976285, 2377486676, 2594734927, 2544078150];
+var U4 = [0, 151849742, 303699484, 454499602, 607398968, 758720310, 908999204, 1059270954, 1214797936, 1097159550, 1517440620, 1400849762, 1817998408, 1699839814, 2118541908, 2001430874, 2429595872, 2581445614, 2194319100, 2345119218, 3034881240, 3186202582, 2801699524, 2951971274, 3635996816, 3518358430, 3399679628, 3283088770, 4237083816, 4118925222, 4002861748, 3885750714, 1002142683, 850817237, 698445255, 548169417, 529487843, 377642221, 227885567, 77089521, 1943217067, 2061379749, 1640576439, 1757691577, 1474760595, 1592394909, 1174215055, 1290801793, 2875968315, 2724642869, 3111247143, 2960971305, 2405426947, 2253581325, 2638606623, 2487810577, 3808662347, 3926825029, 4044981591, 4162096729, 3342319475, 3459953789, 3576539503, 3693126241, 1986918061, 2137062819, 1685577905, 1836772287, 1381620373, 1532285339, 1078185097, 1229899655, 1040559837, 923313619, 740276417, 621982671, 439452389, 322734571, 137073913, 19308535, 3871163981, 4021308739, 4104605777, 4255800159, 3263785589, 3414450555, 3499326569, 3651041127, 2933202493, 2815956275, 3167684641, 3049390895, 2330014213, 2213296395, 2566595609, 2448830231, 1305906550, 1155237496, 1607244650, 1455525988, 1776460110, 1626319424, 2079897426, 1928707164, 96392454, 213114376, 396673818, 514443284, 562755902, 679998e3, 865136418, 983426092, 3708173718, 3557504664, 3474729866, 3323011204, 4180808110, 4030667424, 3945269170, 3794078908, 2507040230, 2623762152, 2272556026, 2390325492, 2975484382, 3092726480, 2738905026, 2857194700, 3973773121, 3856137295, 4274053469, 4157467219, 3371096953, 3252932727, 3673476453, 3556361835, 2763173681, 2915017791, 3064510765, 3215307299, 2156299017, 2307622919, 2459735317, 2610011675, 2081048481, 1963412655, 1846563261, 1729977011, 1480485785, 1362321559, 1243905413, 1126790795, 878845905, 1030690015, 645401037, 796197571, 274084841, 425408743, 38544885, 188821243, 3613494426, 3731654548, 3313212038, 3430322568, 4082475170, 4200115116, 3780097726, 3896688048, 2668221674, 2516901860, 2366882550, 2216610296, 3141400786, 2989552604, 2837966542, 2687165888, 1202797690, 1320957812, 1437280870, 1554391400, 1669664834, 1787304780, 1906247262, 2022837584, 265905162, 114585348, 499347990, 349075736, 736970802, 585122620, 972512814, 821712160, 2595684844, 2478443234, 2293045232, 2174754046, 3196267988, 3079546586, 2895723464, 2777952454, 3537852828, 3687994002, 3234156416, 3385345166, 4142626212, 4293295786, 3841024952, 3992742070, 174567692, 57326082, 410887952, 292596766, 777231668, 660510266, 1011452712, 893681702, 1108339068, 1258480242, 1343618912, 1494807662, 1715193156, 1865862730, 1948373848, 2100090966, 2701949495, 2818666809, 3004591147, 3122358053, 2235061775, 2352307457, 2535604243, 2653899549, 3915653703, 3764988233, 4219352155, 4067639125, 3444575871, 3294430577, 3746175075, 3594982253, 836553431, 953270745, 600235211, 718002117, 367585007, 484830689, 133361907, 251657213, 2041877159, 1891211689, 1806599355, 1654886325, 1568718495, 1418573201, 1335535747, 1184342925];
+function convertToInt32(bytes3) {
+  const result = [];
+  for (let i = 0; i < bytes3.length; i += 4) {
+    result.push(bytes3[i] << 24 | bytes3[i + 1] << 16 | bytes3[i + 2] << 8 | bytes3[i + 3]);
+  }
+  return result;
+}
+var AES = class _AES {
+  get key() {
+    return __classPrivateFieldGet(this, _AES_key, "f").slice();
+  }
+  constructor(key) {
+    _AES_key.set(this, void 0);
+    _AES_Kd.set(this, void 0);
+    _AES_Ke.set(this, void 0);
+    if (!(this instanceof _AES)) {
+      throw Error("AES must be instanitated with `new`");
+    }
+    __classPrivateFieldSet(this, _AES_key, new Uint8Array(key), "f");
+    const rounds = numberOfRounds[this.key.length];
+    if (rounds == null) {
+      throw new TypeError("invalid key size (must be 16, 24 or 32 bytes)");
+    }
+    __classPrivateFieldSet(this, _AES_Ke, [], "f");
+    __classPrivateFieldSet(this, _AES_Kd, [], "f");
+    for (let i = 0; i <= rounds; i++) {
+      __classPrivateFieldGet(this, _AES_Ke, "f").push([0, 0, 0, 0]);
+      __classPrivateFieldGet(this, _AES_Kd, "f").push([0, 0, 0, 0]);
+    }
+    const roundKeyCount = (rounds + 1) * 4;
+    const KC = this.key.length / 4;
+    const tk = convertToInt32(this.key);
+    let index;
+    for (let i = 0; i < KC; i++) {
+      index = i >> 2;
+      __classPrivateFieldGet(this, _AES_Ke, "f")[index][i % 4] = tk[i];
+      __classPrivateFieldGet(this, _AES_Kd, "f")[rounds - index][i % 4] = tk[i];
+    }
+    let rconpointer = 0;
+    let t = KC, tt;
+    while (t < roundKeyCount) {
+      tt = tk[KC - 1];
+      tk[0] ^= S[tt >> 16 & 255] << 24 ^ S[tt >> 8 & 255] << 16 ^ S[tt & 255] << 8 ^ S[tt >> 24 & 255] ^ rcon[rconpointer] << 24;
+      rconpointer += 1;
+      if (KC != 8) {
+        for (let i2 = 1; i2 < KC; i2++) {
+          tk[i2] ^= tk[i2 - 1];
+        }
+      } else {
+        for (let i2 = 1; i2 < KC / 2; i2++) {
+          tk[i2] ^= tk[i2 - 1];
+        }
+        tt = tk[KC / 2 - 1];
+        tk[KC / 2] ^= S[tt & 255] ^ S[tt >> 8 & 255] << 8 ^ S[tt >> 16 & 255] << 16 ^ S[tt >> 24 & 255] << 24;
+        for (let i2 = KC / 2 + 1; i2 < KC; i2++) {
+          tk[i2] ^= tk[i2 - 1];
+        }
+      }
+      let i = 0, r, c;
+      while (i < KC && t < roundKeyCount) {
+        r = t >> 2;
+        c = t % 4;
+        __classPrivateFieldGet(this, _AES_Ke, "f")[r][c] = tk[i];
+        __classPrivateFieldGet(this, _AES_Kd, "f")[rounds - r][c] = tk[i++];
+        t++;
+      }
+    }
+    for (let r = 1; r < rounds; r++) {
+      for (let c = 0; c < 4; c++) {
+        tt = __classPrivateFieldGet(this, _AES_Kd, "f")[r][c];
+        __classPrivateFieldGet(this, _AES_Kd, "f")[r][c] = U1[tt >> 24 & 255] ^ U2[tt >> 16 & 255] ^ U3[tt >> 8 & 255] ^ U4[tt & 255];
+      }
+    }
+  }
+  encrypt(plaintext) {
+    if (plaintext.length != 16) {
+      throw new TypeError("invalid plaintext size (must be 16 bytes)");
+    }
+    const rounds = __classPrivateFieldGet(this, _AES_Ke, "f").length - 1;
+    const a = [0, 0, 0, 0];
+    let t = convertToInt32(plaintext);
+    for (let i = 0; i < 4; i++) {
+      t[i] ^= __classPrivateFieldGet(this, _AES_Ke, "f")[0][i];
+    }
+    for (let r = 1; r < rounds; r++) {
+      for (let i = 0; i < 4; i++) {
+        a[i] = T12[t[i] >> 24 & 255] ^ T2[t[(i + 1) % 4] >> 16 & 255] ^ T3[t[(i + 2) % 4] >> 8 & 255] ^ T4[t[(i + 3) % 4] & 255] ^ __classPrivateFieldGet(this, _AES_Ke, "f")[r][i];
+      }
+      t = a.slice();
+    }
+    const result = new Uint8Array(16);
+    let tt = 0;
+    for (let i = 0; i < 4; i++) {
+      tt = __classPrivateFieldGet(this, _AES_Ke, "f")[rounds][i];
+      result[4 * i] = (S[t[i] >> 24 & 255] ^ tt >> 24) & 255;
+      result[4 * i + 1] = (S[t[(i + 1) % 4] >> 16 & 255] ^ tt >> 16) & 255;
+      result[4 * i + 2] = (S[t[(i + 2) % 4] >> 8 & 255] ^ tt >> 8) & 255;
+      result[4 * i + 3] = (S[t[(i + 3) % 4] & 255] ^ tt) & 255;
+    }
+    return result;
+  }
+  decrypt(ciphertext) {
+    if (ciphertext.length != 16) {
+      throw new TypeError("invalid ciphertext size (must be 16 bytes)");
+    }
+    const rounds = __classPrivateFieldGet(this, _AES_Kd, "f").length - 1;
+    const a = [0, 0, 0, 0];
+    let t = convertToInt32(ciphertext);
+    for (let i = 0; i < 4; i++) {
+      t[i] ^= __classPrivateFieldGet(this, _AES_Kd, "f")[0][i];
+    }
+    for (let r = 1; r < rounds; r++) {
+      for (let i = 0; i < 4; i++) {
+        a[i] = T5[t[i] >> 24 & 255] ^ T6[t[(i + 3) % 4] >> 16 & 255] ^ T7[t[(i + 2) % 4] >> 8 & 255] ^ T8[t[(i + 1) % 4] & 255] ^ __classPrivateFieldGet(this, _AES_Kd, "f")[r][i];
+      }
+      t = a.slice();
+    }
+    const result = new Uint8Array(16);
+    let tt = 0;
+    for (let i = 0; i < 4; i++) {
+      tt = __classPrivateFieldGet(this, _AES_Kd, "f")[rounds][i];
+      result[4 * i] = (Si[t[i] >> 24 & 255] ^ tt >> 24) & 255;
+      result[4 * i + 1] = (Si[t[(i + 3) % 4] >> 16 & 255] ^ tt >> 16) & 255;
+      result[4 * i + 2] = (Si[t[(i + 2) % 4] >> 8 & 255] ^ tt >> 8) & 255;
+      result[4 * i + 3] = (Si[t[(i + 1) % 4] & 255] ^ tt) & 255;
+    }
+    return result;
+  }
+};
+_AES_key = /* @__PURE__ */ new WeakMap(), _AES_Kd = /* @__PURE__ */ new WeakMap(), _AES_Ke = /* @__PURE__ */ new WeakMap();
+
+// ../../../node_modules/aes-js/lib.esm/mode.js
+var ModeOfOperation = class {
+  constructor(name, key, cls) {
+    if (cls && !(this instanceof cls)) {
+      throw new Error(`${name} must be instantiated with "new"`);
+    }
+    Object.defineProperties(this, {
+      aes: { enumerable: true, value: new AES(key) },
+      name: { enumerable: true, value: name }
+    });
+  }
+};
+
+// ../../../node_modules/aes-js/lib.esm/mode-cbc.js
+var __classPrivateFieldSet2 = function(receiver, state, value, kind, f2) {
+  if (kind === "m") throw new TypeError("Private method is not writable");
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a setter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+  return kind === "a" ? f2.call(receiver, value) : f2 ? f2.value = value : state.set(receiver, value), value;
+};
+var __classPrivateFieldGet2 = function(receiver, state, kind, f2) {
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a getter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+  return kind === "m" ? f2 : kind === "a" ? f2.call(receiver) : f2 ? f2.value : state.get(receiver);
+};
+var _CBC_iv;
+var _CBC_lastBlock;
+var CBC = class _CBC extends ModeOfOperation {
+  constructor(key, iv) {
+    super("ECC", key, _CBC);
+    _CBC_iv.set(this, void 0);
+    _CBC_lastBlock.set(this, void 0);
+    if (iv) {
+      if (iv.length % 16) {
+        throw new TypeError("invalid iv size (must be 16 bytes)");
+      }
+      __classPrivateFieldSet2(this, _CBC_iv, new Uint8Array(iv), "f");
+    } else {
+      __classPrivateFieldSet2(this, _CBC_iv, new Uint8Array(16), "f");
+    }
+    __classPrivateFieldSet2(this, _CBC_lastBlock, this.iv, "f");
+  }
+  get iv() {
+    return new Uint8Array(__classPrivateFieldGet2(this, _CBC_iv, "f"));
+  }
+  encrypt(plaintext) {
+    if (plaintext.length % 16) {
+      throw new TypeError("invalid plaintext size (must be multiple of 16 bytes)");
+    }
+    const ciphertext = new Uint8Array(plaintext.length);
+    for (let i = 0; i < plaintext.length; i += 16) {
+      for (let j = 0; j < 16; j++) {
+        __classPrivateFieldGet2(this, _CBC_lastBlock, "f")[j] ^= plaintext[i + j];
+      }
+      __classPrivateFieldSet2(this, _CBC_lastBlock, this.aes.encrypt(__classPrivateFieldGet2(this, _CBC_lastBlock, "f")), "f");
+      ciphertext.set(__classPrivateFieldGet2(this, _CBC_lastBlock, "f"), i);
+    }
+    return ciphertext;
+  }
+  decrypt(ciphertext) {
+    if (ciphertext.length % 16) {
+      throw new TypeError("invalid ciphertext size (must be multiple of 16 bytes)");
+    }
+    const plaintext = new Uint8Array(ciphertext.length);
+    for (let i = 0; i < ciphertext.length; i += 16) {
+      const block = this.aes.decrypt(ciphertext.subarray(i, i + 16));
+      for (let j = 0; j < 16; j++) {
+        plaintext[i + j] = block[j] ^ __classPrivateFieldGet2(this, _CBC_lastBlock, "f")[j];
+        __classPrivateFieldGet2(this, _CBC_lastBlock, "f")[j] = ciphertext[i + j];
+      }
+    }
+    return plaintext;
+  }
+};
+_CBC_iv = /* @__PURE__ */ new WeakMap(), _CBC_lastBlock = /* @__PURE__ */ new WeakMap();
+
+// ../../../node_modules/aes-js/lib.esm/mode-cfb.js
+var __classPrivateFieldGet3 = function(receiver, state, kind, f2) {
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a getter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+  return kind === "m" ? f2 : kind === "a" ? f2.call(receiver) : f2 ? f2.value : state.get(receiver);
+};
+var _CFB_instances;
+var _CFB_iv;
+var _CFB_shiftRegister;
+var _CFB_shift;
+_CFB_iv = /* @__PURE__ */ new WeakMap(), _CFB_shiftRegister = /* @__PURE__ */ new WeakMap(), _CFB_instances = /* @__PURE__ */ new WeakSet(), _CFB_shift = function _CFB_shift2(data) {
+  const segmentSize = this.segmentSize / 8;
+  __classPrivateFieldGet3(this, _CFB_shiftRegister, "f").set(__classPrivateFieldGet3(this, _CFB_shiftRegister, "f").subarray(segmentSize));
+  __classPrivateFieldGet3(this, _CFB_shiftRegister, "f").set(data.subarray(0, segmentSize), 16 - segmentSize);
+};
+
+// ../../../node_modules/aes-js/lib.esm/mode-ctr.js
+var __classPrivateFieldSet3 = function(receiver, state, value, kind, f2) {
+  if (kind === "m") throw new TypeError("Private method is not writable");
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a setter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+  return kind === "a" ? f2.call(receiver, value) : f2 ? f2.value = value : state.set(receiver, value), value;
+};
+var __classPrivateFieldGet4 = function(receiver, state, kind, f2) {
+  if (kind === "a" && !f2) throw new TypeError("Private accessor was defined without a getter");
+  if (typeof state === "function" ? receiver !== state || !f2 : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+  return kind === "m" ? f2 : kind === "a" ? f2.call(receiver) : f2 ? f2.value : state.get(receiver);
+};
+var _CTR_remaining;
+var _CTR_remainingIndex;
+var _CTR_counter;
+var CTR = class _CTR extends ModeOfOperation {
+  constructor(key, initialValue) {
+    super("CTR", key, _CTR);
+    _CTR_remaining.set(this, void 0);
+    _CTR_remainingIndex.set(this, void 0);
+    _CTR_counter.set(this, void 0);
+    __classPrivateFieldSet3(this, _CTR_counter, new Uint8Array(16), "f");
+    __classPrivateFieldGet4(this, _CTR_counter, "f").fill(0);
+    __classPrivateFieldSet3(this, _CTR_remaining, __classPrivateFieldGet4(this, _CTR_counter, "f"), "f");
+    __classPrivateFieldSet3(this, _CTR_remainingIndex, 16, "f");
+    if (initialValue == null) {
+      initialValue = 1;
+    }
+    if (typeof initialValue === "number") {
+      this.setCounterValue(initialValue);
+    } else {
+      this.setCounterBytes(initialValue);
+    }
+  }
+  get counter() {
+    return new Uint8Array(__classPrivateFieldGet4(this, _CTR_counter, "f"));
+  }
+  setCounterValue(value) {
+    if (!Number.isInteger(value) || value < 0 || value > Number.MAX_SAFE_INTEGER) {
+      throw new TypeError("invalid counter initial integer value");
+    }
+    for (let index = 15; index >= 0; --index) {
+      __classPrivateFieldGet4(this, _CTR_counter, "f")[index] = value % 256;
+      value = Math.floor(value / 256);
+    }
+  }
+  setCounterBytes(value) {
+    if (value.length !== 16) {
+      throw new TypeError("invalid counter initial Uint8Array value length");
+    }
+    __classPrivateFieldGet4(this, _CTR_counter, "f").set(value);
+  }
+  increment() {
+    for (let i = 15; i >= 0; i--) {
+      if (__classPrivateFieldGet4(this, _CTR_counter, "f")[i] === 255) {
+        __classPrivateFieldGet4(this, _CTR_counter, "f")[i] = 0;
+      } else {
+        __classPrivateFieldGet4(this, _CTR_counter, "f")[i]++;
+        break;
+      }
+    }
+  }
+  encrypt(plaintext) {
+    var _a, _b;
+    const crypttext = new Uint8Array(plaintext);
+    for (let i = 0; i < crypttext.length; i++) {
+      if (__classPrivateFieldGet4(this, _CTR_remainingIndex, "f") === 16) {
+        __classPrivateFieldSet3(this, _CTR_remaining, this.aes.encrypt(__classPrivateFieldGet4(this, _CTR_counter, "f")), "f");
+        __classPrivateFieldSet3(this, _CTR_remainingIndex, 0, "f");
+        this.increment();
+      }
+      crypttext[i] ^= __classPrivateFieldGet4(this, _CTR_remaining, "f")[__classPrivateFieldSet3(this, _CTR_remainingIndex, (_b = __classPrivateFieldGet4(this, _CTR_remainingIndex, "f"), _a = _b++, _b), "f"), _a];
+    }
+    return crypttext;
+  }
+  decrypt(ciphertext) {
+    return this.encrypt(ciphertext);
+  }
+};
+_CTR_remaining = /* @__PURE__ */ new WeakMap(), _CTR_remainingIndex = /* @__PURE__ */ new WeakMap(), _CTR_counter = /* @__PURE__ */ new WeakMap();
+
+// ../../../node_modules/aes-js/lib.esm/mode-ofb.js
+var _OFB_iv;
+var _OFB_lastPrecipher;
+var _OFB_lastPrecipherIndex;
+_OFB_iv = /* @__PURE__ */ new WeakMap(), _OFB_lastPrecipher = /* @__PURE__ */ new WeakMap(), _OFB_lastPrecipherIndex = /* @__PURE__ */ new WeakMap();
+
+// ../../../node_modules/aes-js/lib.esm/padding.js
+function pkcs7Strip(data) {
+  if (data.length < 16) {
+    throw new TypeError("PKCS#7 invalid length");
+  }
+  const padder = data[data.length - 1];
+  if (padder > 16) {
+    throw new TypeError("PKCS#7 padding byte out of range");
+  }
+  const length = data.length - padder;
+  for (let i = 0; i < padder; i++) {
+    if (data[length + i] !== padder) {
+      throw new TypeError("PKCS#7 invalid padding byte");
+    }
+  }
+  return new Uint8Array(data.subarray(0, length));
+}
+
+// ../../../node_modules/ethers/lib.esm/wallet/utils.js
+function looseArrayify(hexString) {
+  if (typeof hexString === "string" && !hexString.startsWith("0x")) {
+    hexString = "0x" + hexString;
+  }
+  return getBytesCopy(hexString);
+}
+function zpad(value, length) {
+  value = String(value);
+  while (value.length < length) {
+    value = "0" + value;
+  }
+  return value;
+}
+function getPassword(password) {
+  if (typeof password === "string") {
+    return toUtf8Bytes(password, "NFKC");
+  }
+  return getBytesCopy(password);
+}
+function spelunk(object2, _path) {
+  const match = _path.match(/^([a-z0-9$_.-]*)(:([a-z]+))?(!)?$/i);
+  assertArgument(match != null, "invalid path", "path", _path);
+  const path2 = match[1];
+  const type = match[3];
+  const reqd = match[4] === "!";
+  let cur = object2;
+  for (const comp of path2.toLowerCase().split(".")) {
+    if (Array.isArray(cur)) {
+      if (!comp.match(/^[0-9]+$/)) {
+        break;
+      }
+      cur = cur[parseInt(comp)];
+    } else if (typeof cur === "object") {
+      let found = null;
+      for (const key in cur) {
+        if (key.toLowerCase() === comp) {
+          found = cur[key];
+          break;
+        }
+      }
+      cur = found;
+    } else {
+      cur = null;
+    }
+    if (cur == null) {
+      break;
+    }
+  }
+  assertArgument(!reqd || cur != null, "missing required value", "path", path2);
+  if (type && cur != null) {
+    if (type === "int") {
+      if (typeof cur === "string" && cur.match(/^-?[0-9]+$/)) {
+        return parseInt(cur);
+      } else if (Number.isSafeInteger(cur)) {
+        return cur;
+      }
+    }
+    if (type === "number") {
+      if (typeof cur === "string" && cur.match(/^-?[0-9.]*$/)) {
+        return parseFloat(cur);
+      }
+    }
+    if (type === "data") {
+      if (typeof cur === "string") {
+        return looseArrayify(cur);
+      }
+    }
+    if (type === "array" && Array.isArray(cur)) {
+      return cur;
+    }
+    if (type === typeof cur) {
+      return cur;
+    }
+    assertArgument(false, `wrong type found for ${type} `, "path", path2);
+  }
+  return cur;
+}
+
+// ../../../node_modules/ethers/lib.esm/wallet/json-keystore.js
+var defaultPath = "m/44'/60'/0'/0/0";
+function isKeystoreJson(json) {
+  try {
+    const data = JSON.parse(json);
+    const version2 = data.version != null ? parseInt(data.version) : 0;
+    if (version2 === 3) {
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+}
+function decrypt(data, key, ciphertext) {
+  const cipher = spelunk(data, "crypto.cipher:string");
+  if (cipher === "aes-128-ctr") {
+    const iv = spelunk(data, "crypto.cipherparams.iv:data!");
+    const aesCtr = new CTR(key, iv);
+    return hexlify(aesCtr.decrypt(ciphertext));
+  }
+  assert(false, "unsupported cipher", "UNSUPPORTED_OPERATION", {
+    operation: "decrypt"
+  });
+}
+function getAccount(data, _key) {
+  const key = getBytes(_key);
+  const ciphertext = spelunk(data, "crypto.ciphertext:data!");
+  const computedMAC = hexlify(keccak256(concat([key.slice(16, 32), ciphertext]))).substring(2);
+  assertArgument(computedMAC === spelunk(data, "crypto.mac:string!").toLowerCase(), "incorrect password", "password", "[ REDACTED ]");
+  const privateKey = decrypt(data, key.slice(0, 16), ciphertext);
+  const address = computeAddress(privateKey);
+  if (data.address) {
+    let check = data.address.toLowerCase();
+    if (!check.startsWith("0x")) {
+      check = "0x" + check;
+    }
+    assertArgument(getAddress(check) === address, "keystore address/privateKey mismatch", "address", data.address);
+  }
+  const account = { address, privateKey };
+  const version2 = spelunk(data, "x-ethers.version:string");
+  if (version2 === "0.1") {
+    const mnemonicKey = key.slice(32, 64);
+    const mnemonicCiphertext = spelunk(data, "x-ethers.mnemonicCiphertext:data!");
+    const mnemonicIv = spelunk(data, "x-ethers.mnemonicCounter:data!");
+    const mnemonicAesCtr = new CTR(mnemonicKey, mnemonicIv);
+    account.mnemonic = {
+      path: spelunk(data, "x-ethers.path:string") || defaultPath,
+      locale: spelunk(data, "x-ethers.locale:string") || "en",
+      entropy: hexlify(getBytes(mnemonicAesCtr.decrypt(mnemonicCiphertext)))
+    };
+  }
+  return account;
+}
+function getDecryptKdfParams(data) {
+  const kdf = spelunk(data, "crypto.kdf:string");
+  if (kdf && typeof kdf === "string") {
+    if (kdf.toLowerCase() === "scrypt") {
+      const salt = spelunk(data, "crypto.kdfparams.salt:data!");
+      const N3 = spelunk(data, "crypto.kdfparams.n:int!");
+      const r = spelunk(data, "crypto.kdfparams.r:int!");
+      const p = spelunk(data, "crypto.kdfparams.p:int!");
+      assertArgument(N3 > 0 && (N3 & N3 - 1) === 0, "invalid kdf.N", "kdf.N", N3);
+      assertArgument(r > 0 && p > 0, "invalid kdf", "kdf", kdf);
+      const dkLen = spelunk(data, "crypto.kdfparams.dklen:int!");
+      assertArgument(dkLen === 32, "invalid kdf.dklen", "kdf.dflen", dkLen);
+      return { name: "scrypt", salt, N: N3, r, p, dkLen: 64 };
+    } else if (kdf.toLowerCase() === "pbkdf2") {
+      const salt = spelunk(data, "crypto.kdfparams.salt:data!");
+      const prf = spelunk(data, "crypto.kdfparams.prf:string!");
+      const algorithm = prf.split("-").pop();
+      assertArgument(algorithm === "sha256" || algorithm === "sha512", "invalid kdf.pdf", "kdf.pdf", prf);
+      const count = spelunk(data, "crypto.kdfparams.c:int!");
+      const dkLen = spelunk(data, "crypto.kdfparams.dklen:int!");
+      assertArgument(dkLen === 32, "invalid kdf.dklen", "kdf.dklen", dkLen);
+      return { name: "pbkdf2", salt, count, dkLen, algorithm };
+    }
+  }
+  assertArgument(false, "unsupported key-derivation function", "kdf", kdf);
+}
+function decryptKeystoreJsonSync(json, _password) {
+  const data = JSON.parse(json);
+  const password = getPassword(_password);
+  const params = getDecryptKdfParams(data);
+  if (params.name === "pbkdf2") {
+    const { salt: salt2, count, dkLen: dkLen2, algorithm } = params;
+    const key2 = pbkdf2(password, salt2, count, dkLen2, algorithm);
+    return getAccount(data, key2);
+  }
+  assert(params.name === "scrypt", "cannot be reached", "UNKNOWN_ERROR", { params });
+  const { salt, N: N3, r, p, dkLen } = params;
+  const key = scryptSync(password, salt, N3, r, p, dkLen);
+  return getAccount(data, key);
+}
+function stall2(duration) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, duration);
+  });
+}
+async function decryptKeystoreJson(json, _password, progress) {
+  const data = JSON.parse(json);
+  const password = getPassword(_password);
+  const params = getDecryptKdfParams(data);
+  if (params.name === "pbkdf2") {
+    if (progress) {
+      progress(0);
+      await stall2(0);
+    }
+    const { salt: salt2, count, dkLen: dkLen2, algorithm } = params;
+    const key2 = pbkdf2(password, salt2, count, dkLen2, algorithm);
+    if (progress) {
+      progress(1);
+      await stall2(0);
+    }
+    return getAccount(data, key2);
+  }
+  assert(params.name === "scrypt", "cannot be reached", "UNKNOWN_ERROR", { params });
+  const { salt, N: N3, r, p, dkLen } = params;
+  const key = await scrypt2(password, salt, N3, r, p, dkLen, progress);
+  return getAccount(data, key);
+}
+function getEncryptKdfParams(options) {
+  const salt = options.salt != null ? getBytes(options.salt, "options.salt") : randomBytes2(32);
+  let N3 = 1 << 17, r = 8, p = 1;
+  if (options.scrypt) {
+    if (options.scrypt.N) {
+      N3 = options.scrypt.N;
+    }
+    if (options.scrypt.r) {
+      r = options.scrypt.r;
+    }
+    if (options.scrypt.p) {
+      p = options.scrypt.p;
+    }
+  }
+  assertArgument(typeof N3 === "number" && N3 > 0 && Number.isSafeInteger(N3) && (BigInt(N3) & BigInt(N3 - 1)) === BigInt(0), "invalid scrypt N parameter", "options.N", N3);
+  assertArgument(typeof r === "number" && r > 0 && Number.isSafeInteger(r), "invalid scrypt r parameter", "options.r", r);
+  assertArgument(typeof p === "number" && p > 0 && Number.isSafeInteger(p), "invalid scrypt p parameter", "options.p", p);
+  return { name: "scrypt", dkLen: 32, salt, N: N3, r, p };
+}
+function _encryptKeystore(key, kdf, account, options) {
+  const privateKey = getBytes(account.privateKey, "privateKey");
+  const iv = options.iv != null ? getBytes(options.iv, "options.iv") : randomBytes2(16);
+  assertArgument(iv.length === 16, "invalid options.iv length", "options.iv", options.iv);
+  const uuidRandom = options.uuid != null ? getBytes(options.uuid, "options.uuid") : randomBytes2(16);
+  assertArgument(uuidRandom.length === 16, "invalid options.uuid length", "options.uuid", options.iv);
+  const derivedKey = key.slice(0, 16);
+  const macPrefix = key.slice(16, 32);
+  const aesCtr = new CTR(derivedKey, iv);
+  const ciphertext = getBytes(aesCtr.encrypt(privateKey));
+  const mac = keccak256(concat([macPrefix, ciphertext]));
+  const data = {
+    address: account.address.substring(2).toLowerCase(),
+    id: uuidV4(uuidRandom),
+    version: 3,
+    Crypto: {
+      cipher: "aes-128-ctr",
+      cipherparams: {
+        iv: hexlify(iv).substring(2)
+      },
+      ciphertext: hexlify(ciphertext).substring(2),
+      kdf: "scrypt",
+      kdfparams: {
+        salt: hexlify(kdf.salt).substring(2),
+        n: kdf.N,
+        dklen: 32,
+        p: kdf.p,
+        r: kdf.r
+      },
+      mac: mac.substring(2)
+    }
+  };
+  if (account.mnemonic) {
+    const client = options.client != null ? options.client : `ethers/${version}`;
+    const path2 = account.mnemonic.path || defaultPath;
+    const locale = account.mnemonic.locale || "en";
+    const mnemonicKey = key.slice(32, 64);
+    const entropy = getBytes(account.mnemonic.entropy, "account.mnemonic.entropy");
+    const mnemonicIv = randomBytes2(16);
+    const mnemonicAesCtr = new CTR(mnemonicKey, mnemonicIv);
+    const mnemonicCiphertext = getBytes(mnemonicAesCtr.encrypt(entropy));
+    const now = /* @__PURE__ */ new Date();
+    const timestamp = now.getUTCFullYear() + "-" + zpad(now.getUTCMonth() + 1, 2) + "-" + zpad(now.getUTCDate(), 2) + "T" + zpad(now.getUTCHours(), 2) + "-" + zpad(now.getUTCMinutes(), 2) + "-" + zpad(now.getUTCSeconds(), 2) + ".0Z";
+    const gethFilename = "UTC--" + timestamp + "--" + data.address;
+    data["x-ethers"] = {
+      client,
+      gethFilename,
+      path: path2,
+      locale,
+      mnemonicCounter: hexlify(mnemonicIv).substring(2),
+      mnemonicCiphertext: hexlify(mnemonicCiphertext).substring(2),
+      version: "0.1"
+    };
+  }
+  return JSON.stringify(data);
+}
+function encryptKeystoreJsonSync(account, password, options) {
+  if (options == null) {
+    options = {};
+  }
+  const passwordBytes = getPassword(password);
+  const kdf = getEncryptKdfParams(options);
+  const key = scryptSync(passwordBytes, kdf.salt, kdf.N, kdf.r, kdf.p, 64);
+  return _encryptKeystore(getBytes(key), kdf, account, options);
+}
+async function encryptKeystoreJson(account, password, options) {
+  if (options == null) {
+    options = {};
+  }
+  const passwordBytes = getPassword(password);
+  const kdf = getEncryptKdfParams(options);
+  const key = await scrypt2(passwordBytes, kdf.salt, kdf.N, kdf.r, kdf.p, 64, options.progressCallback);
+  return _encryptKeystore(getBytes(key), kdf, account, options);
+}
+
+// ../../../node_modules/ethers/lib.esm/wallet/hdwallet.js
+var defaultPath2 = "m/44'/60'/0'/0/0";
+var MasterSecret = new Uint8Array([66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100]);
+var HardenedBit = 2147483648;
+var N = BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
+var Nibbles2 = "0123456789abcdef";
+function zpad2(value, length) {
+  let result = "";
+  while (value) {
+    result = Nibbles2[value % 16] + result;
+    value = Math.trunc(value / 16);
+  }
+  while (result.length < length * 2) {
+    result = "0" + result;
+  }
+  return "0x" + result;
+}
+function encodeBase58Check(_value) {
+  const value = getBytes(_value);
+  const check = dataSlice(sha2562(sha2562(value)), 0, 4);
+  const bytes3 = concat([value, check]);
+  return encodeBase58(bytes3);
+}
+var _guard6 = {};
+function ser_I(index, chainCode, publicKey, privateKey) {
+  const data = new Uint8Array(37);
+  if (index & HardenedBit) {
+    assert(privateKey != null, "cannot derive child of neutered node", "UNSUPPORTED_OPERATION", {
+      operation: "deriveChild"
+    });
+    data.set(getBytes(privateKey), 1);
+  } else {
+    data.set(getBytes(publicKey));
+  }
+  for (let i = 24; i >= 0; i -= 8) {
+    data[33 + (i >> 3)] = index >> 24 - i & 255;
+  }
+  const I = getBytes(computeHmac("sha512", chainCode, data));
+  return { IL: I.slice(0, 32), IR: I.slice(32) };
+}
+function derivePath(node, path2) {
+  const components = path2.split("/");
+  assertArgument(components.length > 0, "invalid path", "path", path2);
+  if (components[0] === "m") {
+    assertArgument(node.depth === 0, `cannot derive root path (i.e. path starting with "m/") for a node at non-zero depth ${node.depth}`, "path", path2);
+    components.shift();
+  }
+  let result = node;
+  for (let i = 0; i < components.length; i++) {
+    const component = components[i];
+    if (component.match(/^[0-9]+'$/)) {
+      const index = parseInt(component.substring(0, component.length - 1));
+      assertArgument(index < HardenedBit, "invalid path index", `path[${i}]`, component);
+      result = result.deriveChild(HardenedBit + index);
+    } else if (component.match(/^[0-9]+$/)) {
+      const index = parseInt(component);
+      assertArgument(index < HardenedBit, "invalid path index", `path[${i}]`, component);
+      result = result.deriveChild(index);
+    } else {
+      assertArgument(false, "invalid path component", `path[${i}]`, component);
+    }
+  }
+  return result;
+}
+var HDNodeWallet = class _HDNodeWallet extends BaseWallet {
+  /**
+   *  The compressed public key.
+   */
+  publicKey;
+  /**
+   *  The fingerprint.
+   *
+   *  A fingerprint allows quick qay to detect parent and child nodes,
+   *  but developers should be prepared to deal with collisions as it
+   *  is only 4 bytes.
+   */
+  fingerprint;
+  /**
+   *  The parent fingerprint.
+   */
+  parentFingerprint;
+  /**
+   *  The mnemonic used to create this HD Node, if available.
+   *
+   *  Sources such as extended keys do not encode the mnemonic, in
+   *  which case this will be ``null``.
+   */
+  mnemonic;
+  /**
+   *  The chaincode, which is effectively a public key used
+   *  to derive children.
+   */
+  chainCode;
+  /**
+   *  The derivation path of this wallet.
+   *
+   *  Since extended keys do not provide full path details, this
+   *  may be ``null``, if instantiated from a source that does not
+   *  encode it.
+   */
+  path;
+  /**
+   *  The child index of this wallet. Values over ``2 *\* 31`` indicate
+   *  the node is hardened.
+   */
+  index;
+  /**
+   *  The depth of this wallet, which is the number of components
+   *  in its path.
+   */
+  depth;
+  /**
+   *  @private
+   */
+  constructor(guard, signingKey, parentFingerprint, chainCode, path2, index, depth, mnemonic, provider) {
+    super(signingKey, provider);
+    assertPrivate(guard, _guard6, "HDNodeWallet");
+    defineProperties(this, { publicKey: signingKey.compressedPublicKey });
+    const fingerprint = dataSlice(ripemd1602(sha2562(this.publicKey)), 0, 4);
+    defineProperties(this, {
+      parentFingerprint,
+      fingerprint,
+      chainCode,
+      path: path2,
+      index,
+      depth
+    });
+    defineProperties(this, { mnemonic });
+  }
+  connect(provider) {
+    return new _HDNodeWallet(_guard6, this.signingKey, this.parentFingerprint, this.chainCode, this.path, this.index, this.depth, this.mnemonic, provider);
+  }
+  #account() {
+    const account = { address: this.address, privateKey: this.privateKey };
+    const m = this.mnemonic;
+    if (this.path && m && m.wordlist.locale === "en" && m.password === "") {
+      account.mnemonic = {
+        path: this.path,
+        locale: "en",
+        entropy: m.entropy
+      };
+    }
+    return account;
+  }
+  /**
+   *  Resolves to a [JSON Keystore Wallet](json-wallets) encrypted with
+   *  %%password%%.
+   *
+   *  If %%progressCallback%% is specified, it will receive periodic
+   *  updates as the encryption process progreses.
+   */
+  async encrypt(password, progressCallback) {
+    return await encryptKeystoreJson(this.#account(), password, { progressCallback });
+  }
+  /**
+   *  Returns a [JSON Keystore Wallet](json-wallets) encryped with
+   *  %%password%%.
+   *
+   *  It is preferred to use the [async version](encrypt) instead,
+   *  which allows a [[ProgressCallback]] to keep the user informed.
+   *
+   *  This method will block the event loop (freezing all UI) until
+   *  it is complete, which may be a non-trivial duration.
+   */
+  encryptSync(password) {
+    return encryptKeystoreJsonSync(this.#account(), password);
+  }
+  /**
+   *  The extended key.
+   *
+   *  This key will begin with the prefix ``xpriv`` and can be used to
+   *  reconstruct this HD Node to derive its children.
+   */
+  get extendedKey() {
+    assert(this.depth < 256, "Depth too deep", "UNSUPPORTED_OPERATION", { operation: "extendedKey" });
+    return encodeBase58Check(concat([
+      "0x0488ADE4",
+      zpad2(this.depth, 1),
+      this.parentFingerprint,
+      zpad2(this.index, 4),
+      this.chainCode,
+      concat(["0x00", this.privateKey])
+    ]));
+  }
+  /**
+   *  Returns true if this wallet has a path, providing a Type Guard
+   *  that the path is non-null.
+   */
+  hasPath() {
+    return this.path != null;
+  }
+  /**
+   *  Returns a neutered HD Node, which removes the private details
+   *  of an HD Node.
+   *
+   *  A neutered node has no private key, but can be used to derive
+   *  child addresses and other public data about the HD Node.
+   */
+  neuter() {
+    return new HDNodeVoidWallet(_guard6, this.address, this.publicKey, this.parentFingerprint, this.chainCode, this.path, this.index, this.depth, this.provider);
+  }
+  /**
+   *  Return the child for %%index%%.
+   */
+  deriveChild(_index) {
+    const index = getNumber(_index, "index");
+    assertArgument(index <= 4294967295, "invalid index", "index", index);
+    let path2 = this.path;
+    if (path2) {
+      path2 += "/" + (index & ~HardenedBit);
+      if (index & HardenedBit) {
+        path2 += "'";
+      }
+    }
+    const { IR, IL } = ser_I(index, this.chainCode, this.publicKey, this.privateKey);
+    const ki = new SigningKey(toBeHex((toBigInt(IL) + BigInt(this.privateKey)) % N, 32));
+    return new _HDNodeWallet(_guard6, ki, this.fingerprint, hexlify(IR), path2, index, this.depth + 1, this.mnemonic, this.provider);
+  }
+  /**
+   *  Return the HDNode for %%path%% from this node.
+   */
+  derivePath(path2) {
+    return derivePath(this, path2);
+  }
+  static #fromSeed(_seed, mnemonic) {
+    assertArgument(isBytesLike(_seed), "invalid seed", "seed", "[REDACTED]");
+    const seed = getBytes(_seed, "seed");
+    assertArgument(seed.length >= 16 && seed.length <= 64, "invalid seed", "seed", "[REDACTED]");
+    const I = getBytes(computeHmac("sha512", MasterSecret, seed));
+    const signingKey = new SigningKey(hexlify(I.slice(0, 32)));
+    return new _HDNodeWallet(_guard6, signingKey, "0x00000000", hexlify(I.slice(32)), "m", 0, 0, mnemonic, null);
+  }
+  /**
+   *  Creates a new HD Node from %%extendedKey%%.
+   *
+   *  If the %%extendedKey%% will either have a prefix or ``xpub`` or
+   *  ``xpriv``, returning a neutered HD Node ([[HDNodeVoidWallet]])
+   *  or full HD Node ([[HDNodeWallet) respectively.
+   */
+  static fromExtendedKey(extendedKey) {
+    const bytes3 = toBeArray(decodeBase58(extendedKey));
+    assertArgument(bytes3.length === 82 || encodeBase58Check(bytes3.slice(0, 78)) === extendedKey, "invalid extended key", "extendedKey", "[ REDACTED ]");
+    const depth = bytes3[4];
+    const parentFingerprint = hexlify(bytes3.slice(5, 9));
+    const index = parseInt(hexlify(bytes3.slice(9, 13)).substring(2), 16);
+    const chainCode = hexlify(bytes3.slice(13, 45));
+    const key = bytes3.slice(45, 78);
+    switch (hexlify(bytes3.slice(0, 4))) {
+      // Public Key
+      case "0x0488b21e":
+      case "0x043587cf": {
+        const publicKey = hexlify(key);
+        return new HDNodeVoidWallet(_guard6, computeAddress(publicKey), publicKey, parentFingerprint, chainCode, null, index, depth, null);
+      }
+      // Private Key
+      case "0x0488ade4":
+      case "0x04358394 ":
+        if (key[0] !== 0) {
+          break;
+        }
+        return new _HDNodeWallet(_guard6, new SigningKey(key.slice(1)), parentFingerprint, chainCode, null, index, depth, null, null);
+    }
+    assertArgument(false, "invalid extended key prefix", "extendedKey", "[ REDACTED ]");
+  }
+  /**
+   *  Creates a new random HDNode.
+   */
+  static createRandom(password, path2, wordlist2) {
+    if (password == null) {
+      password = "";
+    }
+    if (path2 == null) {
+      path2 = defaultPath2;
+    }
+    if (wordlist2 == null) {
+      wordlist2 = LangEn.wordlist();
+    }
+    const mnemonic = Mnemonic.fromEntropy(randomBytes2(16), password, wordlist2);
+    return _HDNodeWallet.#fromSeed(mnemonic.computeSeed(), mnemonic).derivePath(path2);
+  }
+  /**
+   *  Create an HD Node from %%mnemonic%%.
+   */
+  static fromMnemonic(mnemonic, path2) {
+    if (!path2) {
+      path2 = defaultPath2;
+    }
+    return _HDNodeWallet.#fromSeed(mnemonic.computeSeed(), mnemonic).derivePath(path2);
+  }
+  /**
+   *  Creates an HD Node from a mnemonic %%phrase%%.
+   */
+  static fromPhrase(phrase, password, path2, wordlist2) {
+    if (password == null) {
+      password = "";
+    }
+    if (path2 == null) {
+      path2 = defaultPath2;
+    }
+    if (wordlist2 == null) {
+      wordlist2 = LangEn.wordlist();
+    }
+    const mnemonic = Mnemonic.fromPhrase(phrase, password, wordlist2);
+    return _HDNodeWallet.#fromSeed(mnemonic.computeSeed(), mnemonic).derivePath(path2);
+  }
+  /**
+   *  Creates an HD Node from a %%seed%%.
+   */
+  static fromSeed(seed) {
+    return _HDNodeWallet.#fromSeed(seed, null);
+  }
+};
+var HDNodeVoidWallet = class _HDNodeVoidWallet extends VoidSigner {
+  /**
+   *  The compressed public key.
+   */
+  publicKey;
+  /**
+   *  The fingerprint.
+   *
+   *  A fingerprint allows quick qay to detect parent and child nodes,
+   *  but developers should be prepared to deal with collisions as it
+   *  is only 4 bytes.
+   */
+  fingerprint;
+  /**
+   *  The parent node fingerprint.
+   */
+  parentFingerprint;
+  /**
+   *  The chaincode, which is effectively a public key used
+   *  to derive children.
+   */
+  chainCode;
+  /**
+   *  The derivation path of this wallet.
+   *
+   *  Since extended keys do not provider full path details, this
+   *  may be ``null``, if instantiated from a source that does not
+   *  enocde it.
+   */
+  path;
+  /**
+   *  The child index of this wallet. Values over ``2 *\* 31`` indicate
+   *  the node is hardened.
+   */
+  index;
+  /**
+   *  The depth of this wallet, which is the number of components
+   *  in its path.
+   */
+  depth;
+  /**
+   *  @private
+   */
+  constructor(guard, address, publicKey, parentFingerprint, chainCode, path2, index, depth, provider) {
+    super(address, provider);
+    assertPrivate(guard, _guard6, "HDNodeVoidWallet");
+    defineProperties(this, { publicKey });
+    const fingerprint = dataSlice(ripemd1602(sha2562(publicKey)), 0, 4);
+    defineProperties(this, {
+      publicKey,
+      fingerprint,
+      parentFingerprint,
+      chainCode,
+      path: path2,
+      index,
+      depth
+    });
+  }
+  connect(provider) {
+    return new _HDNodeVoidWallet(_guard6, this.address, this.publicKey, this.parentFingerprint, this.chainCode, this.path, this.index, this.depth, provider);
+  }
+  /**
+   *  The extended key.
+   *
+   *  This key will begin with the prefix ``xpub`` and can be used to
+   *  reconstruct this neutered key to derive its children addresses.
+   */
+  get extendedKey() {
+    assert(this.depth < 256, "Depth too deep", "UNSUPPORTED_OPERATION", { operation: "extendedKey" });
+    return encodeBase58Check(concat([
+      "0x0488B21E",
+      zpad2(this.depth, 1),
+      this.parentFingerprint,
+      zpad2(this.index, 4),
+      this.chainCode,
+      this.publicKey
+    ]));
+  }
+  /**
+   *  Returns true if this wallet has a path, providing a Type Guard
+   *  that the path is non-null.
+   */
+  hasPath() {
+    return this.path != null;
+  }
+  /**
+   *  Return the child for %%index%%.
+   */
+  deriveChild(_index) {
+    const index = getNumber(_index, "index");
+    assertArgument(index <= 4294967295, "invalid index", "index", index);
+    let path2 = this.path;
+    if (path2) {
+      path2 += "/" + (index & ~HardenedBit);
+      if (index & HardenedBit) {
+        path2 += "'";
+      }
+    }
+    const { IR, IL } = ser_I(index, this.chainCode, this.publicKey, null);
+    const Ki = SigningKey.addPoints(IL, this.publicKey, true);
+    const address = computeAddress(Ki);
+    return new _HDNodeVoidWallet(_guard6, address, Ki, this.fingerprint, hexlify(IR), path2, index, this.depth + 1, this.provider);
+  }
+  /**
+   *  Return the signer for %%path%% from this node.
+   */
+  derivePath(path2) {
+    return derivePath(this, path2);
+  }
+};
+
+// ../../../node_modules/ethers/lib.esm/wallet/json-crowdsale.js
+function isCrowdsaleJson(json) {
+  try {
+    const data = JSON.parse(json);
+    if (data.encseed) {
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+}
+function decryptCrowdsaleJson(json, _password) {
+  const data = JSON.parse(json);
+  const password = getPassword(_password);
+  const address = getAddress(spelunk(data, "ethaddr:string!"));
+  const encseed = looseArrayify(spelunk(data, "encseed:string!"));
+  assertArgument(encseed && encseed.length % 16 === 0, "invalid encseed", "json", json);
+  const key = getBytes(pbkdf2(password, password, 2e3, 32, "sha256")).slice(0, 16);
+  const iv = encseed.slice(0, 16);
+  const encryptedSeed = encseed.slice(16);
+  const aesCbc = new CBC(key, iv);
+  const seed = pkcs7Strip(getBytes(aesCbc.decrypt(encryptedSeed)));
+  let seedHex = "";
+  for (let i = 0; i < seed.length; i++) {
+    seedHex += String.fromCharCode(seed[i]);
+  }
+  return { address, privateKey: id(seedHex) };
+}
+
+// ../../../node_modules/ethers/lib.esm/wallet/wallet.js
+function stall3(duration) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, duration);
+  });
+}
+var Wallet = class _Wallet extends BaseWallet {
+  /**
+   *  Create a new wallet for the private %%key%%, optionally connected
+   *  to %%provider%%.
+   */
+  constructor(key, provider) {
+    if (typeof key === "string" && !key.startsWith("0x")) {
+      key = "0x" + key;
+    }
+    let signingKey = typeof key === "string" ? new SigningKey(key) : key;
+    super(signingKey, provider);
+  }
+  connect(provider) {
+    return new _Wallet(this.signingKey, provider);
+  }
+  /**
+   *  Resolves to a [JSON Keystore Wallet](json-wallets) encrypted with
+   *  %%password%%.
+   *
+   *  If %%progressCallback%% is specified, it will receive periodic
+   *  updates as the encryption process progreses.
+   */
+  async encrypt(password, progressCallback) {
+    const account = { address: this.address, privateKey: this.privateKey };
+    return await encryptKeystoreJson(account, password, { progressCallback });
+  }
+  /**
+   *  Returns a [JSON Keystore Wallet](json-wallets) encryped with
+   *  %%password%%.
+   *
+   *  It is preferred to use the [async version](encrypt) instead,
+   *  which allows a [[ProgressCallback]] to keep the user informed.
+   *
+   *  This method will block the event loop (freezing all UI) until
+   *  it is complete, which may be a non-trivial duration.
+   */
+  encryptSync(password) {
+    const account = { address: this.address, privateKey: this.privateKey };
+    return encryptKeystoreJsonSync(account, password);
+  }
+  static #fromAccount(account) {
+    assertArgument(account, "invalid JSON wallet", "json", "[ REDACTED ]");
+    if ("mnemonic" in account && account.mnemonic && account.mnemonic.locale === "en") {
+      const mnemonic = Mnemonic.fromEntropy(account.mnemonic.entropy);
+      const wallet2 = HDNodeWallet.fromMnemonic(mnemonic, account.mnemonic.path);
+      if (wallet2.address === account.address && wallet2.privateKey === account.privateKey) {
+        return wallet2;
+      }
+      console.log("WARNING: JSON mismatch address/privateKey != mnemonic; fallback onto private key");
+    }
+    const wallet = new _Wallet(account.privateKey);
+    assertArgument(wallet.address === account.address, "address/privateKey mismatch", "json", "[ REDACTED ]");
+    return wallet;
+  }
+  /**
+   *  Creates (asynchronously) a **Wallet** by decrypting the %%json%%
+   *  with %%password%%.
+   *
+   *  If %%progress%% is provided, it is called periodically during
+   *  decryption so that any UI can be updated.
+   */
+  static async fromEncryptedJson(json, password, progress) {
+    let account = null;
+    if (isKeystoreJson(json)) {
+      account = await decryptKeystoreJson(json, password, progress);
+    } else if (isCrowdsaleJson(json)) {
+      if (progress) {
+        progress(0);
+        await stall3(0);
+      }
+      account = decryptCrowdsaleJson(json, password);
+      if (progress) {
+        progress(1);
+        await stall3(0);
+      }
+    }
+    return _Wallet.#fromAccount(account);
+  }
+  /**
+   *  Creates a **Wallet** by decrypting the %%json%% with %%password%%.
+   *
+   *  The [[fromEncryptedJson]] method is preferred, as this method
+   *  will lock up and freeze the UI during decryption, which may take
+   *  some time.
+   */
+  static fromEncryptedJsonSync(json, password) {
+    let account = null;
+    if (isKeystoreJson(json)) {
+      account = decryptKeystoreJsonSync(json, password);
+    } else if (isCrowdsaleJson(json)) {
+      account = decryptCrowdsaleJson(json, password);
+    } else {
+      assertArgument(false, "invalid JSON wallet", "json", "[ REDACTED ]");
+    }
+    return _Wallet.#fromAccount(account);
+  }
+  /**
+   *  Creates a new random [[HDNodeWallet]] using the available
+   *  [cryptographic random source](randomBytes).
+   *
+   *  If there is no crytographic random source, this will throw.
+   */
+  static createRandom(provider) {
+    const wallet = HDNodeWallet.createRandom();
+    if (provider) {
+      return wallet.connect(provider);
+    }
+    return wallet;
+  }
+  /**
+   *  Creates a [[HDNodeWallet]] for %%phrase%%.
+   */
+  static fromPhrase(phrase, provider) {
+    const wallet = HDNodeWallet.fromPhrase(phrase);
+    if (provider) {
+      return wallet.connect(provider);
+    }
+    return wallet;
+  }
+};
+
 // server/config/fx100.ts
 var basefx100Sepolia0312 = {
   name: "fx100Base49b34c09",
@@ -17477,12 +19993,225 @@ var basefx100Sepolia0312 = {
   ]
 };
 
-// server/data/snapshot.ts
-var projectRoot = process.cwd();
+// server/data/controlSurface.ts
 var abiCoder = AbiCoder.defaultAbiCoder();
 var YEAR_SECONDS = 365 * 24 * 60 * 60;
 var FACTOR_DECIMALS = 30;
 var USD_DECIMALS = 30;
+var CONFIG_ABI = [
+  "function setUint(bytes32 baseKey, bytes data, uint256 value)",
+  "function setBool(bytes32 baseKey, bytes data, bool value)"
+];
+function abiKey(name) {
+  return keccak256(abiCoder.encode(["string"], [name]));
+}
+function rawKey(name) {
+  return keccak256(toUtf8Bytes(name));
+}
+function baseKeyFor(control) {
+  return control.hashMode === "raw" ? rawKey(control.baseKeyName) : abiKey(control.baseKeyName);
+}
+function encodeScopeData(control, marketIndex) {
+  if (control.scope === "global") return "0x";
+  if (marketIndex == null) throw new Error("marketIndex is required for market-scoped updates");
+  if (control.scope === "market") {
+    return abiCoder.encode(["uint256"], [BigInt(marketIndex)]);
+  }
+  return abiCoder.encode(["uint256", "bool"], [BigInt(marketIndex), control.fixedBool === true]);
+}
+function normalizeBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on", "enabled"].includes(normalized)) return true;
+  if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
+  throw new Error(`invalid boolean value: ${value}`);
+}
+function normalizeNumberText(value) {
+  if (typeof value === "boolean") {
+    throw new Error("boolean value is not valid for numeric field");
+  }
+  const text = String(value).trim();
+  if (!text) throw new Error("empty numeric value");
+  return text;
+}
+function encodeUintValue(control, value) {
+  const text = normalizeNumberText(value);
+  switch (control.valueEncoding) {
+    case "factor-percent":
+      return parseUnits(text, FACTOR_DECIMALS - 2);
+    case "factor-ratio":
+      return parseUnits(text, FACTOR_DECIMALS);
+    case "annualized-factor-percent":
+      return parseUnits(text, FACTOR_DECIMALS - 2) / BigInt(YEAR_SECONDS);
+    case "usd":
+      return parseUnits(text, USD_DECIMALS);
+    case "minutes-to-seconds":
+      return BigInt(Math.round(Number(text) * 60));
+    case "seconds":
+    case "uint":
+    default:
+      return BigInt(Math.round(Number(text)));
+  }
+}
+function getWriterPrivateKey() {
+  return process.env.FX100_MONITOR_WRITE_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || process.env.TEST_PRIVATE_KEY || "";
+}
+function isWriteEnabled() {
+  return getWriterPrivateKey().length > 0;
+}
+var parameterControlMap = {
+  openFeeRatio: { surface: "parameters", keyName: "FX100Keys.POSITION_FEE_FACTOR", keyPath: "FX100Keys.positionFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "POSITION_FEE_FACTOR", valueEncoding: "factor-percent" },
+  closeFeeRatio: { surface: "parameters", keyName: "FX100Keys.POSITION_FEE_FACTOR", keyPath: "FX100Keys.positionFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "POSITION_FEE_FACTOR", valueEncoding: "factor-percent" },
+  constantSpread: { surface: "parameters", keyName: "FX100Keys.CONSTANT_PRICE_SPREAD", keyPath: "FX100Keys.constantPriceSpreadKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "CONSTANT_PRICE_SPREAD", valueEncoding: "factor-percent" },
+  liquidationFeeFactor: { surface: "parameters", keyName: "FX100Keys.LIQUIDATION_FEE_FACTOR", keyPath: "FX100Keys.liquidationFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "LIQUIDATION_FEE_FACTOR", valueEncoding: "factor-percent" },
+  maxPriceDeviation: { surface: "parameters", keyName: "FX100Keys.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", keyPath: "FX100Keys.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", valueEncoding: "factor-percent" },
+  priceImpactNormal: { surface: "parameters", keyName: "FX100Keys.PRICE_IMPACT_PARAMETER", keyPath: "FX100Keys.priceImpactParameterKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "PRICE_IMPACT_PARAMETER", valueEncoding: "factor-ratio" },
+  priceImpactEmergency: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor from priceImpactNormal; no direct FX100Keys storage slot.", writable: false, writableReason: "Derived display value, not a stored config key.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "PRICE_IMPACT_PARAMETER" },
+  maxPriceImpactSpread: { surface: "parameters", keyName: "FX100Keys.MAX_PRICE_IMPACT_SPREAD", keyPath: "FX100Keys.MAX_PRICE_IMPACT_SPREAD", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_PRICE_IMPACT_SPREAD", valueEncoding: "factor-percent" },
+  positionImpactFactorPositive: { surface: "parameters", keyName: "FX100Keys.POSITION_IMPACT_FACTOR", keyPath: "FX100Keys.positionImpactFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "POSITION_IMPACT_FACTOR", fixedBool: true, valueEncoding: "factor-ratio" },
+  positionImpactFactorNegative: { surface: "parameters", keyName: "FX100Keys.POSITION_IMPACT_FACTOR", keyPath: "FX100Keys.positionImpactFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "POSITION_IMPACT_FACTOR", fixedBool: false, valueEncoding: "factor-ratio" },
+  positionImpactExponentPositive: { surface: "parameters", keyName: "FX100Keys.POSITION_IMPACT_EXPONENT_FACTOR", keyPath: "FX100Keys.positionImpactExponentFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "POSITION_IMPACT_EXPONENT_FACTOR", fixedBool: true, valueEncoding: "factor-ratio" },
+  positionImpactExponentNegative: { surface: "parameters", keyName: "FX100Keys.POSITION_IMPACT_EXPONENT_FACTOR", keyPath: "FX100Keys.positionImpactExponentFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "POSITION_IMPACT_EXPONENT_FACTOR", fixedBool: false, valueEncoding: "factor-ratio" },
+  maxPositionImpactFactorPositive: { surface: "parameters", keyName: "FX100Keys.MAX_POSITION_IMPACT_FACTOR", keyPath: "FX100Keys.maxPositionImpactFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MAX_POSITION_IMPACT_FACTOR", fixedBool: true, valueEncoding: "factor-percent" },
+  maxPositionImpactFactorNegative: { surface: "parameters", keyName: "FX100Keys.MAX_POSITION_IMPACT_FACTOR", keyPath: "FX100Keys.maxPositionImpactFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MAX_POSITION_IMPACT_FACTOR", fixedBool: false, valueEncoding: "factor-percent" },
+  piClampMin: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_SKEW_IMPACT" },
+  piClampMax: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_SKEW_IMPACT" },
+  maxLev: { surface: "parameters", keyName: "Template", keyPath: "Template-only leverage hint. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Monitor currently does not map max leverage to an onchain key.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD" },
+  minPosUsd: { surface: "parameters", keyName: "FX100Keys.MIN_POSITION_SIZE_USD", keyPath: "FX100Keys.minPositionSizeUsdKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_POSITION_SIZE_USD", valueEncoding: "usd" },
+  minCollateralUsd: { surface: "parameters", keyName: "FX100Keys.MIN_COLLATERAL_USD", keyPath: "FX100Keys.minCollateralUsdKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_COLLATERAL_USD", valueEncoding: "usd" },
+  singlePosCap: { surface: "parameters", keyName: "Template", keyPath: "Derived UI ratio. No direct FX100Keys slot.", writable: false, writableReason: "Derived from template only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD" },
+  globalCap: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor; no direct FX100Keys slot.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD" },
+  singlePosCapUsd: { surface: "parameters", keyName: "FX100Keys.MAX_POSITION_SIZE_USD", keyPath: "FX100Keys.maxPositionSizeUsdKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD", valueEncoding: "usd" },
+  globalCapUsd: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor as singlePosCapUsd * 4.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD" },
+  maxOpenInterestFactorLong: { surface: "parameters", keyName: "FX100Keys.MAX_OPEN_INTEREST_FACTOR", keyPath: "FX100Keys.maxOpenInterestFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MAX_OPEN_INTEREST_FACTOR", fixedBool: true, valueEncoding: "factor-percent" },
+  maxOpenInterestFactorShort: { surface: "parameters", keyName: "FX100Keys.MAX_OPEN_INTEREST_FACTOR", keyPath: "FX100Keys.maxOpenInterestFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MAX_OPEN_INTEREST_FACTOR", fixedBool: false, valueEncoding: "factor-percent" },
+  openCooldownSec: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_POSITION_SIZE_USD" },
+  reserveFactor: { surface: "parameters", keyName: "Derived", keyPath: "Derived average of reserveFactorLong and reserveFactorShort.", writable: false, writableReason: "Average display value, not a single storage key.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "RESERVE_FACTOR" },
+  reserveFactorLong: { surface: "parameters", keyName: "FX100Keys.RESERVE_FACTOR", keyPath: "FX100Keys.reserveFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "RESERVE_FACTOR", fixedBool: true, valueEncoding: "factor-percent" },
+  reserveFactorShort: { surface: "parameters", keyName: "FX100Keys.RESERVE_FACTOR", keyPath: "FX100Keys.reserveFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "RESERVE_FACTOR", fixedBool: false, valueEncoding: "factor-percent" },
+  oiReserveFactorLong: { surface: "parameters", keyName: "FX100Keys.OPEN_INTEREST_RESERVE_FACTOR", keyPath: "FX100Keys.openInterestReserveFactorKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "OPEN_INTEREST_RESERVE_FACTOR", fixedBool: true, valueEncoding: "factor-percent" },
+  oiReserveFactorShort: { surface: "parameters", keyName: "FX100Keys.OPEN_INTEREST_RESERVE_FACTOR", keyPath: "FX100Keys.openInterestReserveFactorKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "OPEN_INTEREST_RESERVE_FACTOR", fixedBool: false, valueEncoding: "factor-percent" },
+  minCollateralFactor: { surface: "parameters", keyName: "FX100Keys.MIN_COLLATERAL_FACTOR", keyPath: "FX100Keys.minCollateralFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_COLLATERAL_FACTOR", valueEncoding: "factor-percent" },
+  minCollateralFactorForOIMultiplierLong: { surface: "parameters", keyName: "FX100Keys.MIN_COLLATERAL_FACTOR_FOR_OPEN_INTEREST_MULTIPLIER", keyPath: "FX100Keys.minCollateralFactorForOpenInterestMultiplierKey(marketIndex, true)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MIN_COLLATERAL_FACTOR_FOR_OPEN_INTEREST_MULTIPLIER", fixedBool: true, valueEncoding: "factor-percent" },
+  minCollateralFactorForOIMultiplierShort: { surface: "parameters", keyName: "FX100Keys.MIN_COLLATERAL_FACTOR_FOR_OPEN_INTEREST_MULTIPLIER", keyPath: "FX100Keys.minCollateralFactorForOpenInterestMultiplierKey(marketIndex, false)", writable: true, hashMode: "abi", scope: "market-bool", setter: "uint", baseKeyName: "MIN_COLLATERAL_FACTOR_FOR_OPEN_INTEREST_MULTIPLIER", fixedBool: false, valueEncoding: "factor-percent" },
+  riskThreshold: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_COLLATERAL_FACTOR" },
+  targetRiskRatio: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_COLLATERAL_FACTOR" },
+  fundingFloorApr: { surface: "parameters", keyName: "FX100Keys.FUNDING_FLOOR_FACTOR", keyPath: "FX100Keys.fundingFloorFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "FUNDING_FLOOR_FACTOR", valueEncoding: "annualized-factor-percent" },
+  fundingBaseApr: { surface: "parameters", keyName: "FX100Keys.FUNDING_BASE_FACTOR", keyPath: "FX100Keys.fundingBaseFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "FUNDING_BASE_FACTOR", valueEncoding: "annualized-factor-percent" },
+  fundingEmergencyApr: { surface: "parameters", keyName: "FX100Keys.MAX_FUNDING_FACTOR_PER_SECOND", keyPath: "FX100Keys.maxFundingFactorPerSecondKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_FUNDING_FACTOR_PER_SECOND", valueEncoding: "annualized-factor-percent" },
+  minFundingRate: { surface: "parameters", keyName: "FX100Keys.MIN_FUNDING_FACTOR_PER_SECOND", keyPath: "FX100Keys.minFundingFactorPerSecondKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MIN_FUNDING_FACTOR_PER_SECOND", valueEncoding: "annualized-factor-percent" },
+  maxFundingRate: { surface: "parameters", keyName: "FX100Keys.MAX_FUNDING_FACTOR_PER_SECOND", keyPath: "FX100Keys.maxFundingFactorPerSecondKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_FUNDING_FACTOR_PER_SECOND", valueEncoding: "annualized-factor-percent" },
+  skewEmaMinutes: { surface: "parameters", keyName: "FX100Keys.FUNDING_SKEW_EMA", keyPath: "FX100Keys.fundingSkewEmaKey(marketIndex) [packed runtime state]", writable: false, writableReason: "Packed runtime state; monitor does not edit it directly.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "FUNDING_SKEW_EMA" },
+  skewImpactFactor: { surface: "parameters", keyName: "FX100Keys.SKEW_IMPACT_FACTOR", keyPath: "FX100Keys.SKEW_IMPACT_FACTOR", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SKEW_IMPACT_FACTOR", valueEncoding: "factor-ratio" },
+  skewKNormal: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SKEW_IMPACT_FACTOR" },
+  skewKEmergency: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SKEW_IMPACT_FACTOR" },
+  skewClampLiveMin: { surface: "parameters", keyName: "FX100Keys.MIN_SKEW_IMPACT", keyPath: "FX100Keys.MIN_SKEW_IMPACT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MIN_SKEW_IMPACT", valueEncoding: "factor-ratio" },
+  skewClampLiveMax: { surface: "parameters", keyName: "FX100Keys.MAX_SKEW_IMPACT", keyPath: "FX100Keys.MAX_SKEW_IMPACT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_SKEW_IMPACT", valueEncoding: "factor-ratio" },
+  skewClampMin: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MIN_SKEW_IMPACT" },
+  skewClampMax: { surface: "parameters", keyName: "Template", keyPath: "Template-only display field. No direct FX100Keys slot is wired in monitor.", writable: false, writableReason: "Template field only.", hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_SKEW_IMPACT" },
+  orderbookDepthLong: { surface: "parameters", keyName: "FX100Keys.ASK_ORDER_BOOK_DEPTH", keyPath: "FX100Keys.askOrderBookDepthKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "ASK_ORDER_BOOK_DEPTH", valueEncoding: "usd" },
+  orderbookDepthShort: { surface: "parameters", keyName: "FX100Keys.BID_ORDER_BOOK_DEPTH", keyPath: "FX100Keys.bidOrderBookDepthKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "BID_ORDER_BOOK_DEPTH", valueEncoding: "usd" },
+  minOrderbookDepthLong: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor from orderbookDepthLong * 0.72.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "ASK_ORDER_BOOK_DEPTH" },
+  minOrderbookDepthShort: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor from orderbookDepthShort * 0.72.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "BID_ORDER_BOOK_DEPTH" },
+  maxOrderbookDepthLong: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor from orderbookDepthLong * 1.22.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "ASK_ORDER_BOOK_DEPTH" },
+  maxOrderbookDepthShort: { surface: "parameters", keyName: "Derived", keyPath: "Derived in monitor from orderbookDepthShort * 1.22.", writable: false, writableReason: "Derived display value.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "BID_ORDER_BOOK_DEPTH" },
+  graceEnabled: { surface: "parameters", keyName: "FX100Keys.LIQUIDATION_GRACE_PERIOD_BASE", keyPath: "graceEnabled is inferred from FX100Keys.liquidationGracePeriodBaseKey(marketIndex) > 0.", writable: false, writableReason: "Derived from graceBaseMinutes > 0.", hashMode: "raw", scope: "market", setter: "uint", baseKeyName: "LIQUIDATION_GRACE_PERIOD_BASE" },
+  graceBaseMinutes: { surface: "parameters", keyName: "FX100Keys.LIQUIDATION_GRACE_PERIOD_BASE", keyPath: "FX100Keys.liquidationGracePeriodBaseKey(marketIndex)", writable: true, hashMode: "raw", scope: "market", setter: "uint", baseKeyName: "LIQUIDATION_GRACE_PERIOD_BASE", valueEncoding: "minutes-to-seconds" },
+  graceMaxMinutes: { surface: "parameters", keyName: "FX100Keys.LIQUIDATION_GRACE_PERIOD_TIER_MULTIPLIER", keyPath: "graceMaxMinutes is not a direct stored field; effective grace depends on LIQUIDATION_GRACE_PERIOD_BASE * LIQUIDATION_GRACE_PERIOD_TIER_MULTIPLIER(tier).", writable: false, writableReason: "Computed effective value, not a single config slot.", hashMode: "raw", scope: "market", setter: "uint", baseKeyName: "LIQUIDATION_GRACE_PERIOD_TIER_MULTIPLIER" },
+  lpNavUsd: { surface: "parameters", keyName: "Vault balance", keyPath: "Read from LP vault token balance, not a config key.", writable: false, writableReason: "Observed state, not config.", hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "MAX_POSITION_SIZE_USD" }
+};
+var protocolOpsControlMap = {
+  minOracleSigners: { surface: "protocol-ops", keyName: "FX100Keys.MIN_ORACLE_SIGNERS", keyPath: "FX100Keys.MIN_ORACLE_SIGNERS", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MIN_ORACLE_SIGNERS", valueEncoding: "uint" },
+  minOracleBlockConfirmations: { surface: "protocol-ops", keyName: "FX100Keys.MIN_ORACLE_BLOCK_CONFIRMATIONS", keyPath: "FX100Keys.MIN_ORACLE_BLOCK_CONFIRMATIONS", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MIN_ORACLE_BLOCK_CONFIRMATIONS", valueEncoding: "uint" },
+  maxOraclePriceAgeSec: { surface: "protocol-ops", keyName: "FX100Keys.MAX_ORACLE_PRICE_AGE", keyPath: "FX100Keys.MAX_ORACLE_PRICE_AGE", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_ORACLE_PRICE_AGE", valueEncoding: "seconds" },
+  maxAtomicOraclePriceAgeSec: { surface: "protocol-ops", keyName: "FX100Keys.MAX_ATOMIC_ORACLE_PRICE_AGE", keyPath: "FX100Keys.MAX_ATOMIC_ORACLE_PRICE_AGE", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_ATOMIC_ORACLE_PRICE_AGE", valueEncoding: "seconds" },
+  maxOracleTimestampRangeSec: { surface: "protocol-ops", keyName: "FX100Keys.MAX_ORACLE_TIMESTAMP_RANGE", keyPath: "FX100Keys.MAX_ORACLE_TIMESTAMP_RANGE", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_ORACLE_TIMESTAMP_RANGE", valueEncoding: "seconds" },
+  sequencerGraceDurationSec: { surface: "protocol-ops", keyName: "FX100Keys.SEQUENCER_GRACE_DURATION", keyPath: "FX100Keys.SEQUENCER_GRACE_DURATION", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SEQUENCER_GRACE_DURATION", valueEncoding: "seconds" },
+  maxOracleRefPriceDeviationPct: { surface: "protocol-ops", keyName: "FX100Keys.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", keyPath: "FX100Keys.MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR", valueEncoding: "factor-percent" },
+  createDepositGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.CREATE_DEPOSIT_GAS_LIMIT", keyPath: "FX100Keys.CREATE_DEPOSIT_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "CREATE_DEPOSIT_GAS_LIMIT", valueEncoding: "uint" },
+  depositGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.DEPOSIT_GAS_LIMIT", keyPath: "FX100Keys.DEPOSIT_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "DEPOSIT_GAS_LIMIT", valueEncoding: "uint" },
+  createWithdrawalGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.CREATE_WITHDRAWAL_GAS_LIMIT", keyPath: "FX100Keys.CREATE_WITHDRAWAL_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "CREATE_WITHDRAWAL_GAS_LIMIT", valueEncoding: "uint" },
+  withdrawalGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.WITHDRAWAL_GAS_LIMIT", keyPath: "FX100Keys.WITHDRAWAL_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "WITHDRAWAL_GAS_LIMIT", valueEncoding: "uint" },
+  singleSwapGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.SINGLE_SWAP_GAS_LIMIT", keyPath: "FX100Keys.SINGLE_SWAP_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SINGLE_SWAP_GAS_LIMIT", valueEncoding: "uint" },
+  increaseOrderGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.INCREASE_ORDER_GAS_LIMIT", keyPath: "FX100Keys.INCREASE_ORDER_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "INCREASE_ORDER_GAS_LIMIT", valueEncoding: "uint" },
+  decreaseOrderGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.DECREASE_ORDER_GAS_LIMIT", keyPath: "FX100Keys.DECREASE_ORDER_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "DECREASE_ORDER_GAS_LIMIT", valueEncoding: "uint" },
+  swapOrderGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.SWAP_ORDER_GAS_LIMIT", keyPath: "FX100Keys.SWAP_ORDER_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "SWAP_ORDER_GAS_LIMIT", valueEncoding: "uint" },
+  tokenTransferGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.TOKEN_TRANSFER_GAS_LIMIT", keyPath: "FX100Keys.TOKEN_TRANSFER_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "TOKEN_TRANSFER_GAS_LIMIT", valueEncoding: "uint" },
+  nativeTokenTransferGasLimit: { surface: "protocol-ops", keyName: "FX100Keys.NATIVE_TOKEN_TRANSFER_GAS_LIMIT", keyPath: "FX100Keys.NATIVE_TOKEN_TRANSFER_GAS_LIMIT", writable: true, hashMode: "abi", scope: "global", setter: "uint", baseKeyName: "NATIVE_TOKEN_TRANSFER_GAS_LIMIT", valueEncoding: "uint" },
+  createOrderDisabled: { surface: "protocol-ops", keyName: "FX100Keys.CREATE_ORDER_FEATURE_DISABLED", keyPath: "FX100Keys.CREATE_ORDER_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "CREATE_ORDER_FEATURE_DISABLED", valueEncoding: "bool" },
+  executeOrderDisabled: { surface: "protocol-ops", keyName: "FX100Keys.EXECUTE_ORDER_FEATURE_DISABLED", keyPath: "FX100Keys.EXECUTE_ORDER_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "EXECUTE_ORDER_FEATURE_DISABLED", valueEncoding: "bool" },
+  updateOrderDisabled: { surface: "protocol-ops", keyName: "FX100Keys.UPDATE_ORDER_FEATURE_DISABLED", keyPath: "FX100Keys.UPDATE_ORDER_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "UPDATE_ORDER_FEATURE_DISABLED", valueEncoding: "bool" },
+  cancelOrderDisabled: { surface: "protocol-ops", keyName: "FX100Keys.CANCEL_ORDER_FEATURE_DISABLED", keyPath: "FX100Keys.CANCEL_ORDER_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "CANCEL_ORDER_FEATURE_DISABLED", valueEncoding: "bool" },
+  createDepositDisabled: { surface: "protocol-ops", keyName: "FX100Keys.CREATE_DEPOSIT_FEATURE_DISABLED", keyPath: "FX100Keys.CREATE_DEPOSIT_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "CREATE_DEPOSIT_FEATURE_DISABLED", valueEncoding: "bool" },
+  executeDepositDisabled: { surface: "protocol-ops", keyName: "FX100Keys.EXECUTE_DEPOSIT_FEATURE_DISABLED", keyPath: "FX100Keys.EXECUTE_DEPOSIT_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "EXECUTE_DEPOSIT_FEATURE_DISABLED", valueEncoding: "bool" },
+  createWithdrawalDisabled: { surface: "protocol-ops", keyName: "FX100Keys.CREATE_WITHDRAWAL_FEATURE_DISABLED", keyPath: "FX100Keys.CREATE_WITHDRAWAL_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "CREATE_WITHDRAWAL_FEATURE_DISABLED", valueEncoding: "bool" },
+  executeWithdrawalDisabled: { surface: "protocol-ops", keyName: "FX100Keys.EXECUTE_WITHDRAWAL_FEATURE_DISABLED", keyPath: "FX100Keys.EXECUTE_WITHDRAWAL_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "EXECUTE_WITHDRAWAL_FEATURE_DISABLED", valueEncoding: "bool" },
+  subaccountDisabled: { surface: "protocol-ops", keyName: "FX100Keys.SUBACCOUNT_FEATURE_DISABLED", keyPath: "FX100Keys.SUBACCOUNT_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "SUBACCOUNT_FEATURE_DISABLED", valueEncoding: "bool" },
+  gaslessDisabled: { surface: "protocol-ops", keyName: "FX100Keys.GASLESS_FEATURE_DISABLED", keyPath: "FX100Keys.GASLESS_FEATURE_DISABLED", writable: true, hashMode: "abi", scope: "global", setter: "bool", baseKeyName: "GASLESS_FEATURE_DISABLED", valueEncoding: "bool" }
+};
+function metaFor(control) {
+  if (!control) {
+    return {
+      keyName: "Unmapped",
+      keyPath: "Monitor does not currently map this field to a specific FX100 key.",
+      writable: false,
+      writableReason: "No write mapping available."
+    };
+  }
+  return {
+    keyName: control.keyName,
+    keyPath: control.keyPath,
+    writable: control.writable,
+    writableReason: control.writableReason
+  };
+}
+function decorateParameterDefinition(definition) {
+  return { ...definition, ...metaFor(parameterControlMap[definition.key]) };
+}
+function decorateProtocolOpsDefinition(definition) {
+  return { ...definition, ...metaFor(protocolOpsControlMap[definition.key]) };
+}
+function resolveControl(input) {
+  const control = input.surface === "parameters" ? parameterControlMap[input.fieldKey] : protocolOpsControlMap[input.fieldKey];
+  if (!control) throw new Error(`unmapped field: ${input.fieldKey}`);
+  if (!control.writable) throw new Error(control.writableReason || `${input.fieldKey} is not writable`);
+  return control;
+}
+async function applyMonitoringControlUpdate(input) {
+  const control = resolveControl(input);
+  const privateKey = getWriterPrivateKey();
+  if (!privateKey) {
+    throw new Error("writes are disabled: set FX100_MONITOR_WRITE_PRIVATE_KEY (or DEPLOYER_PRIVATE_KEY) in the monitor runtime");
+  }
+  const provider = new JsonRpcProvider(basefx100Sepolia0312.rpcUrl);
+  const signer = new Wallet(privateKey, provider);
+  const config = new Contract(basefx100Sepolia0312.contracts.CONFIG, CONFIG_ABI, signer);
+  const market = input.symbol ? basefx100Sepolia0312.markets.find((item) => item.symbol === input.symbol) : void 0;
+  if (control.scope !== "global" && !market) {
+    throw new Error(`symbol is required for ${control.surface} field ${input.fieldKey}`);
+  }
+  const data = encodeScopeData(control, market?.marketIndex);
+  const baseKey = baseKeyFor(control);
+  const tx = control.setter === "bool" ? await config.setBool(baseKey, data, normalizeBoolean(input.value)) : await config.setUint(baseKey, data, encodeUintValue(control, input.value));
+  await tx.wait();
+  return {
+    ok: true,
+    txHash: tx.hash,
+    surface: input.surface,
+    fieldKey: input.fieldKey,
+    symbol: input.symbol,
+    keyName: control.keyName,
+    keyPath: control.keyPath
+  };
+}
+
+// server/data/snapshot.ts
+var projectRoot = process.cwd();
+var abiCoder2 = AbiCoder.defaultAbiCoder();
+var YEAR_SECONDS2 = 365 * 24 * 60 * 60;
+var FACTOR_DECIMALS2 = 30;
+var USD_DECIMALS2 = 30;
 var DATA_STORE_ABI = [
   "function getUint(bytes32 key) view returns (uint256)",
   "function getInt(bytes32 key) view returns (int256)",
@@ -17606,7 +20335,7 @@ var assetSeeds = {
   ETH: { referencePriceUsd: 4425 },
   BTC: { referencePriceUsd: 84210 }
 };
-var parameterDefinitions = [
+var rawParameterDefinitions = [
   { category: "Fees", label: "Open Fee Ratio", key: "openFeeRatio", unit: "%" },
   { category: "Fees", label: "Close Fee Ratio", key: "closeFeeRatio", unit: "%" },
   { category: "Fees", label: "Constant Spread", key: "constantSpread", unit: "%" },
@@ -17667,7 +20396,7 @@ var parameterDefinitions = [
   { category: "Grace", label: "Grace Max", key: "graceMaxMinutes", unit: "min" },
   { category: "LP", label: "LP NAV", key: "lpNavUsd", unit: "$" }
 ];
-var protocolOpsDefinitions = [
+var rawProtocolOpsDefinitions = [
   { category: "Oracle", label: "Min Oracle Signers", key: "minOracleSigners", unit: "" },
   { category: "Oracle", label: "Min Block Confirmations", key: "minOracleBlockConfirmations", unit: "" },
   { category: "Oracle", label: "Max Oracle Price Age", key: "maxOraclePriceAgeSec", unit: "s" },
@@ -17727,6 +20456,8 @@ var distributionOpsDefinitions = [
   { category: "Referral Snapshot", label: "Referral Rewards Amount (CORE_USDC)", key: "feeDistributorReferralRewardsAmountCoreUsdc", unit: "$" },
   { category: "Referral Snapshot", label: "Referral Rewards Deposited (CORE_USDC)", key: "feeDistributorReferralRewardsDepositedCoreUsdc", unit: "$" }
 ];
+var parameterDefinitions = rawParameterDefinitions.map(decorateParameterDefinition);
+var protocolOpsDefinitions = rawProtocolOpsDefinitions.map(decorateProtocolOpsDefinition);
 var tierTemplates = {
   "Tier 1": {
     openFeeRatio: 0.02,
@@ -17913,10 +20644,10 @@ var tierTemplates = {
   }
 };
 function keyFromString(value) {
-  return keccak256(abiCoder.encode(["string"], [value]));
+  return keccak256(abiCoder2.encode(["string"], [value]));
 }
 function hashKey(types, values) {
-  return keccak256(abiCoder.encode(types, values));
+  return keccak256(abiCoder2.encode(types, values));
 }
 function marketPropKey(marketIndex, propKey) {
   return hashKey(["bytes32", "bytes32"], [toBeHex(marketIndex, 32), propKey]);
@@ -18092,22 +20823,22 @@ function inferTokenDecimals(symbol, token) {
   return 18;
 }
 function factorToPercent(raw) {
-  return round(Number(formatUnits(raw, FACTOR_DECIMALS)) * 100, 4);
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS2)) * 100, 4);
 }
 function factorToRatio(raw) {
-  return round(Number(formatUnits(raw, FACTOR_DECIMALS)), 6);
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS2)), 6);
 }
 function factorToRatioSigned(raw) {
-  return round(Number(formatUnits(raw, FACTOR_DECIMALS)), 6);
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS2)), 6);
 }
 function usdValue(raw) {
-  return round(Number(formatUnits(raw, USD_DECIMALS)), 2);
+  return round(Number(formatUnits(raw, USD_DECIMALS2)), 2);
 }
 function annualizedFactorPercent(rawPerSecond) {
-  return round(Number(formatUnits(rawPerSecond * BigInt(YEAR_SECONDS), FACTOR_DECIMALS)) * 100, 2);
+  return round(Number(formatUnits(rawPerSecond * BigInt(YEAR_SECONDS2), FACTOR_DECIMALS2)) * 100, 2);
 }
 function factorToPercentSigned(raw) {
-  return round(Number(formatUnits(raw, FACTOR_DECIMALS)) * 100, 4);
+  return round(Number(formatUnits(raw, FACTOR_DECIMALS2)) * 100, 4);
 }
 function decodeUintBits(word, offset, bits) {
   const mask2 = (BigInt(1) << BigInt(bits)) - BigInt(1);
@@ -18554,19 +21285,19 @@ async function loadLiveState() {
       feeDistributorGasLimit: Number(feeDistributorGasLimitRaw),
       feeDistributorChainId: Number(feeDistributorChainIdRaw),
       feeDistributorReadResponseTimestamp: Number(feeDistributorReadResponseTimestampRaw),
-      feeDistributorMaxReferralRewardsWntUsdAmount: round(Number(formatUnits(feeDistributorMaxReferralRewardsWntUsdAmountRaw, USD_DECIMALS)), 2),
+      feeDistributorMaxReferralRewardsWntUsdAmount: round(Number(formatUnits(feeDistributorMaxReferralRewardsWntUsdAmountRaw, USD_DECIMALS2)), 2),
       feeDistributorMaxReferralRewardsWntUsdFactorPct: factorToPercent(feeDistributorMaxReferralRewardsWntUsdFactorRaw),
       feeDistributorMaxReferralRewardsEsgmxAmount: round(Number(formatUnits(feeDistributorMaxReferralRewardsEsgmxAmountRaw, 18)), 4),
-      feeDistributorGmxPriceUsd: round(Number(formatUnits(feeDistributorGmxPriceRaw, USD_DECIMALS)), 2),
-      feeDistributorWntPriceUsd: round(Number(formatUnits(feeDistributorWntPriceRaw, USD_DECIMALS)), 2),
+      feeDistributorGmxPriceUsd: round(Number(formatUnits(feeDistributorGmxPriceRaw, USD_DECIMALS2)), 2),
+      feeDistributorWntPriceUsd: round(Number(formatUnits(feeDistributorWntPriceRaw, USD_DECIMALS2)), 2),
       feeDistributorChainlinkFactorPct: factorToPercent(feeDistributorChainlinkFactorRaw),
       feeDistributorMaxWntAmountFromTreasury: round(Number(formatUnits(feeDistributorMaxWntAmountFromTreasuryRaw, 18)), 4),
       feeDistributorV1FeesWntFactorPct: factorToPercent(feeDistributorV1FeesWntFactorRaw),
       feeDistributorV2FeesWntFactorPct: factorToPercent(feeDistributorV2FeesWntFactorRaw),
       feeDistributorFeeAmountGmxForCurrentChain: round(Number(formatUnits(feeDistributorFeeAmountGmxForCurrentChainRaw, 18)), 4),
       feeDistributorTotalFeeAmountGmx: round(Number(formatUnits(feeDistributorTotalFeeAmountGmxRaw, 18)), 4),
-      feeDistributorFeeAmountUsdV1: round(Number(formatUnits(feeDistributorFeeAmountUsdV1Raw, USD_DECIMALS)), 2),
-      feeDistributorFeeAmountUsdV2: round(Number(formatUnits(feeDistributorFeeAmountUsdV2Raw, USD_DECIMALS)), 2),
+      feeDistributorFeeAmountUsdV1: round(Number(formatUnits(feeDistributorFeeAmountUsdV1Raw, USD_DECIMALS2)), 2),
+      feeDistributorFeeAmountUsdV2: round(Number(formatUnits(feeDistributorFeeAmountUsdV2Raw, USD_DECIMALS2)), 2),
       feeDistributorStakedGmxForCurrentChain: round(Number(formatUnits(feeDistributorStakedGmxForCurrentChainRaw, 18)), 4),
       feeDistributorTotalStakedGmx: round(Number(formatUnits(feeDistributorTotalStakedGmxRaw, 18)), 4),
       feeDistributorBridgeSlippageFactorPct: factorToPercent(feeDistributorBridgeSlippageFactorRaw),
@@ -19254,7 +21985,8 @@ async function buildMonitoringSnapshot() {
       refreshIntervalSec: 30,
       chainId: liveState.chainId,
       blockNumber: liveState.blockNumber,
-      readStatus: liveState.readStatus
+      readStatus: liveState.readStatus,
+      writeEnabled: isWriteEnabled()
     },
     dashboard,
     markets,
@@ -19341,6 +22073,13 @@ async function refreshSnapshot(force = false) {
 async function getSnapshotPayload(force = false) {
   return refreshSnapshot(force);
 }
+async function updateControlPayload(input) {
+  const result = await applyMonitoringControlUpdate(input);
+  cachedSnapshot = null;
+  cachedAt = 0;
+  const snapshot = await refreshSnapshot(true);
+  return { ...result, snapshot };
+}
 async function getHistoryPayload() {
   const snapshot = await refreshSnapshot();
   const history = await loadHistory(snapshot.environment.name);
@@ -19360,7 +22099,8 @@ function getHealthPayload() {
 export {
   getHealthPayload,
   getHistoryPayload,
-  getSnapshotPayload
+  getSnapshotPayload,
+  updateControlPayload
 };
 /*! Bundled license information:
 
@@ -19375,4 +22115,7 @@ export {
 @noble/curves/esm/_shortw_utils.js:
 @noble/curves/esm/secp256k1.js:
   (*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
+
+aes-js/lib.esm/aes.js:
+  (*! MIT License. Copyright 2015-2022 Richard Moore <me@ricmoo.com>. See LICENSE.txt. *)
 */

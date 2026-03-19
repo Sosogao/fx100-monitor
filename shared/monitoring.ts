@@ -19,6 +19,7 @@ export interface EnvironmentInfo {
   chainId?: number;
   blockNumber?: number;
   readStatus: "live" | "fallback" | "mixed";
+  writeEnabled?: boolean;
 }
 
 export interface MarketSnapshot {
@@ -169,6 +170,10 @@ export interface ParameterFieldDefinition {
   label: string;
   category: string;
   unit: string;
+  keyName?: string;
+  keyPath?: string;
+  writable?: boolean;
+  writableReason?: string;
 }
 
 export interface ParameterValueSet {
@@ -201,6 +206,10 @@ export interface ProtocolOpsFieldDefinition {
   label: string;
   category: string;
   unit: string;
+  keyName?: string;
+  keyPath?: string;
+  writable?: boolean;
+  writableReason?: string;
 }
 
 export interface ProtocolOpsSnapshot {
@@ -242,6 +251,23 @@ export interface MonitoringHistoryPoint {
     openInterestUsd: number;
     realizedVol1hPct: number;
   }>;
+}
+
+export interface MonitoringControlUpdateInput {
+  surface: "parameters" | "protocol-ops";
+  fieldKey: string;
+  symbol?: string;
+  value: string | number | boolean;
+}
+
+export interface MonitoringControlUpdateResult {
+  ok: true;
+  txHash: string;
+  surface: "parameters" | "protocol-ops";
+  fieldKey: string;
+  symbol?: string;
+  keyName: string;
+  keyPath: string;
 }
 
 export interface MonitoringSnapshot {

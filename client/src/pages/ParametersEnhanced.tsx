@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMonitoring } from "@/contexts/MonitoringContext";
+import type { MonitoringControlUpdateInput } from "@shared/monitoring";
 
 type ParameterValueSource = "onchain" | "config-fallback" | "seeded-analytics" | "template" | "derived";
 
@@ -54,10 +56,17 @@ function sourceLabel(source: ParameterValueSource) {
   }
 }
 
+function promptValue(currentValue: string | number | boolean) {
+  const next = window.prompt("Set new value", String(currentValue));
+  if (next == null) return null;
+  return next.trim();
+}
+
 export default function ParametersEnhanced() {
-  const { snapshot, loading, error, refresh } = useMonitoring();
+  const { snapshot, loading, error, refresh, updateControl } = useMonitoring();
   const [search, setSearch] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const parameters = snapshot?.parameters ?? [];
   const filtered = useMemo(
@@ -65,6 +74,30 @@ export default function ParametersEnhanced() {
     [parameters, search],
   );
   const selected = useMemo(() => filtered.find((item) => item.symbol === (selectedSymbol ?? filtered[0]?.symbol)) ?? null, [filtered, selectedSymbol]);
+
+  const saveField = async (fieldKey: string, currentValue: string | number | boolean) => {
+    if (!selected) return;
+    const raw = promptValue(currentValue);
+    if (raw == null) return;
+
+    const payload: MonitoringControlUpdateInput = {
+      surface: "parameters",
+      symbol: selected.symbol,
+      fieldKey,
+      value: typeof currentValue === "boolean" ? raw : Number(raw),
+    };
+
+    setSavingKey(`${selected.symbol}:${fieldKey}`);
+    try {
+      const result = await updateControl(payload);
+      toast.success(`${fieldKey} updated`, { description: `${result.keyName} -> ${result.txHash.slice(0, 10)}...` });
+      await refresh();
+    } catch (updateError) {
+      toast.error(updateError instanceof Error ? updateError.message : "update failed");
+    } finally {
+      setSavingKey(null);
+    }
+  };
 
   if (loading && !snapshot) {
     return <div className="text-sm text-muted-foreground">Loading parameter book...</div>;
@@ -94,7 +127,7 @@ export default function ParametersEnhanced() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Risk Parameters</h2>
-          <p className="text-muted-foreground">Tier templates and market overrides are now served from the same backend snapshot as the rest of the monitor.</p>
+          <p className="text-muted-foreground">Per-market risk controls now show the actual FX100 key mapping. Direct edits are only enabled for fields backed by a writable onchain key.</p>
         </div>
         <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10" onClick={() => void refresh()}>
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -102,11 +135,16 @@ export default function ParametersEnhanced() {
         </Button>
       </div>
 
+      <div className="rounded border border-border bg-background/40 p-4 text-sm text-muted-foreground">
+        <div>Write path: {snapshot.environment.writeEnabled ? "enabled" : "disabled"}</div>
+        <div>If disabled, set <code>FX100_MONITOR_WRITE_PRIVATE_KEY</code> or a compatible deployer key in the monitor runtime.</div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="bg-card/50 border-primary/20 tech-border">
           <CardHeader>
             <CardTitle className="text-primary">Market Parameter Book</CardTitle>
-            <CardDescription>Search a market and inspect the drift from baseline to current and recommended posture.</CardDescription>
+            <CardDescription>Search a market and inspect baseline/current/recommended values plus the underlying FX100 key mapping.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative">
@@ -156,29 +194,53 @@ export default function ParametersEnhanced() {
                         </tr>
                       </thead>
                       <tbody>
-                        {defs.map((definition) => (
-                          <tr key={definition.key} className="border-b border-border/60 last:border-b-0 align-top">
-                            <td className="px-4 py-3 text-muted-foreground">{definition.label}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>
-                              <div className="mt-1 flex justify-end">
-                                <Badge variant="outline" className={sourceBadge(selected.baselineSources[definition.key])}>{sourceLabel(selected.baselineSources[definition.key])}</Badge>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right text-foreground">
-                              <div>{formatValue(selected.current[definition.key], definition.unit)}</div>
-                              <div className="mt-1 flex justify-end">
-                                <Badge variant="outline" className={sourceBadge(selected.currentSources[definition.key])}>{sourceLabel(selected.currentSources[definition.key])}</Badge>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right text-primary">
-                              <div>{formatValue(selected.recommended[definition.key], definition.unit)}</div>
-                              <div className="mt-1 flex justify-end">
-                                <Badge variant="outline" className={sourceBadge(selected.recommendedSources[definition.key])}>{sourceLabel(selected.recommendedSources[definition.key])}</Badge>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {defs.map((definition) => {
+                          const writable = definition.writable === true && snapshot.environment.writeEnabled === true;
+                          const value = selected.current[definition.key];
+                          const rowSavingKey = `${selected.symbol}:${definition.key}`;
+                          return (
+                            <tr key={definition.key} className="border-b border-border/60 last:border-b-0 align-top">
+                              <td className="px-4 py-3 text-muted-foreground">
+                                <div>{definition.label}</div>
+                                <div className="mt-1 text-xs font-mono text-primary">{definition.keyName ?? "Unmapped"}</div>
+                                <div className="mt-1 text-xs text-muted-foreground/80">{definition.keyPath}</div>
+                                {!definition.writable && definition.writableReason ? <div className="mt-1 text-xs text-orange-400">{definition.writableReason}</div> : null}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div>{formatValue(selected.baseline[definition.key], definition.unit)}</div>
+                                <div className="mt-1 flex justify-end">
+                                  <Badge variant="outline" className={sourceBadge(selected.baselineSources[definition.key])}>{sourceLabel(selected.baselineSources[definition.key])}</Badge>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right text-foreground">
+                                <div>{formatValue(value, definition.unit)}</div>
+                                <div className="mt-1 flex justify-end gap-2">
+                                  <Badge variant="outline" className={sourceBadge(selected.currentSources[definition.key])}>{sourceLabel(selected.currentSources[definition.key])}</Badge>
+                                  {definition.writable ? <Badge variant="outline" className="border-primary/30 text-primary">editable</Badge> : null}
+                                </div>
+                                {definition.writable ? (
+                                  <div className="mt-2 flex justify-end">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={!writable || savingKey === rowSavingKey}
+                                      onClick={() => void saveField(definition.key, value)}
+                                    >
+                                      {savingKey === rowSavingKey ? "Saving..." : "Edit"}
+                                    </Button>
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="px-4 py-3 text-right text-primary">
+                                <div>{formatValue(selected.recommended[definition.key], definition.unit)}</div>
+                                <div className="mt-1 flex justify-end">
+                                  <Badge variant="outline" className={sourceBadge(selected.recommendedSources[definition.key])}>{sourceLabel(selected.recommendedSources[definition.key])}</Badge>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
