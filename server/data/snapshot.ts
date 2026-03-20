@@ -57,6 +57,10 @@ const ORACLE_ABI = [
   "function getPrimaryPrice(address token) view returns ((uint256 min,uint256 max))",
 ];
 
+const READER_ABI = [
+  "function getMarketInfo(address dataStore, ((uint256 min,uint256 max) indexTokenPrice,(uint256 min,uint256 max) collateralTokenPrice) prices, uint256 marketIndex) view returns (((uint256 marketIndex,address vault,address indexToken,address collateralToken) market,((uint256 long,uint256 short) negativeFundingFeePerSize,(uint256 long,uint256 short) positiveFundingFeePerSize) baseFunding,(int256 longFundingFactorPerSecond,int256 shortFundingFactorPerSecond,(uint256 long,uint256 short) negativeFundingFeePerSizeDelta,(uint256 long,uint256 short) positiveFundingFeePerSizeDelta,(uint40 lastTime,uint24 sampleInterval,int96 lastValue,int96 lastEmaValue) skewEMA,int256 positionPaysLp) nextFunding,bool isDisabled))",
+];
+
 const dataStoreInterface = new Interface(DATA_STORE_ABI);
 
 const DATA_KEYS = {
@@ -212,6 +216,8 @@ interface OnchainMarketState {
   maxFundingAprPct: number;
   fundingUpdatedAt?: number;
   fundingUpdatedAgoMinutes?: number;
+  longFundingAprPct?: number;
+  shortFundingAprPct?: number;
   longNegativeFundingFeePerSizePct: number;
   longPositiveFundingFeePerSizePct: number;
   shortNegativeFundingFeePerSizePct: number;
@@ -1145,6 +1151,23 @@ async function loadLiveState(): Promise<LiveReadState> {
           readOracleMidPrice(provider, indexToken),
         ]);
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
+        let longFundingAprPct: number | undefined;
+        let shortFundingAprPct: number | undefined;
+        try {
+          const reader = new Contract(basefx100Sepolia0312.contracts.READER, READER_ABI, provider);
+          const marketInfo = await reader.getMarketInfo(
+            basefx100Sepolia0312.contracts.DATA_STORE,
+            {
+              indexTokenPrice: { min: oraclePriceUsd, max: oraclePriceUsd },
+              collateralTokenPrice: { min: BigInt("1000000000000000000000000000000"), max: BigInt("1000000000000000000000000000000") },
+            },
+            BigInt(marketIndex),
+          );
+          const longRaw = BigInt(marketInfo.nextFunding.longFundingFactorPerSecond);
+          const shortRaw = BigInt(marketInfo.nextFunding.shortFundingFactorPerSecond);
+          longFundingAprPct = annualizedFactorPercent(longRaw < BigInt(0) ? -longRaw : longRaw);
+          shortFundingAprPct = annualizedFactorPercent(shortRaw < BigInt(0) ? -shortRaw : shortRaw);
+        } catch {}
 
         return {
           symbol,
@@ -1198,6 +1221,8 @@ async function loadLiveState(): Promise<LiveReadState> {
           fundingUpdatedAgoMinutes: block?.timestamp && Number(fundingUpdatedAtRaw) > 0
             ? round((block.timestamp - Number(fundingUpdatedAtRaw)) / 60, 2)
             : undefined,
+          longFundingAprPct,
+          shortFundingAprPct,
           longNegativeFundingFeePerSizePct: factorToPercentSigned(longNegativeFundingFeePerSizeRaw),
           longPositiveFundingFeePerSizePct: factorToPercentSigned(longPositiveFundingFeePerSizeRaw),
           shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
@@ -1462,6 +1487,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         maxFundingAprPct: 140,
         fundingUpdatedAt: undefined,
         fundingUpdatedAgoMinutes: undefined,
+        longFundingAprPct: undefined,
+        shortFundingAprPct: undefined,
         longNegativeFundingFeePerSizePct: 0,
         longPositiveFundingFeePerSizePct: 0,
         shortNegativeFundingFeePerSizePct: 0,
@@ -1543,6 +1570,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
     const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
+    const directLongFundingAprPct = marketState.longFundingAprPct ?? fundingBenchmarkAprPct;
+    const directShortFundingAprPct = marketState.shortFundingAprPct ?? fundingBenchmarkAprPct;
     const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
     const externalFundingAprPct = externalVenue?.fundingAprPct ?? fundingBenchmarkAprPct;
     const externalFundingSource = externalVenue?.fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark";
@@ -1582,7 +1611,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const alertLevel = analytics.alertLevel;
     const realizedVol1hPct = analytics.realizedVol1hPct;
     const volLimitPct = analytics.volLimitPct;
-    const fundingAprPct = fundingBenchmarkAprPct;
+    const fundingAprPct = round(Math.max(directLongFundingAprPct, directShortFundingAprPct), 2);
 
     return {
       symbol: marketState.symbol,
@@ -1613,6 +1642,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
+      longFundingAprPct: directLongFundingAprPct,
+      shortFundingAprPct: directShortFundingAprPct,
       fundingSignalSource: hasLiveFundingState ? "live-funding-state" : "runtime-benchmark",
       externalFundingAprPct,
       externalFundingSource,
@@ -1705,10 +1736,10 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
       tone: markets.some((market) => market.poolUtilizationPct > 80) ? "critical" : "good",
     },
     {
-      label: "Weighted Funding APR",
-      value: `${round(weightedFunding, 1)}%`,
-      delta: `${markets.filter((market) => market.fundingAprPct > market.externalFundingAprPct).length}/${markets.length} above ${basefx100Sepolia0312.externalVenue.name}`,
-      tone: weightedFunding > 20 ? "warning" : "good",
+      label: "Funding Markets Above Venue",
+      value: `${markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length}/${markets.length}`,
+      delta: markets.length > 0 ? `Long ${round(Math.max(...markets.map((market) => market.longFundingAprPct)), 2)}% · Short ${round(Math.max(...markets.map((market) => market.shortFundingAprPct)), 2)}% max` : `No active markets`,
+      tone: markets.some((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct) ? "warning" : "good",
     },
     {
       label: "Oracle Divergence",
@@ -1764,7 +1795,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
     const poolStress = market.poolUtilizationPct;
 
     let category = "Funding divergence";
-    let description = `Funding APR at ${round(market.fundingAprPct, 1)}% is ${fundingSpread >= 0 ? "above" : "below"} ${market.externalVenueName} baseline ${round(market.externalFundingAprPct, 1)}% (${market.externalFundingSource === "live-venue" ? "live venue" : "runtime benchmark"}).`;
+    let description = `Funding max side APR at ${round(market.fundingAprPct, 1)}% (long ${round(market.longFundingAprPct, 1)}% / short ${round(market.shortFundingAprPct, 1)}%) is ${fundingSpread >= 0 ? "above" : "below"} ${market.externalVenueName} baseline ${round(market.externalFundingAprPct, 1)}% (${market.externalFundingSource === "live-venue" ? "live venue" : "runtime benchmark"}).`;
     let metricValue = Math.abs(fundingSpread);
     let thresholdValue = 5;
     let signalSource = market.externalFundingSource === "live-venue" ? market.externalVenueName : "runtime benchmark";
@@ -1841,7 +1872,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
         category: "Funding stale",
         assetSymbol: market.symbol,
         title: `${market.symbol} Funding State Stale`,
-        description: `Funding state has not updated for ${market.fundingUpdatedAgoMinutes.toFixed(1)} minutes. Current funding base is ${round(market.fundingBaseAprPct, 2)}% APR with skew EMA ${market.fundingSkewEmaPct.toFixed(2)}%.`,
+        description: `Funding state has not updated for ${market.fundingUpdatedAgoMinutes.toFixed(1)} minutes. Reader next funding is long ${round(market.longFundingAprPct, 2)}% / short ${round(market.shortFundingAprPct, 2)}% APR with skew EMA ${market.fundingSkewEmaPct.toFixed(2)}%.`,
         triggeredAt: `${(index + 1) * 8 + 4}m ago`,
         metricValue: market.fundingUpdatedAgoMinutes,
         thresholdValue: 120,

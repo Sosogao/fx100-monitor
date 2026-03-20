@@ -51,6 +51,8 @@ export interface MarketSnapshot {
   oiChange24hPct: number;
   fundingRateHourlyPct: number;
   fundingAprPct: number;
+  longFundingAprPct: number;
+  shortFundingAprPct: number;
   fundingSignalSource: "live-funding-state" | "runtime-benchmark";
   externalFundingAprPct: number;
   externalFundingSource: ExternalFundingSource;

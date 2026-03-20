@@ -377,8 +377,14 @@ export default function MonitoringEnhanced() {
                     <div className="mt-1 text-lg font-semibold">{selected.oiChange24hPct.toFixed(1)}%</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
-                    <div className="text-xs text-muted-foreground">Venue Funding Gap</div>
-                    <div className="mt-1 text-lg font-semibold">{(selected.fundingAprPct - selected.externalFundingAprPct).toFixed(1)}%</div>
+                    <div className="text-xs text-muted-foreground">Long Funding APR</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.longFundingAprPct.toFixed(2)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Direct Reader next funding for the long side.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Short Funding APR</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.shortFundingAprPct.toFixed(2)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Direct Reader next funding for the short side.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Venue Price Gap</div>
@@ -386,7 +392,7 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Funding Source</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "live-funding-state" ? "protocol live state" : "runtime benchmark"}</div>
+                    <div className="mt-1 text-lg font-semibold">protocol Reader nextFunding</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Source</div>
@@ -406,11 +412,11 @@ export default function MonitoringEnhanced() {
                     <div className="mt-1 text-lg font-semibold">{selected.fundingSkewEmaPct.toFixed(2)}% / {selected.fundingSkewSampleIntervalMinutes.toFixed(0)} min</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
-                    <div className="text-xs text-muted-foreground">Long Funding Accrual</div>
+                    <div className="text-xs text-muted-foreground">Long Funding Snapshot Per Size</div>
                     <div className="mt-1 text-lg font-semibold">-{selected.longNegativeFundingFeePerSizePct.toFixed(4)}% / +{selected.longPositiveFundingFeePerSizePct.toFixed(4)}%</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
-                    <div className="text-xs text-muted-foreground">Short Funding Accrual</div>
+                    <div className="text-xs text-muted-foreground">Short Funding Snapshot Per Size</div>
                     <div className="mt-1 text-lg font-semibold">-{selected.shortNegativeFundingFeePerSizePct.toFixed(4)}% / +{selected.shortPositiveFundingFeePerSizePct.toFixed(4)}%</div>
                   </div>
                 </div>

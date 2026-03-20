@@ -414,7 +414,7 @@ export default function Dashboard() {
                   <div>
                     <div className="font-semibold">{market.displayName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {market.tier} · funding {market.fundingAprPct.toFixed(1)}% APR vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · skew {market.skewPct.toFixed(1)}%
+                      {market.tier} · funding long {market.longFundingAprPct.toFixed(1)}% / short {market.shortFundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · skew {market.skewPct.toFixed(1)}%
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
