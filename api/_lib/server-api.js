@@ -21573,8 +21573,8 @@ async function loadLiveState() {
           );
           const longRaw = BigInt(marketInfo.nextFunding.longFundingFactorPerSecond);
           const shortRaw = BigInt(marketInfo.nextFunding.shortFundingFactorPerSecond);
-          longFundingAprPct = annualizedFactorPercent(longRaw < BigInt(0) ? -longRaw : longRaw);
-          shortFundingAprPct = annualizedFactorPercent(shortRaw < BigInt(0) ? -shortRaw : shortRaw);
+          longFundingAprPct = annualizedFactorPercent(longRaw);
+          shortFundingAprPct = annualizedFactorPercent(shortRaw);
         } catch {
         }
         return {
