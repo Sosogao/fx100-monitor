@@ -21248,6 +21248,12 @@ function watchStatusFromAlert(level) {
       return "Normal";
   }
 }
+function tokenAmountToDisplay(value) {
+  return value / TOKEN_PRECISION;
+}
+function tokenAmountToUsd(value, priceUsd) {
+  return tokenAmountToDisplay(value) * priceUsd;
+}
 function round(value, decimals = 2) {
   return Number(value.toFixed(decimals));
 }
@@ -21894,11 +21900,14 @@ function buildMarkets(liveState) {
     const skewPct = hasUsableLiveOi ? round(longSharePct - (100 - longSharePct), 2) : 0;
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0 ? round((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd) * 100, 2) : 0;
     const effectiveSkewPct = hasUsableLiveOi ? skewPct : Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct;
-    const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
-    const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
+    const longOpenInterestTokens = tokenAmountToDisplay(marketState.longOiTokens);
+    const shortOpenInterestTokens = tokenAmountToDisplay(marketState.shortOiTokens);
+    const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
+    const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(tokenAmountToUsd(marketState.longOiTokens, oraclePrice), 2) : 0;
+    const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(tokenAmountToUsd(marketState.shortOiTokens, oraclePrice), 2) : 0;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
     const fallbackOpenInterestUsd = poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
-    const openInterestUsd = hasUsableLiveOi ? round(totalOiTokens * oraclePrice, 2) : fallbackOpenInterestUsd;
+    const openInterestUsd = hasUsableLiveOi ? round(tokenAmountToUsd(totalOiTokens, oraclePrice), 2) : fallbackOpenInterestUsd;
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round(openInterestUsd / openInterestCapacityUsd * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round(openInterestUsd / poolCollateralAmount * 100, 2) : 0;
@@ -21954,8 +21963,8 @@ function buildMarkets(liveState) {
       oiSource: oiCounterStatus === "usable" ? "live-position-counters" : "pool-depth-inferred",
       oiCounterStatus,
       oiCounterReason,
-      longOpenInterestTokens: marketState.longOiTokens,
-      shortOpenInterestTokens: marketState.shortOiTokens,
+      longOpenInterestTokens,
+      shortOpenInterestTokens,
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,

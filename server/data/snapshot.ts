@@ -802,6 +802,15 @@ function watchStatusFromAlert(level: AlertLevel): string {
   }
 }
 
+
+function tokenAmountToDisplay(value: number): number {
+  return value / TOKEN_PRECISION;
+}
+
+function tokenAmountToUsd(value: number, priceUsd: number): number {
+  return tokenAmountToDisplay(value) * priceUsd;
+}
+
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
 }
@@ -1514,14 +1523,17 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const effectiveSkewPct = hasUsableLiveOi
       ? skewPct
       : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct);
-    const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
-    const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
+    const longOpenInterestTokens = tokenAmountToDisplay(marketState.longOiTokens);
+    const shortOpenInterestTokens = tokenAmountToDisplay(marketState.shortOiTokens);
+    const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
+    const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(tokenAmountToUsd(marketState.longOiTokens, oraclePrice), 2) : 0;
+    const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(tokenAmountToUsd(marketState.shortOiTokens, oraclePrice), 2) : 0;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
     const fallbackOpenInterestUsd = poolCollateralAmount > 0
       ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2)
       : 0;
     const openInterestUsd = hasUsableLiveOi
-      ? round(totalOiTokens * oraclePrice, 2)
+      ? round(tokenAmountToUsd(totalOiTokens, oraclePrice), 2)
       : fallbackOpenInterestUsd;
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0
       ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd
@@ -1594,8 +1606,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       oiSource: oiCounterStatus === "usable" ? "live-position-counters" : "pool-depth-inferred",
       oiCounterStatus,
       oiCounterReason,
-      longOpenInterestTokens: marketState.longOiTokens,
-      shortOpenInterestTokens: marketState.shortOiTokens,
+      longOpenInterestTokens,
+      shortOpenInterestTokens,
       oiChange24hPct,
       fundingRateHourlyPct: round(fundingAprPct / (365 * 24), 4),
       fundingAprPct,
