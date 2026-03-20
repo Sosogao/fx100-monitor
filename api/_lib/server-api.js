@@ -19903,9 +19903,9 @@ var Wallet = class _Wallet extends BaseWallet {
 
 // server/config/fx100.ts
 var basefx100Sepolia0312 = {
-  name: "fx100Base49b34c09",
+  name: "fx100Base2",
   network: "Tenderly Virtual TestNet (Base fork)",
-  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/49b34c09-5fb0-4814-9440-4231f0018ac5",
+  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/57d381a9-4eeb-4a10-84e0-f8476c92af14",
   wssUrl: "",
   externalVenue: {
     name: "Binance Futures",
@@ -19916,14 +19916,14 @@ var basefx100Sepolia0312 = {
     ]
   },
   contracts: {
-    DATA_STORE: "0x553Ab8A1997988562E4E6e72967FB59605128940",
-    EVENT_EMITTER: "0x76b896AEfC1502ce08497198106d3929438Dc0E4",
-    ORACLE: "0x556e8470aA40bBF78fB7F67Bcae6A3046c84106d",
-    ORDER_HANDLER: "0x1Caf6d94Ed52f3EFf497Aa9DDF4abf4756ef02B9",
-    CONFIG: "0x9b9Ffe0E87f1f90A78790A0589CF5EBb3C101E9E",
-    MARKET_FACTORY: "0xC3e142E47cFDecC442D1D526ECC000A60F1c4721",
-    LP_VAULT_USDC: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
-    MOCK_ORACLE_PROVIDER: "0x08B98cD8b1aeaA5763520399f6C7852f28C0d1Fc"
+    DATA_STORE: "0xE825D76E50254906499F257b80f92DF75Cd85a6C",
+    EVENT_EMITTER: "0x59f6f1Aa4A088bEFD83b425fBDbc5180AB54B627",
+    ORACLE: "0x50769e53c4F265c17e7Dc41ac72f0861095D6Fb2",
+    ORDER_HANDLER: "0x08B98cD8b1aeaA5763520399f6C7852f28C0d1Fc",
+    CONFIG: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
+    MARKET_FACTORY: "0x4aBEE607da8c3f0D460FaFe33A8Ecb4BFE62d48A",
+    LP_VAULT_USDC: "0xedB74C75f1450C747b648291df0Bc7a68D26b118",
+    MOCK_ORACLE_PROVIDER: "0x26c1F78e4fDb3CC66B5FC89DF82BC49f9a7dBc5d"
   },
   operators: {
     deployer: "0xb5eb16b6dF444c07309fd5f5635BA21Ef30F8cA2",
@@ -19931,8 +19931,8 @@ var basefx100Sepolia0312 = {
   },
   tokens: {
     WETH: "0x4200000000000000000000000000000000000006",
-    WBTC: "0xA852Af33A6Dd6dF18714A3Cdad6c8928560Dfa31",
-    CORE_USDC: "0xbE0772586DCf3AD9121F638908c34948B0Bd2A3f"
+    WBTC: "0x9b9Ffe0E87f1f90A78790A0589CF5EBb3C101E9E",
+    CORE_USDC: "0x556e8470aA40bBF78fB7F67Bcae6A3046c84106d"
   },
   globals: {
     maxOracleRefPriceDeviationFactor: 0.02,
@@ -19961,8 +19961,8 @@ var basefx100Sepolia0312 = {
       referencePriceUsd: 2200,
       marketIndex: 1,
       indexToken: "0x4200000000000000000000000000000000000006",
-      collateralToken: "0xbE0772586DCf3AD9121F638908c34948B0Bd2A3f",
-      vault: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
+      collateralToken: "0x556e8470aA40bBF78fB7F67Bcae6A3046c84106d",
+      vault: "0xedB74C75f1450C747b648291df0Bc7a68D26b118",
       minPositionSizeUsd: 10,
       maxPositionSizeUsd: 6e6,
       positionFeeFactor: 2e-4,
@@ -19978,9 +19978,9 @@ var basefx100Sepolia0312 = {
       tier: "Tier 1",
       referencePriceUsd: 72e3,
       marketIndex: 2,
-      indexToken: "0xA852Af33A6Dd6dF18714A3Cdad6c8928560Dfa31",
-      collateralToken: "0xbE0772586DCf3AD9121F638908c34948B0Bd2A3f",
-      vault: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
+      indexToken: "0x9b9Ffe0E87f1f90A78790A0589CF5EBb3C101E9E",
+      collateralToken: "0x556e8470aA40bBF78fB7F67Bcae6A3046c84106d",
+      vault: "0xedB74C75f1450C747b648291df0Bc7a68D26b118",
       minPositionSizeUsd: 10,
       maxPositionSizeUsd: 8e6,
       positionFeeFactor: 2e-4,
@@ -20060,6 +20060,458 @@ function getWriterPrivateKey() {
 function isWriteEnabled() {
   return getWriterPrivateKey().length > 0;
 }
+var parameterResearchMap = {
+  openFeeRatio: {
+    businessMeaning: "Base trading fee on position increases/decreases.",
+    riskControlled: "Revenue capture and trader friction.",
+    formula: "positionFeeAmount = sizeDeltaUsd * positionFeeFactor / collateralTokenPrice.min",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Strong unit and integration fee coverage."
+  },
+  closeFeeRatio: {
+    businessMeaning: "Base trading fee on close/decrease path.",
+    riskControlled: "Revenue capture and close-path friction.",
+    formula: "positionFeeAmount = sizeDeltaUsd * positionFeeFactor / collateralTokenPrice.min",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Strong unit and integration fee coverage."
+  },
+  constantSpread: {
+    businessMeaning: "Fixed spread floor added to every position impact quote.",
+    riskControlled: "Prevents zero-friction trading and covers baseline adverse selection.",
+    formula: "dynamicSpread = constantSpread + depthSpread + skewSpread",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered in price/impact tests."
+  },
+  liquidationFeeFactor: {
+    businessMeaning: "Percentage liquidation fee charged on liquidated notional.",
+    riskControlled: "Keeper incentives and liquidation-cost internalization.",
+    formula: "liquidationFeeUsd = sizeInUsd * liquidationFeeFactor",
+    runtimeStatus: "Active in liquidation pricing path.",
+    testStatus: "Fork liquidation tests cover fee application."
+  },
+  maxPriceDeviation: {
+    businessMeaning: "Maximum allowed deviation versus reference/oracle price.",
+    riskControlled: "Oracle corruption and stale/manipulated price protection.",
+    formula: "abs(primary - ref) / ref <= MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR",
+    runtimeStatus: "Active in oracle validation path.",
+    testStatus: "Direct oracle validation tests exist."
+  },
+  priceImpactNormal: {
+    businessMeaning: "Core curvature control for depth-based price impact.",
+    riskControlled: "Large-order slippage and adverse inventory taking.",
+    formula: "depthSpread = min(max(exp(orderSize / (depth * priceImpactParameter)) - 1, orderSize / depth) / 100, MAX_PRICE_IMPACT_SPREAD)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage."
+  },
+  maxPriceImpactSpread: {
+    businessMeaning: "Global cap on the depth spread component.",
+    riskControlled: "Runaway spread on extreme order sizes or bad depth values.",
+    formula: "depthSpread <= MAX_PRICE_IMPACT_SPREAD",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Direct cap tests exist."
+  },
+  positionImpactFactorPositive: {
+    businessMeaning: "Positive-side position impact scalar.",
+    riskControlled: "Controls how much favorable impact can be credited.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification."
+  },
+  positionImpactFactorNegative: {
+    businessMeaning: "Negative-side position impact scalar.",
+    riskControlled: "Controls how aggressively unfavorable impact is applied.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification."
+  },
+  positionImpactExponentPositive: {
+    businessMeaning: "Exponent control for positive impact curve.",
+    riskControlled: "Shape of favorable impact scaling.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification."
+  },
+  positionImpactExponentNegative: {
+    businessMeaning: "Exponent control for negative impact curve.",
+    riskControlled: "Shape of unfavorable impact scaling.",
+    formula: "Configured key exists; direct live runtime use was not confirmed in current pricing path.",
+    runtimeStatus: "Config-visible; live usage not confirmed in current traced path.",
+    testStatus: "Needs direct targeted verification."
+  },
+  maxPositionImpactFactorPositive: {
+    businessMeaning: "Cap on positive position impact.",
+    riskControlled: "Limits overly favorable execution credit.",
+    formula: "maxPositiveImpactUsd = sizeDeltaUsd * maxPositionImpactFactor",
+    runtimeStatus: "Active in live pricing path.",
+    testStatus: "Needs more direct cap-focused tests."
+  },
+  maxPositionImpactFactorNegative: {
+    businessMeaning: "Cap on negative position impact.",
+    riskControlled: "Limits worst-case negative impact applied per trade.",
+    formula: "Negative impact is clamped by the configured max factor.",
+    runtimeStatus: "Active in live pricing path.",
+    testStatus: "Needs more direct cap-focused tests."
+  },
+  minPosUsd: {
+    businessMeaning: "Minimum allowed position size.",
+    riskControlled: "Dust positions, griefing, and uneconomic keeper work.",
+    formula: "sizeDeltaUsd >= MIN_POSITION_SIZE_USD",
+    runtimeStatus: "Active in open/modify validation.",
+    testStatus: "Covered in position/risk tests."
+  },
+  minCollateralUsd: {
+    businessMeaning: "Minimum required collateral in USD terms.",
+    riskControlled: "Under-collateralized tiny positions.",
+    formula: "collateralUsd >= MIN_COLLATERAL_USD",
+    runtimeStatus: "Active in collateral validation.",
+    testStatus: "Covered in collateral/risk tests."
+  },
+  singlePosCapUsd: {
+    businessMeaning: "Maximum allowed position size per market side/trade path.",
+    riskControlled: "Single-position concentration risk.",
+    formula: "sizeInUsd <= MAX_POSITION_SIZE_USD",
+    runtimeStatus: "Active in open/increase validation.",
+    testStatus: "Covered in position-limit tests."
+  },
+  maxOpenInterestFactorLong: {
+    businessMeaning: "TVL-scaled soft OI cap for the long side.",
+    riskControlled: "Crowded-side growth and pool over-utilization.",
+    formula: "cumulativeOpenCosts <= poolUsd * maxOpenInterestFactor",
+    runtimeStatus: "Active in reserve/capacity checks.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  maxOpenInterestFactorShort: {
+    businessMeaning: "TVL-scaled soft OI cap for the short side.",
+    riskControlled: "Crowded-side growth and pool over-utilization.",
+    formula: "cumulativeOpenCosts <= poolUsd * maxOpenInterestFactor",
+    runtimeStatus: "Active in reserve/capacity checks.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  reserveFactorLong: {
+    businessMeaning: "Generic reserve ceiling for long-side usage.",
+    riskControlled: "Pool over-reservation.",
+    formula: "reservedUsd <= poolUsd * reserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  reserveFactorShort: {
+    businessMeaning: "Generic reserve ceiling for short-side usage.",
+    riskControlled: "Pool over-reservation.",
+    formula: "reservedUsd <= poolUsd * reserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  oiReserveFactorLong: {
+    businessMeaning: "OI-specific reserve ceiling for long-side usage.",
+    riskControlled: "Open-interest-specific reserve overuse.",
+    formula: "reservedUsd <= poolUsd * openInterestReserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  oiReserveFactorShort: {
+    businessMeaning: "OI-specific reserve ceiling for short-side usage.",
+    riskControlled: "Open-interest-specific reserve overuse.",
+    formula: "reservedUsd <= poolUsd * openInterestReserveFactor",
+    runtimeStatus: "Active in reserve validation.",
+    testStatus: "Direct risk-flow coverage exists."
+  },
+  minCollateralFactor: {
+    businessMeaning: "Base minimum collateral factor for the market.",
+    riskControlled: "Leverage floor and insolvency risk.",
+    formula: "collateralRatio >= MIN_COLLATERAL_FACTOR",
+    runtimeStatus: "Active in position validation.",
+    testStatus: "Covered in collateral and risk tests."
+  },
+  minCollateralFactorForOIMultiplierLong: {
+    businessMeaning: "Dynamic collateral-factor add-on for long OI growth.",
+    riskControlled: "Crowding-sensitive leverage tightening.",
+    formula: "minCollateralFactorForOI = nextOpenInterest * multiplierFactor",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Runtime confirmed; direct dedicated test still thin."
+  },
+  minCollateralFactorForOIMultiplierShort: {
+    businessMeaning: "Dynamic collateral-factor add-on for short OI growth.",
+    riskControlled: "Crowding-sensitive leverage tightening.",
+    formula: "minCollateralFactorForOI = nextOpenInterest * multiplierFactor",
+    runtimeStatus: "Active in live execution.",
+    testStatus: "Runtime confirmed; direct dedicated test still thin."
+  },
+  fundingFloorApr: {
+    businessMeaning: "Minimum baseline annualized funding floor.",
+    riskControlled: "Funding curve collapsing to zero when some carry is required.",
+    formula: "f_long = clamp(floor + base * skew, min, max)",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists."
+  },
+  fundingBaseApr: {
+    businessMeaning: "Base annualized funding sensitivity to skew.",
+    riskControlled: "Keeps imbalanced sides paying carry.",
+    formula: "f_long = clamp(floor + base * skew, min, max)",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists."
+  },
+  fundingEmergencyApr: {
+    businessMeaning: "Upper annualized funding bound.",
+    riskControlled: "Runaway funding values and unstable carry.",
+    formula: "funding <= MAX_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists."
+  },
+  minFundingRate: {
+    businessMeaning: "Lower funding bound.",
+    riskControlled: "Unbounded negative funding.",
+    formula: "funding >= MIN_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists."
+  },
+  maxFundingRate: {
+    businessMeaning: "Upper funding bound.",
+    riskControlled: "Unbounded positive funding.",
+    formula: "funding <= MAX_FUNDING_FACTOR_PER_SECOND",
+    runtimeStatus: "Active in funding engine.",
+    testStatus: "Funding unit/integration coverage exists."
+  },
+  skewEmaMinutes: {
+    businessMeaning: "Packed runtime state for skew EMA sampling horizon.",
+    riskControlled: "Funding responsiveness versus noise.",
+    formula: "Stored packed state; not a direct editable config field in monitor.",
+    runtimeStatus: "Runtime state, not direct config.",
+    testStatus: "Covered indirectly via funding flow."
+  },
+  skewImpactFactor: {
+    businessMeaning: "Skew-sensitive spread/impact scalar.",
+    riskControlled: "Crowded-side execution pricing.",
+    formula: "rawSkewImpact = skewFactor * (nextLong - nextShort) / (nextLong + nextShort)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests."
+  },
+  skewClampLiveMin: {
+    businessMeaning: "Lower clamp for skew impact.",
+    riskControlled: "Prevents skew impact from collapsing too low.",
+    formula: "skewImpact = clamp(rawSkewImpact, MIN_SKEW_IMPACT, MAX_SKEW_IMPACT)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests."
+  },
+  skewClampLiveMax: {
+    businessMeaning: "Upper clamp for skew impact.",
+    riskControlled: "Prevents skew impact from exploding too high.",
+    formula: "skewImpact = clamp(rawSkewImpact, MIN_SKEW_IMPACT, MAX_SKEW_IMPACT)",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Covered with OI/impact tests."
+  },
+  orderbookDepthLong: {
+    businessMeaning: "Depth parameter used for long-open depth impact.",
+    riskControlled: "Slippage on long-side entry.",
+    formula: "depthSpread uses ASK_ORDER_BOOK_DEPTH for long-open path",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage."
+  },
+  orderbookDepthShort: {
+    businessMeaning: "Depth parameter used for short/open-close counterpart path.",
+    riskControlled: "Slippage on the non-long-open branch.",
+    formula: "depthSpread uses BID_ORDER_BOOK_DEPTH outside long-open path",
+    runtimeStatus: "Active in live price-impact path.",
+    testStatus: "Strong direct price-impact coverage."
+  },
+  graceBaseMinutes: {
+    businessMeaning: "Base post-open liquidation grace window.",
+    riskControlled: "Immediate post-entry liquidation risk.",
+    formula: "graceSeconds = baseGraceSeconds * tierMultiplier / 1e18",
+    runtimeStatus: "Active on increase/open path.",
+    testStatus: "Covered in fork and integration liquidation tests."
+  }
+};
+var protocolOpsResearchMap = {
+  minOracleSigners: {
+    businessMeaning: "Minimum signer quorum for oracle attestations.",
+    riskControlled: "Single-signer or weak-consensus oracle acceptance.",
+    formula: "Validation requires signer count >= MIN_ORACLE_SIGNERS.",
+    runtimeStatus: "Config-visible; not fully traced in this pass.",
+    testStatus: "Needs focused signer-path verification."
+  },
+  minOracleBlockConfirmations: {
+    businessMeaning: "Minimum block confirmations before accepting oracle data.",
+    riskControlled: "Reorg and low-confirmation oracle reads.",
+    formula: "Validation requires confirmation count >= MIN_ORACLE_BLOCK_CONFIRMATIONS.",
+    runtimeStatus: "Config-visible; not fully traced in this pass.",
+    testStatus: "Needs focused confirmation-path verification."
+  },
+  maxOraclePriceAgeSec: {
+    businessMeaning: "Maximum age for standard oracle prices.",
+    riskControlled: "Stale pricing.",
+    formula: "validatedPrice.timestamp + maxAge >= block.timestamp",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist."
+  },
+  maxAtomicOraclePriceAgeSec: {
+    businessMeaning: "Maximum age for atomic-operation oracle prices.",
+    riskControlled: "Stale atomic pricing.",
+    formula: "Atomic path uses MAX_ATOMIC_ORACLE_PRICE_AGE instead of normal max age.",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist."
+  },
+  maxOracleTimestampRangeSec: {
+    businessMeaning: "Maximum timestamp spread across oracle inputs.",
+    riskControlled: "Cross-token timestamp incoherence.",
+    formula: "maxTimestamp - minTimestamp <= MAX_ORACLE_TIMESTAMP_RANGE",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist."
+  },
+  sequencerGraceDurationSec: {
+    businessMeaning: "Delay after sequencer recovery before trusting oracle updates.",
+    riskControlled: "Bad L2 oracle reads immediately after sequencer outage.",
+    formula: "Oracle path rejects prices until sequencer grace has elapsed.",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Integration coverage exists."
+  },
+  maxOracleRefPriceDeviationPct: {
+    businessMeaning: "Maximum allowed deviation versus reference price.",
+    riskControlled: "Manipulated or corrupted primary prices.",
+    formula: "abs(primary - ref) / ref <= MAX_ORACLE_REF_PRICE_DEVIATION_FACTOR",
+    runtimeStatus: "Active in oracle validation.",
+    testStatus: "Direct oracle validation tests exist."
+  },
+  createDepositGasLimit: {
+    businessMeaning: "Keeper gas budget for create-deposit path.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  depositGasLimit: {
+    businessMeaning: "Keeper gas budget for deposit execution.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  createWithdrawalGasLimit: {
+    businessMeaning: "Keeper gas budget for create-withdrawal path.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  withdrawalGasLimit: {
+    businessMeaning: "Keeper gas budget for withdrawal execution.",
+    riskControlled: "Underfunded keeper execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  singleSwapGasLimit: {
+    businessMeaning: "Keeper gas budget for a single swap path.",
+    riskControlled: "Underfunded swap execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  increaseOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for increase-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  decreaseOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for decrease-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  swapOrderGasLimit: {
+    businessMeaning: "Keeper gas budget for swap-order execution.",
+    riskControlled: "Underfunded order execution.",
+    formula: "Used in gas budgeting / quoted execution fee path.",
+    runtimeStatus: "Config-visible; not fully traced here.",
+    testStatus: "Needs path-specific confirmation."
+  },
+  tokenTransferGasLimit: {
+    businessMeaning: "Gas allowance for ERC20 transfer helper path.",
+    riskControlled: "Token transfer OOG failures.",
+    formula: "Transfer helper uses configured gas limit when sending tokens.",
+    runtimeStatus: "Operationally important; ERC20-specific use not fully traced here.",
+    testStatus: "Fork failures showed this matters; direct path coverage still thin."
+  },
+  nativeTokenTransferGasLimit: {
+    businessMeaning: "Gas allowance for native-token/WNT transfer helper path.",
+    riskControlled: "Native transfer OOG failures.",
+    formula: "Transfer helper uses configured gas limit when sending native token.",
+    runtimeStatus: "Clearly active.",
+    testStatus: "Fork execution failures confirmed operational importance."
+  },
+  createOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Widely covered indirectly via handler flows."
+  },
+  executeOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Widely covered indirectly via handler flows."
+  },
+  updateOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order update path.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Handler-path coverage exists indirectly."
+  },
+  cancelOrderDisabled: {
+    businessMeaning: "Emergency kill switch for order cancel path.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Handler-path coverage exists indirectly."
+  },
+  createDepositDisabled: {
+    businessMeaning: "Emergency kill switch for deposit creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage."
+  },
+  executeDepositDisabled: {
+    businessMeaning: "Emergency kill switch for deposit execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage."
+  },
+  createWithdrawalDisabled: {
+    businessMeaning: "Emergency kill switch for withdrawal creation.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage."
+  },
+  executeWithdrawalDisabled: {
+    businessMeaning: "Emergency kill switch for withdrawal execution.",
+    riskControlled: "Operational blast radius during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Indirect handler-path coverage."
+  },
+  subaccountDisabled: {
+    businessMeaning: "Emergency kill switch for subaccount flows.",
+    riskControlled: "Integration / delegation surface during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Active feature flag.",
+    testStatus: "Subaccount router path confirms runtime usage."
+  },
+  gaslessDisabled: {
+    businessMeaning: "Emergency kill switch for gasless flow.",
+    riskControlled: "Relay / gasless integration surface during incidents.",
+    formula: "FeatureUtils.validateFeature(...) gates path on this boolean.",
+    runtimeStatus: "Config-visible operational control.",
+    testStatus: "Needs more focused direct tests."
+  }
+};
 var parameterControlMap = {
   openFeeRatio: { surface: "parameters", keyName: "FX100Keys.POSITION_FEE_FACTOR", keyPath: "FX100Keys.positionFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "POSITION_FEE_FACTOR", valueEncoding: "factor-percent" },
   closeFeeRatio: { surface: "parameters", keyName: "FX100Keys.POSITION_FEE_FACTOR", keyPath: "FX100Keys.positionFeeFactorKey(marketIndex)", writable: true, hashMode: "abi", scope: "market", setter: "uint", baseKeyName: "POSITION_FEE_FACTOR", valueEncoding: "factor-percent" },
@@ -20167,10 +20619,10 @@ function metaFor(control) {
   };
 }
 function decorateParameterDefinition(definition) {
-  return { ...definition, ...metaFor(parameterControlMap[definition.key]) };
+  return { ...definition, ...metaFor(parameterControlMap[definition.key]), ...parameterResearchMap[definition.key] };
 }
 function decorateProtocolOpsDefinition(definition) {
-  return { ...definition, ...metaFor(protocolOpsControlMap[definition.key]) };
+  return { ...definition, ...metaFor(protocolOpsControlMap[definition.key]), ...protocolOpsResearchMap[definition.key] };
 }
 function resolveControl(input) {
   const control = input.surface === "parameters" ? parameterControlMap[input.fieldKey] : protocolOpsControlMap[input.fieldKey];
@@ -20426,35 +20878,35 @@ var rawProtocolOpsDefinitions = [
   { category: "Feature Flags", label: "Gasless Disabled", key: "gaslessDisabled", unit: "" }
 ];
 var distributionOpsDefinitions = [
-  { category: "Multichain", label: "Read Channel", key: "multichainReadChannel", unit: "" },
-  { category: "Multichain", label: "Peer For Read Channel", key: "multichainPeerForReadChannel", unit: "" },
-  { category: "Multichain", label: "Confirmations For Read Channel", key: "multichainConfirmationsForReadChannel", unit: "" },
-  { category: "Fee Distributor", label: "Distribution Day", key: "feeDistributorDistributionDay", unit: "" },
-  { category: "Fee Distributor", label: "Distribution Timestamp", key: "feeDistributorDistributionTimestamp", unit: "s" },
-  { category: "Fee Distributor", label: "State", key: "feeDistributorState", unit: "" },
-  { category: "Fee Distributor", label: "Max Read Response Delay", key: "feeDistributorMaxReadResponseDelaySec", unit: "s" },
-  { category: "Fee Distributor", label: "Gas Limit", key: "feeDistributorGasLimit", unit: "gas" },
-  { category: "Fee Distributor", label: "Fee Distributor Chain ID", key: "feeDistributorChainId", unit: "" },
-  { category: "Fee Distributor", label: "Read Response Timestamp", key: "feeDistributorReadResponseTimestamp", unit: "s" },
-  { category: "Fee Distributor", label: "Max WNT Referral Rewards USD", key: "feeDistributorMaxReferralRewardsWntUsdAmount", unit: "$" },
-  { category: "Fee Distributor", label: "Max WNT Referral Rewards Factor", key: "feeDistributorMaxReferralRewardsWntUsdFactorPct", unit: "%" },
-  { category: "Fee Distributor", label: "Max ESGMX Referral Rewards", key: "feeDistributorMaxReferralRewardsEsgmxAmount", unit: "token" },
-  { category: "Fee Distributor", label: "GMX Price", key: "feeDistributorGmxPriceUsd", unit: "$" },
-  { category: "Fee Distributor", label: "WNT Price", key: "feeDistributorWntPriceUsd", unit: "$" },
-  { category: "Fee Distributor", label: "Chainlink Factor", key: "feeDistributorChainlinkFactorPct", unit: "%" },
-  { category: "Fee Distributor", label: "Max WNT From Treasury", key: "feeDistributorMaxWntAmountFromTreasury", unit: "token" },
-  { category: "Fee Distributor", label: "V1 Fees in WNT Factor", key: "feeDistributorV1FeesWntFactorPct", unit: "%" },
-  { category: "Fee Distributor", label: "V2 Fees in WNT Factor", key: "feeDistributorV2FeesWntFactorPct", unit: "%" },
-  { category: "Current Chain", label: "Fee Amount GMX", key: "feeDistributorFeeAmountGmxForCurrentChain", unit: "token" },
-  { category: "Current Chain", label: "Total Fee Amount GMX", key: "feeDistributorTotalFeeAmountGmx", unit: "token" },
-  { category: "Current Chain", label: "Fee Amount USD V1", key: "feeDistributorFeeAmountUsdV1", unit: "$" },
-  { category: "Current Chain", label: "Fee Amount USD V2", key: "feeDistributorFeeAmountUsdV2", unit: "$" },
-  { category: "Current Chain", label: "Staked GMX", key: "feeDistributorStakedGmxForCurrentChain", unit: "token" },
-  { category: "Current Chain", label: "Total Staked GMX", key: "feeDistributorTotalStakedGmx", unit: "token" },
-  { category: "Current Chain", label: "Bridge Slippage Factor", key: "feeDistributorBridgeSlippageFactorPct", unit: "%" },
-  { category: "Current Chain", label: "LayerZero Chain ID", key: "feeDistributorLayerZeroChainId", unit: "" },
-  { category: "Referral Snapshot", label: "Referral Rewards Amount (CORE_USDC)", key: "feeDistributorReferralRewardsAmountCoreUsdc", unit: "$" },
-  { category: "Referral Snapshot", label: "Referral Rewards Deposited (CORE_USDC)", key: "feeDistributorReferralRewardsDepositedCoreUsdc", unit: "$" }
+  { category: "Multichain", label: "Read Channel", key: "multichainReadChannel", unit: "", businessMeaning: "Current multichain read channel identifier.", riskControlled: "Cross-chain read routing correctness.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Multichain", label: "Peer For Read Channel", key: "multichainPeerForReadChannel", unit: "", businessMeaning: "Configured peer for the active read channel.", riskControlled: "Cross-chain counterpart integrity.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Multichain", label: "Confirmations For Read Channel", key: "multichainConfirmationsForReadChannel", unit: "", businessMeaning: "Required confirmations for the active read channel.", riskControlled: "Reorg / premature cross-chain acceptance.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Distribution Day", key: "feeDistributorDistributionDay", unit: "", businessMeaning: "Current fee-distribution day index.", riskControlled: "Distribution scheduling coherence.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Distribution Timestamp", key: "feeDistributorDistributionTimestamp", unit: "s", businessMeaning: "Distribution timestamp anchor.", riskControlled: "Distribution cadence drift.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "State", key: "feeDistributorState", unit: "", businessMeaning: "FeeDistributor state machine value.", riskControlled: "Distribution stuck-state detection.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Max Read Response Delay", key: "feeDistributorMaxReadResponseDelaySec", unit: "s", businessMeaning: "Maximum tolerated delay for read responses.", riskControlled: "Stale multichain distribution data.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Gas Limit", key: "feeDistributorGasLimit", unit: "gas", businessMeaning: "Execution gas budget for distributor actions.", riskControlled: "Underfunded distributor execution.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Fee Distributor Chain ID", key: "feeDistributorChainId", unit: "", businessMeaning: "Primary chain id used by the fee distributor context.", riskControlled: "Distribution routing to wrong chain.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Read Response Timestamp", key: "feeDistributorReadResponseTimestamp", unit: "s", businessMeaning: "Timestamp of last read-response update.", riskControlled: "Silent data staleness.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Max WNT Referral Rewards USD", key: "feeDistributorMaxReferralRewardsWntUsdAmount", unit: "$", businessMeaning: "Absolute cap on WNT referral rewards in USD terms.", riskControlled: "Over-distribution of referral rewards.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Max WNT Referral Rewards Factor", key: "feeDistributorMaxReferralRewardsWntUsdFactorPct", unit: "%", businessMeaning: "Factor cap for WNT referral rewards.", riskControlled: "Referral payout inflation.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Max ESGMX Referral Rewards", key: "feeDistributorMaxReferralRewardsEsgmxAmount", unit: "token", businessMeaning: "Absolute cap on ESGMX referral rewards.", riskControlled: "Referral payout inflation.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "GMX Price", key: "feeDistributorGmxPriceUsd", unit: "$", businessMeaning: "GMX price snapshot used by the distributor.", riskControlled: "Distribution math using stale/wrong token price.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "WNT Price", key: "feeDistributorWntPriceUsd", unit: "$", businessMeaning: "WNT price snapshot used by the distributor.", riskControlled: "Distribution math using stale/wrong token price.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Chainlink Factor", key: "feeDistributorChainlinkFactorPct", unit: "%", businessMeaning: "Chainlink adjustment factor in distributor pricing.", riskControlled: "Mispriced distributor conversions.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "Max WNT From Treasury", key: "feeDistributorMaxWntAmountFromTreasury", unit: "token", businessMeaning: "Treasury draw cap in WNT terms.", riskControlled: "Treasury drain by distribution process.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "V1 Fees in WNT Factor", key: "feeDistributorV1FeesWntFactorPct", unit: "%", businessMeaning: "Share of V1 fees represented in WNT terms.", riskControlled: "Fee conversion / distribution skew.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Fee Distributor", label: "V2 Fees in WNT Factor", key: "feeDistributorV2FeesWntFactorPct", unit: "%", businessMeaning: "Share of V2 fees represented in WNT terms.", riskControlled: "Fee conversion / distribution skew.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Fee Amount GMX", key: "feeDistributorFeeAmountGmxForCurrentChain", unit: "token", businessMeaning: "Current-chain GMX fee bucket.", riskControlled: "Current-chain distribution accounting mismatch.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Total Fee Amount GMX", key: "feeDistributorTotalFeeAmountGmx", unit: "token", businessMeaning: "Total GMX fee inventory tracked by distributor.", riskControlled: "Fee-accounting mismatch.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Fee Amount USD V1", key: "feeDistributorFeeAmountUsdV1", unit: "$", businessMeaning: "Current-chain V1 fee amount in USD.", riskControlled: "Cross-version fee-accounting mismatch.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Fee Amount USD V2", key: "feeDistributorFeeAmountUsdV2", unit: "$", businessMeaning: "Current-chain V2 fee amount in USD.", riskControlled: "Cross-version fee-accounting mismatch.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Staked GMX", key: "feeDistributorStakedGmxForCurrentChain", unit: "token", businessMeaning: "Current-chain staked GMX amount.", riskControlled: "Reward-share accounting mismatch.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Total Staked GMX", key: "feeDistributorTotalStakedGmx", unit: "token", businessMeaning: "Global staked GMX amount tracked by distributor.", riskControlled: "Reward-share accounting mismatch.", runtimeStatus: "Active Keys2 scalar.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "Bridge Slippage Factor", key: "feeDistributorBridgeSlippageFactorPct", unit: "%", businessMeaning: "Bridge slippage budget applied on this chain.", riskControlled: "Bridge loss / under-provisioning during transfers.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Current Chain", label: "LayerZero Chain ID", key: "feeDistributorLayerZeroChainId", unit: "", businessMeaning: "LayerZero chain id bound to current chain.", riskControlled: "Cross-chain routing mismatch.", runtimeStatus: "Active Keys2 chain-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Referral Snapshot", label: "Referral Rewards Amount (CORE_USDC)", key: "feeDistributorReferralRewardsAmountCoreUsdc", unit: "$", businessMeaning: "Tracked referral rewards amount for CORE_USDC.", riskControlled: "Referral accounting mismatch.", runtimeStatus: "Active Keys2 address-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." },
+  { category: "Referral Snapshot", label: "Referral Rewards Deposited (CORE_USDC)", key: "feeDistributorReferralRewardsDepositedCoreUsdc", unit: "$", businessMeaning: "Already deposited referral rewards for CORE_USDC.", riskControlled: "Double-counting or under-counting referral deposits.", runtimeStatus: "Active Keys2 address-scoped value.", testStatus: "Operator-visible; no dedicated monitor-side test." }
 ];
 var parameterDefinitions = rawParameterDefinitions.map(decorateParameterDefinition);
 var protocolOpsDefinitions = rawProtocolOpsDefinitions.map(decorateProtocolOpsDefinition);
@@ -21243,6 +21695,8 @@ async function loadLiveState() {
       {
         title: "Authorized Originator Probes",
         description: "Probe-only view for configured operator addresses. The MULTICHAIN_AUTHORIZED_ORIGINATORS mapping is not enumerable onchain.",
+        businessMeaning: "Checks whether expected operators are authorized as multichain originators.",
+        runtimeStatus: "Probe-only registry view backed by onchain mapping reads.",
         rows: [
           { label: "Deployer authorized", value: deployerAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.deployer },
           { label: "Order keeper authorized", value: orderKeeperAuthorizedRaw, source: "onchain", detail: basefx100Sepolia0312.operators.orderKeeper }
@@ -21251,6 +21705,8 @@ async function loadLiveState() {
       {
         title: "Fee Distributor Chain Registry",
         description: "Enumerable chain IDs stored under FEE_DISTRIBUTOR_CHAIN_ID.",
+        businessMeaning: "Shows which destination/source chains are registered in fee-distribution state.",
+        runtimeStatus: "Enumerable registry pulled directly from onchain array state.",
         rows: feeDistributorChainIdsRaw.map((chainIdValue, index) => ({
           label: `Registered chain ${index + 1}`,
           value: Number(chainIdValue),
@@ -21261,6 +21717,8 @@ async function loadLiveState() {
       {
         title: "Fee Distributor Keeper Registry",
         description: "Parallel arrays from FEE_DISTRIBUTOR_KEEPER_COSTS showing keeper addresses, target balances, and v2 flags.",
+        businessMeaning: "Shows keeper funding/target-balance registry used by the fee distributor.",
+        runtimeStatus: "Enumerable registry pulled directly from onchain arrays.",
         rows: keeperCostAddresses.map((keeper, index) => ({
           label: `Keeper ${index + 1}`,
           value: keeper,
@@ -21271,6 +21729,8 @@ async function loadLiveState() {
       {
         title: "Fee Distributor Address Probes",
         description: "Configured probes for FEE_DISTRIBUTOR_ADDRESS_INFO and FEE_DISTRIBUTOR_ADDRESS_INFO_FOR_CHAIN. Names remain configurable because the mapping is not enumerable onchain.",
+        businessMeaning: "Probe-only view for named distributor address mappings.",
+        runtimeStatus: "Probe-only because address-name mapping is not enumerable onchain.",
         rows: []
       }
     ];

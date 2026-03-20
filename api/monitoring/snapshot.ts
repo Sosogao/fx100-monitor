@@ -12,7 +12,7 @@ function degradedSnapshot(error: unknown) {
   return {
     generatedAt,
     environment: {
-      name: "fx100Base49b34c09",
+      name: "fx100Base2",
       network: "Tenderly Virtual TestNet (Base fork)",
       mode: "demo-backed-api",
       source: `handler fallback: ${message}`,

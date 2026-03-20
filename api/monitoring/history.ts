@@ -13,6 +13,6 @@ export default async function handler(_req: any, res: any) {
     sendJson(res, 200, payload);
   } catch (error) {
     console.error("history route failed", error);
-    sendJson(res, 200, { ok: true, environment: "fx100Base49b34c09", points: [] });
+    sendJson(res, 200, { ok: true, environment: "fx100Base2", points: [] });
   }
 }
