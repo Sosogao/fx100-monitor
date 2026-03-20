@@ -464,7 +464,7 @@ Reason:
 
 - monitoring now points at the fresh Base fork deployment documented in `Fresh fork 全量部署结果`
 - switched live config to:
-  - rpc `49b34c09-5fb0-4814-9440-4231f0018ac5`
+  - rpc `57d381a9-4eeb-4a10-84e0-f8476c92af14`
   - fresh full-core addresses for DataStore / Oracle / OrderHandler / MarketFactory / LP vault / mock oracle provider
   - fresh mock token addresses for USDC / WBTC
 
@@ -501,7 +501,7 @@ Reason:
 ### Step 23: validate live OI on fresh Base fork with isolated traders
 
 - aligned protocol testing and monitor assumptions to the same fresh Base fork environment:
-  - `https://virtual.base.eu.rpc.tenderly.co/49b34c09-5fb0-4814-9440-4231f0018ac5`
+  - `https://virtual.base.eu.rpc.tenderly.co/57d381a9-4eeb-4a10-84e0-f8476c92af14`
 - validated protocol-side live OI using isolated trader flows instead of reusing the deployer account
 - confirmed ETH market path:
   - isolated open succeeds

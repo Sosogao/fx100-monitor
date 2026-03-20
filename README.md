@@ -33,7 +33,7 @@ If you are validating the shared fresh Base fork, use the companion contracts re
 
 ```bash
 cd ../fx100-contracts_fork
-FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base49b34c09.env \
+FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base2.env \
   scripts/fork/run_monitor_sample_book.sh
 ```
 
@@ -166,7 +166,7 @@ Use the companion repo command:
 
 ```bash
 cd ../fx100-contracts_fork
-FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base49b34c09.env \
+FORK_PROFILE_ENV=scripts/deploy/base-fork/envs/fx100Base2.env \
   scripts/fork/run_monitor_sample_book.sh
 ```
 
