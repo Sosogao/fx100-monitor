@@ -316,19 +316,26 @@ export default function MonitoringEnhanced() {
           <CardContent className="space-y-4">
             {selected ? (
               <>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
                   {buildDiagnostics(selected).map((item) => (
-                    <div key={item.label} className="rounded border border-border bg-background/40 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="text-xs text-muted-foreground">{item.label}</div>
-                        <Badge variant="outline" className={diagnosticsBadge(item.tone)}>{item.value}</Badge>
+                    <div key={item.label} className="rounded border border-border bg-background/40 p-3 min-h-[132px]">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground/80">{item.label}</div>
+                          <Badge variant="outline" className={`shrink-0 whitespace-nowrap ${diagnosticsBadge(item.tone)}`}>
+                            {item.tone === "good" ? "live" : item.tone === "warning" ? "watch" : "stress"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold leading-snug break-words text-foreground/95">{item.value}</div>
+                          <div className="text-xs leading-6 break-words text-muted-foreground">{item.detail}</div>
+                        </div>
                       </div>
-                      <div className="mt-2 text-xs text-muted-foreground">{item.detail}</div>
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long / Short Split</div>
                     <div className="mt-1 text-lg font-semibold">{selected.longSharePct.toFixed(1)}% / {selected.shortSharePct.toFixed(1)}%</div>
