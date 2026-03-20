@@ -252,6 +252,39 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Directional OI</CardTitle>
+          <CardDescription>Separate long and short exposure across monitored markets, plus current net skew.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">Long OI</div>
+            <div className="mt-2 text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(snapshot.markets.reduce((sum, market) => sum + market.longOpenInterestUsd, 0))}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Protocol long exposure used in the current snapshot.</div>
+          </div>
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">Short OI</div>
+            <div className="mt-2 text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(snapshot.markets.reduce((sum, market) => sum + market.shortOpenInterestUsd, 0))}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Protocol short exposure used in the current snapshot.</div>
+          </div>
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">Net OI Delta</div>
+            <div className={`mt-2 text-2xl font-bold ${snapshot.markets.reduce((sum, market) => sum + market.longOpenInterestUsd - market.shortOpenInterestUsd, 0) >= 0 ? "text-primary" : "text-destructive"}`}>${Intl.NumberFormat("en-US").format(Math.abs(snapshot.markets.reduce((sum, market) => sum + market.longOpenInterestUsd - market.shortOpenInterestUsd, 0)))}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{snapshot.markets.reduce((sum, market) => sum + market.longOpenInterestUsd - market.shortOpenInterestUsd, 0) >= 0 ? "Net long" : "Net short"} imbalance across monitored markets.</div>
+          </div>
+          <div className="rounded border border-border bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">Directional Mix</div>
+            <div className="mt-2 text-2xl font-bold text-primary">
+              {snapshot.dashboard.stats.find((stat) => stat.label === "Total Open Interest")?.value === "$0" || snapshot.markets.reduce((sum, market) => sum + market.openInterestUsd, 0) === 0
+                ? "0 / 0"
+                : `${((snapshot.markets.reduce((sum, market) => sum + market.longOpenInterestUsd, 0) / snapshot.markets.reduce((sum, market) => sum + market.openInterestUsd, 0)) * 100).toFixed(1)}% / ${((snapshot.markets.reduce((sum, market) => sum + market.shortOpenInterestUsd, 0) / snapshot.markets.reduce((sum, market) => sum + market.openInterestUsd, 0)) * 100).toFixed(1)}%`}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Long share / short share of total open interest.</div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
         {snapshot.markets.map((market) => (
           <Card key={`${market.symbol}-external-price`} className="bg-card/50 border-primary/20 tech-border">

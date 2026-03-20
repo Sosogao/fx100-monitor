@@ -335,10 +335,30 @@ export default function MonitoringEnhanced() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Long OI</div>
+                    <div className="mt-1 text-lg font-semibold">${Intl.NumberFormat("en-US").format(selected.longOpenInterestUsd)}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.longOpenInterestTokens.toFixed(6)} tokens</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Short OI</div>
+                    <div className="mt-1 text-lg font-semibold">${Intl.NumberFormat("en-US").format(selected.shortOpenInterestUsd)}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.shortOpenInterestTokens.toFixed(6)} tokens</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Net OI Delta</div>
+                    <div className={`mt-1 text-lg font-semibold ${selected.longOpenInterestUsd - selected.shortOpenInterestUsd >= 0 ? "text-primary" : "text-destructive"}`}>${Intl.NumberFormat("en-US").format(Math.abs(selected.longOpenInterestUsd - selected.shortOpenInterestUsd))}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.longOpenInterestUsd - selected.shortOpenInterestUsd >= 0 ? "Net long" : "Net short"}</div>
+                  </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long / Short Split</div>
                     <div className="mt-1 text-lg font-semibold">{selected.longSharePct.toFixed(1)}% / {selected.shortSharePct.toFixed(1)}%</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Skew</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.skewPct.toFixed(2)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Directional imbalance derived from current long/short exposure.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Tail Ratio</div>
