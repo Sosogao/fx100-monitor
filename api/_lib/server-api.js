@@ -21886,18 +21886,19 @@ function buildMarkets(liveState) {
     const oraclePrice = marketState.oraclePriceUsd ?? configured?.referencePriceUsd ?? seed.referencePriceUsd ?? 1;
     const markPrice = configured?.referencePriceUsd ?? oraclePrice;
     const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
-    const hasLiveOi = totalOiTokens > 0;
     const environmentHasValidatedOiPath = basefx100Sepolia0312.globals.verifiedLiveOiPath === true;
     const oiCounterStatus = totalOiTokens === 0 ? "missing" : totalOiTokens <= 3 ? "dust" : "usable";
+    const hasUsableLiveOi = oiCounterStatus === "usable";
     const oiCounterReason = totalOiTokens === 0 ? environmentHasValidatedOiPath ? "Protocol position counters are currently zero on this market. The fresh fork OI path has been validated with isolated traders, so monitor falls back only for this market snapshot." : "Protocol position counters are zero on this market, so monitor OI falls back to pool/depth inference." : totalOiTokens <= 3 ? environmentHasValidatedOiPath ? `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain too small for this snapshot. The environment OI path is validated, so monitor keeps using pool/depth inference until counters become material.` : `Protocol position counters exist (${marketState.longOiTokens} long / ${marketState.shortOiTokens} short) but remain dust-sized, so monitor OI still uses pool/depth inference.` : "Protocol position counters are materially populated and used as the primary OI source.";
-    const longSharePct = totalOiTokens > 0 ? round(marketState.longOiTokens / totalOiTokens * 100, 1) : 50;
-    const skewPct = totalOiTokens > 0 ? round(longSharePct - (100 - longSharePct), 2) : 0;
+    const longSharePct = hasUsableLiveOi ? round(marketState.longOiTokens / totalOiTokens * 100, 1) : 50;
+    const skewPct = hasUsableLiveOi ? round(longSharePct - (100 - longSharePct), 2) : 0;
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0 ? round((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd) * 100, 2) : 0;
-    const effectiveSkewPct = hasLiveOi ? skewPct : Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct;
-    const longOpenInterestUsd = marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
-    const shortOpenInterestUsd = marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
+    const effectiveSkewPct = hasUsableLiveOi ? skewPct : Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct;
+    const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(marketState.longOiTokens * oraclePrice, 2) : 0;
+    const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(marketState.shortOiTokens * oraclePrice, 2) : 0;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
-    const openInterestUsd = totalOiTokens > 0 ? round(totalOiTokens * oraclePrice, 2) : round(poolCollateralAmount > 0 ? Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65) : inferredOpenInterestUsd, 2);
+    const fallbackOpenInterestUsd = poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
+    const openInterestUsd = hasUsableLiveOi ? round(totalOiTokens * oraclePrice, 2) : fallbackOpenInterestUsd;
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round(openInterestUsd / openInterestCapacityUsd * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round(openInterestUsd / poolCollateralAmount * 100, 2) : 0;
@@ -21921,7 +21922,7 @@ function buildMarkets(liveState) {
       skewPct: Math.abs(effectiveSkewPct),
       utilizationPct: openInterestUtilizationPct,
       poolStressPct: poolUtilizationPct,
-      hasLiveOi,
+      hasLiveOi: hasUsableLiveOi,
       hasRuntimeProtocolSignal
     });
     const riskScore = analytics.riskScore;
