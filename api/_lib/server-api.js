@@ -20664,6 +20664,7 @@ var abiCoder2 = AbiCoder.defaultAbiCoder();
 var YEAR_SECONDS2 = 365 * 24 * 60 * 60;
 var FACTOR_DECIMALS2 = 30;
 var USD_DECIMALS2 = 30;
+var TOKEN_PRECISION = 1e30;
 var DATA_STORE_ABI = [
   "function getUint(bytes32 key) view returns (uint256)",
   "function getInt(bytes32 key) view returns (int256)",

@@ -33,6 +33,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const YEAR_SECONDS = 365 * 24 * 60 * 60;
 const FACTOR_DECIMALS = 30;
 const USD_DECIMALS = 30;
+const TOKEN_PRECISION = 1e30;
 
 const DATA_STORE_ABI = [
   "function getUint(bytes32 key) view returns (uint256)",
