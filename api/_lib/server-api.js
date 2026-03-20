@@ -21901,6 +21901,7 @@ function buildMarkets(liveState) {
     const skewPct = hasUsableLiveOi ? round(longSharePct - (100 - longSharePct), 2) : 0;
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0 ? round((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd) * 100, 2) : 0;
     const effectiveSkewPct = hasUsableLiveOi ? skewPct : Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct;
+    const fundingSignalSkewPct = Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : effectiveSkewPct;
     const longOpenInterestTokens = tokenAmountToDisplay(marketState.longOiTokens);
     const shortOpenInterestTokens = tokenAmountToDisplay(marketState.shortOiTokens);
     const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
@@ -21912,7 +21913,7 @@ function buildMarkets(liveState) {
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round(openInterestUsd / openInterestCapacityUsd * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round(openInterestUsd / poolCollateralAmount * 100, 2) : 0;
-    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, effectiveSkewPct, openInterestUtilizationPct);
+    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
     const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
     const externalFundingAprPct = externalVenue?.fundingAprPct ?? fundingBenchmarkAprPct;
     const externalFundingSource = externalVenue?.fundingAprPct !== void 0 ? "live-venue" : "runtime-benchmark";
@@ -21939,7 +21940,7 @@ function buildMarkets(liveState) {
     const alertLevel = analytics.alertLevel;
     const realizedVol1hPct = analytics.realizedVol1hPct;
     const volLimitPct = analytics.volLimitPct;
-    const fundingAprPct = fundingBaseAprPct !== 0 ? fundingBaseAprPct : fundingBenchmarkAprPct;
+    const fundingAprPct = fundingBenchmarkAprPct;
     return {
       symbol: marketState.symbol,
       displayName: marketState.displayName,

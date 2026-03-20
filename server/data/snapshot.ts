@@ -1524,6 +1524,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const effectiveSkewPct = hasUsableLiveOi
       ? skewPct
       : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct);
+    const fundingSignalSkewPct = Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : effectiveSkewPct;
     const longOpenInterestTokens = tokenAmountToDisplay(marketState.longOiTokens);
     const shortOpenInterestTokens = tokenAmountToDisplay(marketState.shortOiTokens);
     const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
@@ -1541,7 +1542,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       : maxPositionSizeUsd * 2;
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
-    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, effectiveSkewPct, openInterestUtilizationPct);
+    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
     const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
     const externalFundingAprPct = externalVenue?.fundingAprPct ?? fundingBenchmarkAprPct;
     const externalFundingSource = externalVenue?.fundingAprPct !== undefined ? "live-venue" : "runtime-benchmark";
@@ -1581,7 +1582,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const alertLevel = analytics.alertLevel;
     const realizedVol1hPct = analytics.realizedVol1hPct;
     const volLimitPct = analytics.volLimitPct;
-    const fundingAprPct = fundingBaseAprPct !== 0 ? fundingBaseAprPct : fundingBenchmarkAprPct;
+    const fundingAprPct = fundingBenchmarkAprPct;
 
     return {
       symbol: marketState.symbol,
