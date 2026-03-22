@@ -60,7 +60,7 @@ const ORACLE_ABI = [
 ];
 
 const READER_ABI = [
-  "function getMarketInfo(address dataStore, ((uint256 min,uint256 max) indexTokenPrice,(uint256 min,uint256 max) collateralTokenPrice) prices, uint256 marketIndex) view returns (((uint256 marketIndex,address vault,address indexToken,address collateralToken) market,((uint256 long,uint256 short) negativeFundingFeePerSize,(uint256 long,uint256 short) positiveFundingFeePerSize) baseFunding,(int256 longFundingFactorPerSecond,int256 shortFundingFactorPerSecond,(uint256 long,uint256 short) negativeFundingFeePerSizeDelta,(uint256 long,uint256 short) positiveFundingFeePerSizeDelta,(uint40 lastTime,uint24 sampleInterval,int96 lastValue,int96 lastEmaValue) skewEMA,int256 positionPaysLp) nextFunding,bool isDisabled))",
+  "function getMarketInfo(address dataStore, ((uint256 min,uint256 max) indexTokenPrice,(uint256 min,uint256 max) collateralTokenPrice) prices, uint256 marketIndex) view returns (((uint256 marketIndex,address vault,address indexToken,address collateralToken) market,((uint256 long,uint256 short) negativeFundingFeePerSize,(uint256 long,uint256 short) positiveFundingFeePerSize) baseFunding,(int256 longFundingFactorPerSecond,int256 shortFundingFactorPerSecond,(uint256 long,uint256 short) negativeFundingFeePerSizeDelta,(uint256 long,uint256 short) positiveFundingFeePerSizeDelta,(uint40 lastTime,uint24 sampleInterval,int96 lastValue,int96 lastEmaValue) skewEMA,int256 positionPaysLp) nextFunding,uint256 poolUsdWithoutPnl,uint256 reservedUsdLong,uint256 reservedUsdShort,int256 longPnlToPoolFactor,int256 shortPnlToPoolFactor,uint256 availableLongUsd,uint256 availableShortUsd,bool isDisabled) marketInfo)",
 ];
 
 const dataStoreInterface = new Interface(DATA_STORE_ABI);
@@ -191,7 +191,10 @@ interface OnchainMarketState {
   collateralVaultBalance: number;
   indexVaultBalance: number;
   poolCollateralAmount: number;
+  poolUsdWithoutPnl: number;
   positionCollateralUsd: number;
+  longPnlToPoolFactor: number;
+  shortPnlToPoolFactor: number;
   longPositionCollateralUsd: number;
   shortPositionCollateralUsd: number;
   longCumulativeOpenCostsUsd: number;
@@ -213,6 +216,10 @@ interface OnchainMarketState {
   reserveFactorShortPct: number;
   openInterestReserveFactorLongPct: number;
   openInterestReserveFactorShortPct: number;
+  longReservedUsd: number;
+  shortReservedUsd: number;
+  availableLongUsd: number;
+  availableShortUsd: number;
   minCollateralFactorPct: number;
   minCollateralFactorForOpenInterestMultiplierLongPct: number;
   minCollateralFactorForOpenInterestMultiplierShortPct: number;
@@ -1187,6 +1194,13 @@ async function loadLiveState(): Promise<LiveReadState> {
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
         let longFundingAprPct: number | undefined;
         let shortFundingAprPct: number | undefined;
+        let readerPoolUsdWithoutPnl: number | undefined;
+        let readerReservedUsdLong: number | undefined;
+        let readerReservedUsdShort: number | undefined;
+        let readerLongPnlToPoolFactor: number | undefined;
+        let readerShortPnlToPoolFactor: number | undefined;
+        let readerAvailableLongUsd: number | undefined;
+        let readerAvailableShortUsd: number | undefined;
         try {
           const reader = new Contract(basefx100Sepolia0312.contracts.READER, READER_ABI, provider);
           const marketInfo = await reader.getMarketInfo(
@@ -1201,6 +1215,13 @@ async function loadLiveState(): Promise<LiveReadState> {
           const shortRaw = BigInt(marketInfo.nextFunding.shortFundingFactorPerSecond);
           longFundingAprPct = annualizedFactorPercent(longRaw);
           shortFundingAprPct = annualizedFactorPercent(shortRaw);
+          readerPoolUsdWithoutPnl = usdValue(BigInt(marketInfo.poolUsdWithoutPnl));
+          readerReservedUsdLong = usdValue(BigInt(marketInfo.reservedUsdLong));
+          readerReservedUsdShort = usdValue(BigInt(marketInfo.reservedUsdShort));
+          readerLongPnlToPoolFactor = factorToPercent(BigInt(marketInfo.longPnlToPoolFactor));
+          readerShortPnlToPoolFactor = factorToPercent(BigInt(marketInfo.shortPnlToPoolFactor));
+          readerAvailableLongUsd = usdValue(BigInt(marketInfo.availableLongUsd));
+          readerAvailableShortUsd = usdValue(BigInt(marketInfo.availableShortUsd));
         } catch {}
 
         return {
@@ -1225,7 +1246,10 @@ async function loadLiveState(): Promise<LiveReadState> {
           maxPositionImpactFactorNegativePct: factorToPercent(maxPositionImpactFactorNegativeRaw),
           priceImpactParameter: factorToRatio(priceImpactParameterRaw),
           poolCollateralAmount: round(Number(formatUnits(poolCollateralAmountRaw, collateralTokenDecimals)), 4),
+          poolUsdWithoutPnl: typeof readerPoolUsdWithoutPnl === "number" ? readerPoolUsdWithoutPnl : round(Number(formatUnits(poolCollateralAmountRaw, collateralTokenDecimals)), 4),
           positionCollateralUsd: 0,
+          longPnlToPoolFactor: typeof readerLongPnlToPoolFactor === "number" ? readerLongPnlToPoolFactor : 0,
+          shortPnlToPoolFactor: typeof readerShortPnlToPoolFactor === "number" ? readerShortPnlToPoolFactor : 0,
           longPositionCollateralUsd: 0,
           shortPositionCollateralUsd: 0,
           longCumulativeOpenCostsUsd: usdValue(longCumulativeOpenCostsRaw),
@@ -1240,6 +1264,10 @@ async function loadLiveState(): Promise<LiveReadState> {
           reserveFactorShortPct: factorToPercent(reserveFactorShortRaw),
           openInterestReserveFactorLongPct: factorToPercent(openInterestReserveFactorLongRaw),
           openInterestReserveFactorShortPct: factorToPercent(openInterestReserveFactorShortRaw),
+          longReservedUsd: typeof readerReservedUsdLong === "number" ? readerReservedUsdLong : 0,
+          shortReservedUsd: typeof readerReservedUsdShort === "number" ? readerReservedUsdShort : 0,
+          availableLongUsd: typeof readerAvailableLongUsd === "number" ? readerAvailableLongUsd : 0,
+          availableShortUsd: typeof readerAvailableShortUsd === "number" ? readerAvailableShortUsd : 0,
           minCollateralFactorPct: factorToPercent(minCollateralFactorRaw),
           minCollateralFactorForOpenInterestMultiplierLongPct: factorToPercent(minCollateralFactorForOpenInterestMultiplierLongRaw),
           minCollateralFactorForOpenInterestMultiplierShortPct: factorToPercent(minCollateralFactorForOpenInterestMultiplierShortRaw),
@@ -1532,7 +1560,10 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         collateralVaultBalance: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
         indexVaultBalance: 0,
         poolCollateralAmount: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
+        poolUsdWithoutPnl: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
         positionCollateralUsd: 0,
+        longPnlToPoolFactor: 0,
+        shortPnlToPoolFactor: 0,
         longPositionCollateralUsd: 0,
         shortPositionCollateralUsd: 0,
         longCumulativeOpenCostsUsd: 0,
@@ -1554,6 +1585,10 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         reserveFactorShortPct: 25,
         openInterestReserveFactorLongPct: 25,
         openInterestReserveFactorShortPct: 25,
+        longReservedUsd: 0,
+        shortReservedUsd: 0,
+        availableLongUsd: 0,
+        availableShortUsd: 0,
         minCollateralFactorPct: round(market.minCollateralFactor * 100, 4),
         minCollateralFactorForOpenInterestMultiplierLongPct: round(market.minCollateralFactor * 100, 4),
         minCollateralFactorForOpenInterestMultiplierShortPct: round(market.minCollateralFactor * 100, 4),
@@ -1606,7 +1641,9 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const fundingSkewSampleIntervalMinutes = marketState.fundingSkewSampleIntervalMinutes > 0
       ? marketState.fundingSkewSampleIntervalMinutes
       : fundingSkewEmaMinutes;
-    const poolCollateralAmount = marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance;
+    const poolCollateralAmount = marketState.poolUsdWithoutPnl > 0
+      ? marketState.poolUsdWithoutPnl
+      : (marketState.poolCollateralAmount > 0 ? marketState.poolCollateralAmount : marketState.collateralVaultBalance);
     const oraclePrice = marketState.oraclePriceUsd ?? configured?.referencePriceUsd ?? seed.referencePriceUsd ?? 1;
     const markPrice = configured?.referencePriceUsd ?? oraclePrice;
     const totalOiTokens = marketState.longOiTokens + marketState.shortOiTokens;
@@ -1642,8 +1679,8 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
     const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(tokenAmountToUsd(marketState.longOiTokens, oraclePrice), 2) : 0;
     const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(tokenAmountToUsd(marketState.shortOiTokens, oraclePrice), 2) : 0;
-    const longReservedUsd = longOpenInterestUsd;
-    const shortReservedUsd = marketState.shortCumulativeOpenCostsUsd;
+    const longReservedUsd = marketState.longReservedUsd > 0 ? marketState.longReservedUsd : longOpenInterestUsd;
+    const shortReservedUsd = marketState.shortReservedUsd > 0 ? marketState.shortReservedUsd : marketState.shortCumulativeOpenCostsUsd;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
     const fallbackOpenInterestUsd = poolCollateralAmount > 0
       ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2)
@@ -1660,18 +1697,22 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const shortReserveCapUsd = round(poolCollateralAmount * (marketState.reserveFactorShortPct / 100), 2);
     const longOiReserveCapUsd = round(poolCollateralAmount * (marketState.openInterestReserveFactorLongPct / 100), 2);
     const shortOiReserveCapUsd = round(poolCollateralAmount * (marketState.openInterestReserveFactorShortPct / 100), 2);
-    const availableLongUsd = round(Math.max(0, Math.min(
-      marketState.maxOpenInterestLongUsd > 0 ? marketState.maxOpenInterestLongUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
-      longSoftCapUsd > 0 ? longSoftCapUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
-      longReserveCapUsd > 0 ? longReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY,
-      longOiReserveCapUsd > 0 ? longOiReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY,
-    )), 2);
-    const availableShortUsd = round(Math.max(0, Math.min(
-      marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestShortUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
-      shortSoftCapUsd > 0 ? shortSoftCapUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
-      shortReserveCapUsd > 0 ? shortReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY,
-      shortOiReserveCapUsd > 0 ? shortOiReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY,
-    )), 2);
+    const availableLongUsd = marketState.availableLongUsd > 0
+      ? marketState.availableLongUsd
+      : round(Math.max(0, Math.min(
+        marketState.maxOpenInterestLongUsd > 0 ? marketState.maxOpenInterestLongUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+        longSoftCapUsd > 0 ? longSoftCapUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+        longReserveCapUsd > 0 ? longReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY,
+        longOiReserveCapUsd > 0 ? longOiReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY,
+      )), 2);
+    const availableShortUsd = marketState.availableShortUsd > 0
+      ? marketState.availableShortUsd
+      : round(Math.max(0, Math.min(
+        marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestShortUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+        shortSoftCapUsd > 0 ? shortSoftCapUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+        shortReserveCapUsd > 0 ? shortReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY,
+        shortOiReserveCapUsd > 0 ? shortOiReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY,
+      )), 2);
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
     const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
@@ -1767,7 +1808,10 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       collateralVaultBalance: marketState.collateralVaultBalance,
       indexVaultBalance: marketState.indexVaultBalance,
       poolCollateralAmount,
+      poolUsdWithoutPnl: marketState.poolUsdWithoutPnl > 0 ? marketState.poolUsdWithoutPnl : poolCollateralAmount,
       positionCollateralUsd: marketState.positionCollateralUsd,
+      longPnlToPoolFactor: marketState.longPnlToPoolFactor,
+      shortPnlToPoolFactor: marketState.shortPnlToPoolFactor,
       longPositionCollateralUsd: marketState.longPositionCollateralUsd,
       shortPositionCollateralUsd: marketState.shortPositionCollateralUsd,
       longOpenInterestUsd,

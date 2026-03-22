@@ -762,3 +762,5 @@ Reason:
 - Added `Total Market Collateral` directional breakdown and per-market average leverage.
 - Added LP utilization as `Total Open Interest / Total Pool Collateral` and per-market LP cap usage using reserve-factor based caps.
 - This LP cap view is a monitor heuristic over current reserve-factor inputs. It is useful for early operator testing, but longer-term monitoring should rely on a dedicated event-driven state pipeline and explicit protocol-cap outputs where available.
+
+- Step 42 (2026-03-22): consume Reader direct market risk fields (, , , ) in snapshot generation so monitor no longer reconstructs these values when Reader exposes them.
