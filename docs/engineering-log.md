@@ -764,3 +764,5 @@ Reason:
 - This LP cap view is a monitor heuristic over current reserve-factor inputs. It is useful for early operator testing, but longer-term monitoring should rely on a dedicated event-driven state pipeline and explicit protocol-cap outputs where available.
 
 - Step 42 (2026-03-22): consume Reader direct market risk fields (`poolUsdWithoutPnl`, `reservedUsdLong/Short`, `availableLong/ShortUsd`, `long/shortPnlToPoolFactor`) in snapshot generation so monitor no longer reconstructs these values when Reader exposes them.
+
+- Step 43 (2026-03-22): surface direct Reader `availableLongUsd/availableShortUsd`, `poolUsdWithoutPnl`, and `long/shortPnlToPoolFactor` in Dashboard and Selected Market so operators can inspect protocol-owned reserve headroom and PnL-to-pool pressure without monitor-side reconstruction.

@@ -365,6 +365,25 @@ export default function MonitoringEnhanced() {
                     <div className="mt-1 text-lg font-semibold">{selected.tailRatio.toFixed(3)}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Long PnL / Pool</div>
+                    <div className={`mt-1 text-lg font-semibold ${selected.longPnlToPoolFactor >= 0 ? "text-yellow-500" : "text-primary"}`}>{selected.longPnlToPoolFactor.toFixed(2)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Direct protocol pnl-to-pool factor for the long side.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Short PnL / Pool</div>
+                    <div className={`mt-1 text-lg font-semibold ${selected.shortPnlToPoolFactor >= 0 ? "text-yellow-500" : "text-primary"}`}>{selected.shortPnlToPoolFactor.toFixed(2)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Direct protocol pnl-to-pool factor for the short side.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Available Liquidity</div>
+                    <div className="mt-1 text-lg font-semibold">L ${Intl.NumberFormat("en-US").format(Math.round(selected.availableLongUsd))} · S ${Intl.NumberFormat("en-US").format(Math.round(selected.availableShortUsd))}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Direct Reader headroom after OI, reserve, and OI-reserve caps.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Pool USD Without PnL</div>
+                    <div className="mt-1 text-lg font-semibold">${Intl.NumberFormat("en-US").format(Math.round(selected.poolUsdWithoutPnl))}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Vault USDC Balance</div>
                     <div className="mt-1 text-lg font-semibold">{Intl.NumberFormat("en-US").format(selected.collateralVaultBalance)}</div>
                   </div>

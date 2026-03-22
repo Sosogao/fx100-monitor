@@ -92,10 +92,10 @@ export default function Dashboard() {
     const oracleStress = markets.filter((market) => market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5).length;
     const activeAlerts = snapshot?.alerts.length ?? 0;
     const worstLpCapUsagePct = markets.reduce((worst, market) => {
-      const longCapUsd = market.poolCollateralAmount * (market.reserveFactorLongPct / 100);
-      const shortCapUsd = market.poolCollateralAmount * (market.reserveFactorShortPct / 100);
-      const longUsage = longCapUsd > 0 ? (market.longOpenInterestUsd / longCapUsd) * 100 : 0;
-      const shortUsage = shortCapUsd > 0 ? (market.shortOpenInterestUsd / shortCapUsd) * 100 : 0;
+      const longCapUsd = market.poolUsdWithoutPnl * (market.reserveFactorLongPct / 100);
+      const shortCapUsd = market.poolUsdWithoutPnl * (market.reserveFactorShortPct / 100);
+      const longUsage = longCapUsd > 0 ? (market.longReservedUsd / longCapUsd) * 100 : 0;
+      const shortUsage = shortCapUsd > 0 ? (market.shortReservedUsd / shortCapUsd) * 100 : 0;
       return Math.max(worst, longUsage, shortUsage);
     }, 0);
     return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, sidedOi, grossLeverage, longLeverage, shortLeverage, grossLpUtilizationPct, sidedLpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
@@ -121,6 +121,13 @@ export default function Dashboard() {
     reserveFactorLongPct: market.reserveFactorLongPct,
     reserveFactorShortPct: market.reserveFactorShortPct,
     poolCollateralAmount: market.poolCollateralAmount,
+    poolUsdWithoutPnl: market.poolUsdWithoutPnl,
+    longReservedUsd: market.longReservedUsd,
+    shortReservedUsd: market.shortReservedUsd,
+    availableLongUsd: market.availableLongUsd,
+    availableShortUsd: market.availableShortUsd,
+    longPnlToPoolFactor: market.longPnlToPoolFactor,
+    shortPnlToPoolFactor: market.shortPnlToPoolFactor,
   })), [snapshot]);
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
@@ -456,7 +463,15 @@ export default function Dashboard() {
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">LP Cap Usage</div>
-                  <div className="mt-1 font-semibold text-foreground">L {((market.reserveFactorLongPct > 0 && market.poolCollateralAmount > 0) ? (market.longOpenInterestUsd / (market.poolCollateralAmount * (market.reserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}% · S {((market.reserveFactorShortPct > 0 && market.poolCollateralAmount > 0) ? (market.shortOpenInterestUsd / (market.poolCollateralAmount * (market.reserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((market.reserveFactorLongPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.longReservedUsd / (market.poolUsdWithoutPnl * (market.reserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}% · S {((market.reserveFactorShortPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.shortReservedUsd / (market.poolUsdWithoutPnl * (market.reserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Available Liquidity</div>
+                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(market.availableLongUsd))} · S ${Intl.NumberFormat("en-US").format(Math.round(market.availableShortUsd))}</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">PnL / Pool</div>
+                  <div className="mt-1 font-semibold text-foreground">L {market.longPnlToPoolFactor.toFixed(2)}% · S {market.shortPnlToPoolFactor.toFixed(2)}%</div>
                 </div>
               </div>
               <div className="mt-3 text-xs text-muted-foreground">
