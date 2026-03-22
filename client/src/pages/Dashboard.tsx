@@ -126,6 +126,12 @@ export default function Dashboard() {
     shortPositionCollateralUsd: market.shortPositionCollateralUsd,
     reserveFactorLongPct: market.reserveFactorLongPct,
     reserveFactorShortPct: market.reserveFactorShortPct,
+    openInterestReserveFactorLongPct: market.openInterestReserveFactorLongPct,
+    openInterestReserveFactorShortPct: market.openInterestReserveFactorShortPct,
+    maxOpenInterestLongUsd: market.maxOpenInterestLongUsd,
+    maxOpenInterestShortUsd: market.maxOpenInterestShortUsd,
+    maxOpenInterestFactorLongPct: market.maxOpenInterestFactorLongPct,
+    maxOpenInterestFactorShortPct: market.maxOpenInterestFactorShortPct,
     poolCollateralAmount: market.poolCollateralAmount,
     poolUsdWithoutPnl: market.poolUsdWithoutPnl,
     longReservedUsd: market.longReservedUsd,
@@ -471,6 +477,30 @@ export default function Dashboard() {
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Short Funding</div>
                   <div className={`mt-1 font-semibold ${market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary"}`}>{market.shortFundingAprPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Max OI Cap</div>
+                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(num(market.maxOpenInterestLongUsd)))} · S ${Intl.NumberFormat("en-US").format(Math.round(num(market.maxOpenInterestShortUsd)))}</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Max OI Usage</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((num(market.maxOpenInterestLongUsd) > 0) ? (num(market.longOpenInterestUsd) / num(market.maxOpenInterestLongUsd)) * 100 : 0).toFixed(1)}% · S {((num(market.maxOpenInterestShortUsd) > 0) ? (num(market.shortOpenInterestUsd) / num(market.maxOpenInterestShortUsd)) * 100 : 0).toFixed(1)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Max OI Remaining</div>
+                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.maxOpenInterestLongUsd) - num(market.longOpenInterestUsd))))} · S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.maxOpenInterestShortUsd) - num(market.shortOpenInterestUsd))))}</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Soft OI Factor</div>
+                  <div className="mt-1 font-semibold text-foreground">L {num(market.maxOpenInterestFactorLongPct).toFixed(1)}% · S {num(market.maxOpenInterestFactorShortPct).toFixed(1)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Soft OI Usage</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((num(market.maxOpenInterestFactorLongPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.longOpenInterestUsd) / (num(market.poolUsdWithoutPnl) * (num(market.maxOpenInterestFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S {((num(market.maxOpenInterestFactorShortPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.shortOpenInterestUsd) / (num(market.poolUsdWithoutPnl) * (num(market.maxOpenInterestFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Soft OI Remaining</div>
+                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.maxOpenInterestFactorLongPct) / 100) - num(market.longOpenInterestUsd))))} · S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.maxOpenInterestFactorShortPct) / 100) - num(market.shortOpenInterestUsd))))}</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Reserve Factor</div>

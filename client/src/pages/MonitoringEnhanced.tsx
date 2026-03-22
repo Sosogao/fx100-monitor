@@ -384,6 +384,52 @@ export default function MonitoringEnhanced() {
                     <div className="mt-1 text-xs text-muted-foreground">Direct Reader headroom after OI, reserve, and OI-reserve caps.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Max OI Cap</div>
+                    <div className="mt-1 text-lg font-semibold">L ${Intl.NumberFormat("en-US").format(Math.round(num(selected.maxOpenInterestLongUsd)))} · S ${Intl.NumberFormat("en-US").format(Math.round(num(selected.maxOpenInterestShortUsd)))}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Hard per-side open interest caps from protocol config.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Max OI Usage</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L {((num(selected.maxOpenInterestLongUsd) > 0) ? (num(selected.longOpenInterestUsd) / num(selected.maxOpenInterestLongUsd)) * 100 : 0).toFixed(1)}%
+                      {" · "}
+                      S {((num(selected.maxOpenInterestShortUsd) > 0) ? (num(selected.shortOpenInterestUsd) / num(selected.maxOpenInterestShortUsd)) * 100 : 0).toFixed(1)}%
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Current side OI divided by the hard max open interest cap.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Max OI Remaining</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.maxOpenInterestLongUsd) - num(selected.longOpenInterestUsd))))}
+                      {" · "}
+                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.maxOpenInterestShortUsd) - num(selected.shortOpenInterestUsd))))}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Remaining headroom implied only by hard max open interest caps.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Soft OI Factor</div>
+                    <div className="mt-1 text-lg font-semibold">L {num(selected.maxOpenInterestFactorLongPct).toFixed(1)}% · S {num(selected.maxOpenInterestFactorShortPct).toFixed(1)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Directional soft OI caps derived from pool collateral.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Soft OI Usage</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L {((num(selected.maxOpenInterestFactorLongPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.longOpenInterestUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.maxOpenInterestFactorLongPct) / 100))) * 100 : 0).toFixed(1)}%
+                      {" · "}
+                      S {((num(selected.maxOpenInterestFactorShortPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.shortOpenInterestUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.maxOpenInterestFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Current side OI divided by pool-based soft OI cap.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">Soft OI Remaining</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.maxOpenInterestFactorLongPct) / 100) - num(selected.longOpenInterestUsd))))}
+                      {" · "}
+                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.maxOpenInterestFactorShortPct) / 100) - num(selected.shortOpenInterestUsd))))}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Remaining headroom implied only by soft max OI factors.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
                     <div className="mt-1 text-lg font-semibold">L {num(selected.openInterestReserveFactorLongPct).toFixed(1)}% · S {num(selected.openInterestReserveFactorShortPct).toFixed(1)}%</div>
                     <div className="mt-1 text-xs text-muted-foreground">Directional OI-reserve cap factors from protocol config.</div>

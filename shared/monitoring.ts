@@ -79,6 +79,10 @@ export interface MarketSnapshot {
   shortPositionCollateralUsd: number;
   longOpenInterestUsd: number;
   shortOpenInterestUsd: number;
+  maxOpenInterestLongUsd: number;
+  maxOpenInterestShortUsd: number;
+  maxOpenInterestFactorLongPct: number;
+  maxOpenInterestFactorShortPct: number;
   openInterestCapacityUsd: number;
   openInterestUtilizationPct: number;
   poolUtilizationPct: number;
