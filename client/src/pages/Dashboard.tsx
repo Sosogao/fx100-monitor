@@ -80,10 +80,12 @@ export default function Dashboard() {
     const totalMarketCollateral = markets.reduce((sum, market) => sum + market.positionCollateralUsd, 0);
     const totalLongCollateral = markets.reduce((sum, market) => sum + market.longPositionCollateralUsd, 0);
     const totalShortCollateral = markets.reduce((sum, market) => sum + market.shortPositionCollateralUsd, 0);
+    const sidedOi = Math.max(totalLongOi, totalShortOi);
     const grossLeverage = totalMarketCollateral > 0 ? totalOi / totalMarketCollateral : 0;
     const longLeverage = totalLongCollateral > 0 ? totalLongOi / totalLongCollateral : 0;
     const shortLeverage = totalShortCollateral > 0 ? totalShortOi / totalShortCollateral : 0;
-    const lpUtilizationPct = totalPoolCollateral > 0 ? (totalOi / totalPoolCollateral) * 100 : 0;
+    const grossLpUtilizationPct = totalPoolCollateral > 0 ? (totalOi / totalPoolCollateral) * 100 : 0;
+    const sidedLpUtilizationPct = totalPoolCollateral > 0 ? (sidedOi / totalPoolCollateral) * 100 : 0;
     const netSkewUsd = totalLongOi - totalShortOi;
     const netSkewPct = totalOi > 0 ? (netSkewUsd / totalOi) * 100 : 0;
     const fundingStress = markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length;
@@ -96,7 +98,7 @@ export default function Dashboard() {
       const shortUsage = shortCapUsd > 0 ? (market.shortOpenInterestUsd / shortCapUsd) * 100 : 0;
       return Math.max(worst, longUsage, shortUsage);
     }, 0);
-    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, grossLeverage, longLeverage, shortLeverage, lpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
+    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, sidedOi, grossLeverage, longLeverage, shortLeverage, grossLpUtilizationPct, sidedLpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
   }, [snapshot]);
   const marketBreakdown = useMemo(() => (snapshot?.markets ?? []).map((market) => ({
     symbol: market.symbol,
@@ -301,11 +303,11 @@ export default function Dashboard() {
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">LP Utilization</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">LP Utilization (Side)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{aggregate.lpUtilizationPct.toFixed(1)}%</div>
-            <p className="mt-1 text-xs text-muted-foreground">Total Open Interest / Total Pool Collateral. Worst market cap usage {aggregate.worstLpCapUsagePct.toFixed(1)}%.</p>
+            <div className="text-2xl font-bold text-primary">{aggregate.sidedLpUtilizationPct.toFixed(1)}%</div>
+            <p className="mt-1 text-xs text-muted-foreground">max(Long OI, Short OI) / Total Pool Collateral. Gross {aggregate.grossLpUtilizationPct.toFixed(1)}% · Worst cap usage {aggregate.worstLpCapUsagePct.toFixed(1)}%.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
@@ -447,6 +449,10 @@ export default function Dashboard() {
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Short Funding</div>
                   <div className={`mt-1 font-semibold ${market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary"}`}>{market.shortFundingAprPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Reserve Factor</div>
+                  <div className="mt-1 font-semibold text-foreground">L {market.reserveFactorLongPct.toFixed(1)}% · S {market.reserveFactorShortPct.toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">LP Cap Usage</div>
