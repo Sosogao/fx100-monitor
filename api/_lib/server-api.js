@@ -22199,6 +22199,8 @@ function buildDashboard(markets, liveState) {
     }
   }
   const totalPoolCollateral = Array.from(uniqueVaultCollateral.values()).reduce((sum, value) => sum + value, 0);
+  const totalAvailableLongUsd = markets.reduce((sum, market) => sum + market.availableLongUsd, 0);
+  const totalAvailableShortUsd = markets.reduce((sum, market) => sum + market.availableShortUsd, 0);
   const avgOiChange = markets.length > 0 ? markets.reduce((sum, market) => sum + market.oiChange24hPct, 0) / markets.length : 0;
   const activeAlerts = markets.filter((market) => market.alertLevel !== "normal").length;
   const criticalAlerts = markets.filter((market) => market.alertLevel === "l3").length;
@@ -22232,6 +22234,12 @@ function buildDashboard(markets, liveState) {
       value: formatCurrency(totalMarketCollateral),
       delta: markets.length > 0 ? `${markets.filter((market) => market.positionCollateralUsd > 0).length}/${markets.length} markets with open collateral` : "No active markets",
       tone: totalMarketCollateral > 0 ? "good" : "neutral"
+    },
+    {
+      label: "Available Liquidity",
+      value: `${formatCurrency(totalAvailableLongUsd)} / ${formatCurrency(totalAvailableShortUsd)}`,
+      delta: "Long / Short remaining open-interest headroom",
+      tone: "good"
     },
     {
       label: "Funding Markets Above Venue",

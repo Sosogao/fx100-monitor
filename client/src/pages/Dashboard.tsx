@@ -80,6 +80,8 @@ export default function Dashboard() {
     const totalMarketCollateral = markets.reduce((sum, market) => sum + market.positionCollateralUsd, 0);
     const totalLongCollateral = markets.reduce((sum, market) => sum + market.longPositionCollateralUsd, 0);
     const totalShortCollateral = markets.reduce((sum, market) => sum + market.shortPositionCollateralUsd, 0);
+    const totalAvailableLongUsd = markets.reduce((sum, market) => sum + market.availableLongUsd, 0);
+    const totalAvailableShortUsd = markets.reduce((sum, market) => sum + market.availableShortUsd, 0);
     const sidedOi = Math.max(totalLongOi, totalShortOi);
     const grossLeverage = totalMarketCollateral > 0 ? totalOi / totalMarketCollateral : 0;
     const longLeverage = totalLongCollateral > 0 ? totalLongOi / totalLongCollateral : 0;
@@ -98,7 +100,7 @@ export default function Dashboard() {
       const shortUsage = shortCapUsd > 0 ? (market.shortReservedUsd / shortCapUsd) * 100 : 0;
       return Math.max(worst, longUsage, shortUsage);
     }, 0);
-    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, sidedOi, grossLeverage, longLeverage, shortLeverage, grossLpUtilizationPct, sidedLpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
+    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, totalAvailableLongUsd, totalAvailableShortUsd, sidedOi, grossLeverage, longLeverage, shortLeverage, grossLpUtilizationPct, sidedLpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
   }, [snapshot]);
   const marketBreakdown = useMemo(() => (snapshot?.markets ?? []).map((market) => ({
     symbol: market.symbol,
@@ -315,6 +317,15 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-primary">{aggregate.sidedLpUtilizationPct.toFixed(1)}%</div>
             <p className="mt-1 text-xs text-muted-foreground">max(Long OI, Short OI) / Total Pool Collateral. Gross {aggregate.grossLpUtilizationPct.toFixed(1)}% · Worst cap usage {aggregate.worstLpCapUsagePct.toFixed(1)}%.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Available Liquidity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalAvailableLongUsd))} / ${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalAvailableShortUsd))}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Long / Short remaining open-interest headroom aggregated from direct Reader market outputs.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
