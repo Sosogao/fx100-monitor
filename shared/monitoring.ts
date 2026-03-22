@@ -85,6 +85,12 @@ export interface MarketSnapshot {
   askDepthUsd: number;
   reserveFactorLongPct: number;
   reserveFactorShortPct: number;
+  openInterestReserveFactorLongPct: number;
+  openInterestReserveFactorShortPct: number;
+  longReservedUsd: number;
+  shortReservedUsd: number;
+  availableLongUsd: number;
+  availableShortUsd: number;
   minCollateralFactorPct: number;
   minCollateralFactorForLiquidationPct: number;
   maxPositionSizeUsd: number;

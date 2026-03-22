@@ -20705,6 +20705,7 @@ var DATA_KEYS = {
   OPEN_INTEREST_IN_TOKENS: keyFromString("OPEN_INTEREST_IN_TOKENS"),
   POOL_AMOUNT: keyFromString("POOL_AMOUNT"),
   MAX_OPEN_INTEREST: keyFromString("MAX_OPEN_INTEREST"),
+  CUMULATIVE_OPEN_COSTS: keyFromString("CUMULATIVE_OPEN_COSTS"),
   MAX_OPEN_INTEREST_FACTOR: keyFromString("MAX_OPEN_INTEREST_FACTOR"),
   RESERVE_FACTOR: keyFromString("RESERVE_FACTOR"),
   OPEN_INTEREST_RESERVE_FACTOR: keyFromString("OPEN_INTEREST_RESERVE_FACTOR"),
@@ -21502,6 +21503,8 @@ async function loadLiveState() {
           poolCollateralAmountRaw,
           maxOpenInterestLongRaw,
           maxOpenInterestShortRaw,
+          longCumulativeOpenCostsRaw,
+          shortCumulativeOpenCostsRaw,
           maxOpenInterestFactorLongRaw,
           maxOpenInterestFactorShortRaw,
           bidDepthRaw,
@@ -21547,6 +21550,8 @@ async function loadLiveState() {
           readUint(provider, marketAddressKey(DATA_KEYS.POOL_AMOUNT, marketIndex, collateralToken)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST, marketIndex, false)),
+          readUint(provider, marketBoolKey(DATA_KEYS.CUMULATIVE_OPEN_COSTS, marketIndex, true)),
+          readUint(provider, marketBoolKey(DATA_KEYS.CUMULATIVE_OPEN_COSTS, marketIndex, false)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST_FACTOR, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.MAX_OPEN_INTEREST_FACTOR, marketIndex, false)),
           readUint(provider, marketUintKey(DATA_KEYS.BID_ORDER_BOOK_DEPTH, marketIndex)),
@@ -21622,6 +21627,8 @@ async function loadLiveState() {
           positionCollateralUsd: 0,
           longPositionCollateralUsd: 0,
           shortPositionCollateralUsd: 0,
+          longCumulativeOpenCostsUsd: usdValue(longCumulativeOpenCostsRaw),
+          shortCumulativeOpenCostsUsd: usdValue(shortCumulativeOpenCostsRaw),
           maxOpenInterestLongUsd: usdValue(maxOpenInterestLongRaw),
           maxOpenInterestShortUsd: usdValue(maxOpenInterestShortRaw),
           maxOpenInterestFactorLongPct: factorToPercent(maxOpenInterestFactorLongRaw),
@@ -21915,6 +21922,8 @@ function buildMarkets(liveState) {
     positionCollateralUsd: 0,
     longPositionCollateralUsd: 0,
     shortPositionCollateralUsd: 0,
+    longCumulativeOpenCostsUsd: 0,
+    shortCumulativeOpenCostsUsd: 0,
     positionFeeFactorPct: round(market.positionFeeFactor * 100, 4),
     constantPriceSpreadPct: 0.01,
     positionImpactFactorPositive: 2e-4,
@@ -21999,10 +22008,30 @@ function buildMarkets(liveState) {
     const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
     const longOpenInterestUsd = hasUsableLiveOi && marketState.longOiTokens > 0 ? round(tokenAmountToUsd(marketState.longOiTokens, oraclePrice), 2) : 0;
     const shortOpenInterestUsd = hasUsableLiveOi && marketState.shortOiTokens > 0 ? round(tokenAmountToUsd(marketState.shortOiTokens, oraclePrice), 2) : 0;
+    const longReservedUsd = longOpenInterestUsd;
+    const shortReservedUsd = marketState.shortCumulativeOpenCostsUsd;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
     const fallbackOpenInterestUsd = poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
     const openInterestUsd = hasUsableLiveOi ? round(tokenAmountToUsd(totalOiTokens, oraclePrice), 2) : fallbackOpenInterestUsd;
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd : maxPositionSizeUsd * 2;
+    const longSoftCapUsd = round(poolCollateralAmount * (marketState.maxOpenInterestFactorLongPct / 100), 2);
+    const shortSoftCapUsd = round(poolCollateralAmount * (marketState.maxOpenInterestFactorShortPct / 100), 2);
+    const longReserveCapUsd = round(poolCollateralAmount * (marketState.reserveFactorLongPct / 100), 2);
+    const shortReserveCapUsd = round(poolCollateralAmount * (marketState.reserveFactorShortPct / 100), 2);
+    const longOiReserveCapUsd = round(poolCollateralAmount * (marketState.openInterestReserveFactorLongPct / 100), 2);
+    const shortOiReserveCapUsd = round(poolCollateralAmount * (marketState.openInterestReserveFactorShortPct / 100), 2);
+    const availableLongUsd = round(Math.max(0, Math.min(
+      marketState.maxOpenInterestLongUsd > 0 ? marketState.maxOpenInterestLongUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+      longSoftCapUsd > 0 ? longSoftCapUsd - marketState.longCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+      longReserveCapUsd > 0 ? longReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY,
+      longOiReserveCapUsd > 0 ? longOiReserveCapUsd - longReservedUsd : Number.POSITIVE_INFINITY
+    )), 2);
+    const availableShortUsd = round(Math.max(0, Math.min(
+      marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestShortUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+      shortSoftCapUsd > 0 ? shortSoftCapUsd - marketState.shortCumulativeOpenCostsUsd : Number.POSITIVE_INFINITY,
+      shortReserveCapUsd > 0 ? shortReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY,
+      shortOiReserveCapUsd > 0 ? shortOiReserveCapUsd - shortReservedUsd : Number.POSITIVE_INFINITY
+    )), 2);
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round(openInterestUsd / openInterestCapacityUsd * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round(openInterestUsd / poolCollateralAmount * 100, 2) : 0;
     const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
@@ -22098,6 +22127,12 @@ function buildMarkets(liveState) {
       askDepthUsd,
       reserveFactorLongPct: marketState.reserveFactorLongPct,
       reserveFactorShortPct: marketState.reserveFactorShortPct,
+      openInterestReserveFactorLongPct: marketState.openInterestReserveFactorLongPct,
+      openInterestReserveFactorShortPct: marketState.openInterestReserveFactorShortPct,
+      longReservedUsd,
+      shortReservedUsd,
+      availableLongUsd,
+      availableShortUsd,
       minCollateralFactorPct,
       minCollateralFactorForLiquidationPct,
       maxPositionSizeUsd,
