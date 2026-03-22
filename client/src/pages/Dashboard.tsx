@@ -50,6 +50,10 @@ function metricTone(value: number) {
   return "good" as const;
 }
 
+function num(value: number | undefined | null) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 const sourceLegend = [
   {
     label: "live-position-counters / live-venue / live-aggregate",
@@ -470,23 +474,23 @@ export default function Dashboard() {
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Reserve Factor</div>
-                  <div className="mt-1 font-semibold text-foreground">L {market.reserveFactorLongPct.toFixed(1)}% · S {market.reserveFactorShortPct.toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">L {num(market.reserveFactorLongPct).toFixed(1)}% · S {num(market.reserveFactorShortPct).toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
-                  <div className="mt-1 font-semibold text-foreground">L {market.openInterestReserveFactorLongPct.toFixed(1)}% · S {market.openInterestReserveFactorShortPct.toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">L {num(market.openInterestReserveFactorLongPct).toFixed(1)}% · S {num(market.openInterestReserveFactorShortPct).toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">LP Cap Usage</div>
-                  <div className="mt-1 font-semibold text-foreground">L {((market.reserveFactorLongPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.longReservedUsd / (market.poolUsdWithoutPnl * (market.reserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}% · S {((market.reserveFactorShortPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.shortReservedUsd / (market.poolUsdWithoutPnl * (market.reserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((num(market.reserveFactorLongPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.longReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.reserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S {((num(market.reserveFactorShortPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.shortReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.reserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Usage</div>
-                  <div className="mt-1 font-semibold text-foreground">L {((market.openInterestReserveFactorLongPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.longReservedUsd / (market.poolUsdWithoutPnl * (market.openInterestReserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}% · S {((market.openInterestReserveFactorShortPct > 0 && market.poolUsdWithoutPnl > 0) ? (market.shortReservedUsd / (market.poolUsdWithoutPnl * (market.openInterestReserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((num(market.openInterestReserveFactorLongPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.longReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S {((num(market.openInterestReserveFactorShortPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.shortReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Remaining</div>
-                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, market.poolUsdWithoutPnl * (market.openInterestReserveFactorLongPct / 100) - market.longReservedUsd)))} · S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, market.poolUsdWithoutPnl * (market.openInterestReserveFactorShortPct / 100) - market.shortReservedUsd)))}</div>
+                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100) - num(market.longReservedUsd))))} · S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100) - num(market.shortReservedUsd))))}</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Available Liquidity</div>

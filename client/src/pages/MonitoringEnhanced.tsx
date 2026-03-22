@@ -109,6 +109,10 @@ function buildDiagnostics(selected: {
   ] as const;
 }
 
+function num(value: number | undefined | null) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export default function MonitoringEnhanced() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const [activeTab, setActiveTab] = useState("overview");
@@ -381,24 +385,24 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
-                    <div className="mt-1 text-lg font-semibold">L {selected.openInterestReserveFactorLongPct.toFixed(1)}% · S {selected.openInterestReserveFactorShortPct.toFixed(1)}%</div>
+                    <div className="mt-1 text-lg font-semibold">L {num(selected.openInterestReserveFactorLongPct).toFixed(1)}% · S {num(selected.openInterestReserveFactorShortPct).toFixed(1)}%</div>
                     <div className="mt-1 text-xs text-muted-foreground">Directional OI-reserve cap factors from protocol config.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Usage</div>
                     <div className="mt-1 text-lg font-semibold">
-                      L {((selected.openInterestReserveFactorLongPct > 0 && selected.poolUsdWithoutPnl > 0) ? (selected.longReservedUsd / (selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}%
+                      L {((num(selected.openInterestReserveFactorLongPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.longReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}%
                       {" · "}
-                      S {((selected.openInterestReserveFactorShortPct > 0 && selected.poolUsdWithoutPnl > 0) ? (selected.shortReservedUsd / (selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%
+                      S {((num(selected.openInterestReserveFactorShortPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.shortReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">Reserved USD divided by the OI reserve cap for each side.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Remaining</div>
                     <div className="mt-1 text-lg font-semibold">
-                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorLongPct / 100) - selected.longReservedUsd)))}
+                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100) - num(selected.longReservedUsd))))}
                       {" · "}
-                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorShortPct / 100) - selected.shortReservedUsd)))}
+                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100) - num(selected.shortReservedUsd))))}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">Remaining headroom implied only by OI reserve factor, before other caps are considered.</div>
                   </div>
