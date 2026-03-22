@@ -38,6 +38,18 @@ function sourceLegendTone(kind: "live" | "derived" | "fallback") {
   return "bg-primary/20 text-primary border-primary/30";
 }
 
+function marketAlertTone(level: string) {
+  if (level === "l3") return "critical" as const;
+  if (level === "l2") return "warning" as const;
+  return "good" as const;
+}
+
+function metricTone(value: number) {
+  if (value > 0) return "warning" as const;
+  if (value < 0) return "critical" as const;
+  return "good" as const;
+}
+
 const sourceLegend = [
   {
     label: "live-position-counters / live-venue / live-aggregate",
@@ -59,6 +71,35 @@ const sourceLegend = [
 export default function Dashboard() {
   const { snapshot, loading, error, refresh } = useMonitoring();
   const priority = useMemo(() => snapshot?.dashboard.priorityMarkets ?? [], [snapshot]);
+  const aggregate = useMemo(() => {
+    const markets = snapshot?.markets ?? [];
+    const totalOi = markets.reduce((sum, market) => sum + market.openInterestUsd, 0);
+    const totalLongOi = markets.reduce((sum, market) => sum + market.longOpenInterestUsd, 0);
+    const totalShortOi = markets.reduce((sum, market) => sum + market.shortOpenInterestUsd, 0);
+    const totalPoolCollateral = markets.reduce((sum, market) => sum + market.poolCollateralAmount, 0);
+    const netSkewUsd = totalLongOi - totalShortOi;
+    const netSkewPct = totalOi > 0 ? (netSkewUsd / totalOi) * 100 : 0;
+    const fundingStress = markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length;
+    const oracleStress = markets.filter((market) => market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5).length;
+    const activeAlerts = snapshot?.alerts.length ?? 0;
+    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
+  }, [snapshot]);
+  const marketBreakdown = useMemo(() => (snapshot?.markets ?? []).map((market) => ({
+    symbol: market.symbol,
+    displayName: market.displayName,
+    alertLevel: market.alertLevel,
+    openInterestUsd: market.openInterestUsd,
+    longOpenInterestUsd: market.longOpenInterestUsd,
+    shortOpenInterestUsd: market.shortOpenInterestUsd,
+    longFundingAprPct: market.longFundingAprPct,
+    shortFundingAprPct: market.shortFundingAprPct,
+    longSharePct: market.longSharePct,
+    shortSharePct: market.shortSharePct,
+    skewPct: market.skewPct,
+    externalPriceDeviationPct: market.externalPriceDeviationPct,
+    riskScore: market.riskScore,
+    watchStatus: market.watchStatus,
+  })), [snapshot]);
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
     liveOi: snapshot?.markets.filter((market) => market.oiSource === "live-position-counters").length ?? 0,
@@ -192,18 +233,61 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {snapshot.dashboard.stats.map((stat) => (
-          <Card key={stat.label} className="bg-card/50 border-primary/20 tech-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${toneClass(stat.tone)}`}>{stat.value}</div>
-              {stat.delta ? <p className="mt-1 text-xs text-muted-foreground">{stat.delta}</p> : null}
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Open Interest</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalOi))}</div>
+            <p className="mt-1 text-xs text-muted-foreground">All-market aggregate open interest across the current snapshot.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Long / Short OI</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalLongOi))} / ${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalShortOi))}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Directional OI aggregated across all configured markets.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Net Skew</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${aggregate.netSkewUsd >= 0 ? "text-primary" : "text-destructive"}`}>${Intl.NumberFormat("en-US").format(Math.round(Math.abs(aggregate.netSkewUsd)))} {aggregate.netSkewUsd >= 0 ? "net long" : "net short"}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{aggregate.totalOi > 0 ? `${aggregate.netSkewPct >= 0 ? "+" : ""}${aggregate.netSkewPct.toFixed(1)}% of total OI` : "No live OI yet."}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Pool Collateral</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalPoolCollateral))}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Aggregated pool collateral across all monitored markets.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Markets Above Venue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${aggregate.fundingStress > 0 ? "text-yellow-500" : "text-primary"}`}>{aggregate.fundingStress}/{snapshot.markets.length}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Markets where protocol funding is more stressed than the external venue reference.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active Alerts / Oracle Stress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{aggregate.activeAlerts} / {aggregate.oracleStress}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Active alerts and markets above the live venue oracle divergence threshold.</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="bg-card/50 border-primary/20 tech-border">
@@ -282,6 +366,57 @@ export default function Dashboard() {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">Long share / short share of total open interest.</div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-primary/20 tech-border">
+        <CardHeader>
+          <CardTitle className="text-primary">Market Breakdown</CardTitle>
+          <CardDescription>Per-market summary cards. Dashboard stays aggregated above; use these cards to compare ETH, BTC, and future markets side by side.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {marketBreakdown.map((market) => (
+            <div key={`${market.symbol}-breakdown`} className="rounded border border-border bg-background/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-lg font-semibold text-foreground">{market.displayName}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{market.watchStatus}</div>
+                </div>
+                <Badge variant="outline" className={confidenceBadge(marketAlertTone(market.alertLevel))}>
+                  {market.alertLevel.toUpperCase()}
+                </Badge>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">OI</div>
+                  <div className="mt-1 font-semibold text-foreground">${Intl.NumberFormat("en-US").format(Math.round(market.openInterestUsd))}</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Long / Short Split</div>
+                  <div className="mt-1 font-semibold text-foreground">{market.longSharePct.toFixed(1)}% / {market.shortSharePct.toFixed(1)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Skew</div>
+                  <div className={`mt-1 font-semibold ${metricTone(market.skewPct).replace("warning", "text-yellow-500").replace("critical", "text-destructive").replace("good", "text-primary")}`}>{market.skewPct >= 0 ? "+" : ""}{market.skewPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Oracle Gap</div>
+                  <div className={`mt-1 font-semibold ${market.externalPriceDeviationPct >= 15 ? "text-yellow-500" : "text-primary"}`}>{market.externalPriceDeviationPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Long Funding</div>
+                  <div className={`mt-1 font-semibold ${market.longFundingAprPct >= 0 ? "text-yellow-500" : "text-primary"}`}>{market.longFundingAprPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Short Funding</div>
+                  <div className={`mt-1 font-semibold ${market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary"}`}>{market.shortFundingAprPct.toFixed(2)}%</div>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Risk score {market.riskScore.toFixed(2)} · Long ${Intl.NumberFormat("en-US").format(Math.round(market.longOpenInterestUsd))} · Short ${Intl.NumberFormat("en-US").format(Math.round(market.shortOpenInterestUsd))}
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
