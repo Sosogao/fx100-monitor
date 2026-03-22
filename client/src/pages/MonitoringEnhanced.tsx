@@ -380,6 +380,29 @@ export default function MonitoringEnhanced() {
                     <div className="mt-1 text-xs text-muted-foreground">Direct Reader headroom after OI, reserve, and OI-reserve caps.</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
+                    <div className="mt-1 text-lg font-semibold">L {selected.openInterestReserveFactorLongPct.toFixed(1)}% · S {selected.openInterestReserveFactorShortPct.toFixed(1)}%</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Directional OI-reserve cap factors from protocol config.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">OI Reserve Usage</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L {((selected.openInterestReserveFactorLongPct > 0 && selected.poolUsdWithoutPnl > 0) ? (selected.longReservedUsd / (selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}%
+                      {" · "}
+                      S {((selected.openInterestReserveFactorShortPct > 0 && selected.poolUsdWithoutPnl > 0) ? (selected.shortReservedUsd / (selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Reserved USD divided by the OI reserve cap for each side.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
+                    <div className="text-xs text-muted-foreground">OI Reserve Remaining</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorLongPct / 100) - selected.longReservedUsd)))}
+                      {" · "}
+                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, selected.poolUsdWithoutPnl * (selected.openInterestReserveFactorShortPct / 100) - selected.shortReservedUsd)))}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Remaining headroom implied only by OI reserve factor, before other caps are considered.</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Pool USD Without PnL</div>
                     <div className="mt-1 text-lg font-semibold">${Intl.NumberFormat("en-US").format(Math.round(selected.poolUsdWithoutPnl))}</div>
                   </div>
