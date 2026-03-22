@@ -749,3 +749,9 @@ Reason:
   - `Distribution Ops`
   - `Distribution Registry`
 - This keeps the pages denser while preserving access to the research context.
+
+
+## Step 43: added market collateral aggregation
+- Added `Total Market Collateral` to the dashboard and per-market `Position Collateral` to market breakdown.
+- Current implementation enumerates `POSITION_LIST` onchain and sums `COLLATERAL_AMOUNT` per market. This is acceptable for early testing on small forks.
+- For production-scale monitoring with large position counts, this should be replaced by an event-driven offchain indexer / materialized state pipeline instead of full onchain enumeration on each snapshot.

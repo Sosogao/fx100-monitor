@@ -76,13 +76,14 @@ export default function Dashboard() {
     const totalOi = markets.reduce((sum, market) => sum + market.openInterestUsd, 0);
     const totalLongOi = markets.reduce((sum, market) => sum + market.longOpenInterestUsd, 0);
     const totalShortOi = markets.reduce((sum, market) => sum + market.shortOpenInterestUsd, 0);
-    const totalPoolCollateral = markets.reduce((sum, market) => sum + market.poolCollateralAmount, 0);
+    const totalPoolCollateral = Array.from(new Map(markets.map((market) => [market.vault, market.poolCollateralAmount])).values()).reduce((sum, value) => sum + value, 0);
+    const totalMarketCollateral = markets.reduce((sum, market) => sum + market.positionCollateralUsd, 0);
     const netSkewUsd = totalLongOi - totalShortOi;
     const netSkewPct = totalOi > 0 ? (netSkewUsd / totalOi) * 100 : 0;
     const fundingStress = markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length;
     const oracleStress = markets.filter((market) => market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5).length;
     const activeAlerts = snapshot?.alerts.length ?? 0;
-    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
+    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
   }, [snapshot]);
   const marketBreakdown = useMemo(() => (snapshot?.markets ?? []).map((market) => ({
     symbol: market.symbol,
@@ -99,6 +100,7 @@ export default function Dashboard() {
     externalPriceDeviationPct: market.externalPriceDeviationPct,
     riskScore: market.riskScore,
     watchStatus: market.watchStatus,
+    positionCollateralUsd: market.positionCollateralUsd,
   })), [snapshot]);
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
@@ -233,7 +235,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="bg-card/50 border-primary/20 tech-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Open Interest</CardTitle>
@@ -268,6 +270,15 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalPoolCollateral))}</div>
             <p className="mt-1 text-xs text-muted-foreground">Aggregated pool collateral across all monitored markets.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Market Collateral</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalMarketCollateral))}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Sum of all open position collateral across every monitored market.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
@@ -392,6 +403,10 @@ export default function Dashboard() {
                   <div className="mt-1 font-semibold text-foreground">${Intl.NumberFormat("en-US").format(Math.round(market.openInterestUsd))}</div>
                 </div>
                 <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Position Collateral</div>
+                  <div className="mt-1 font-semibold text-foreground">${Intl.NumberFormat("en-US").format(Math.round(market.positionCollateralUsd))}</div>
+                </div>
+                <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Long / Short Split</div>
                   <div className="mt-1 font-semibold text-foreground">{market.longSharePct.toFixed(1)}% / {market.shortSharePct.toFixed(1)}%</div>
                 </div>
@@ -413,7 +428,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-3 text-xs text-muted-foreground">
-                Risk score {market.riskScore.toFixed(2)} · Long ${Intl.NumberFormat("en-US").format(Math.round(market.longOpenInterestUsd))} · Short ${Intl.NumberFormat("en-US").format(Math.round(market.shortOpenInterestUsd))}
+                Risk score {market.riskScore.toFixed(2)} · Long ${Intl.NumberFormat("en-US").format(Math.round(market.longOpenInterestUsd))} · Short ${Intl.NumberFormat("en-US").format(Math.round(market.shortOpenInterestUsd))} · Collateral ${Intl.NumberFormat("en-US").format(Math.round(market.positionCollateralUsd))}
               </div>
             </div>
           ))}

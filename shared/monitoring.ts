@@ -71,6 +71,7 @@ export interface MarketSnapshot {
   collateralVaultBalance: number;
   indexVaultBalance: number;
   poolCollateralAmount: number;
+  positionCollateralUsd: number;
   longOpenInterestUsd: number;
   shortOpenInterestUsd: number;
   openInterestCapacityUsd: number;

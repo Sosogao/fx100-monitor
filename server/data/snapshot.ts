@@ -46,6 +46,8 @@ const DATA_STORE_ABI = [
   "function getBoolArray(bytes32 key) view returns (bool[])",
   "function getUintCount(bytes32 setKey) view returns (uint256)",
   "function getUintValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (uint256[])",
+  "function getBytes32Count(bytes32 setKey) view returns (uint256)",
+  "function getBytes32ValuesAt(bytes32 setKey, uint256 start, uint256 end) view returns (bytes32[])",
 ];
 
 const ERC20_ABI = [
@@ -106,6 +108,7 @@ const DATA_KEYS = {
   MAX_POSITION_SIZE_USD: keyFromString("MAX_POSITION_SIZE_USD"),
   LIQUIDATION_GRACE_PERIOD_BASE: keyFromString("LIQUIDATION_GRACE_PERIOD_BASE"),
   LIQUIDATION_FEE_FACTOR: keyFromString("LIQUIDATION_FEE_FACTOR"),
+  POSITION_LIST: keyFromString("POSITION_LIST"),
   CREATE_ORDER_FEATURE_DISABLED: keyFromString("CREATE_ORDER_FEATURE_DISABLED"),
   EXECUTE_ORDER_FEATURE_DISABLED: keyFromString("EXECUTE_ORDER_FEATURE_DISABLED"),
   UPDATE_ORDER_FEATURE_DISABLED: keyFromString("UPDATE_ORDER_FEATURE_DISABLED"),
@@ -164,6 +167,11 @@ const MARKET_PROP_KEYS = {
   COLLATERAL_TOKEN: keyFromString("COLLATERAL_TOKEN"),
 };
 
+const POSITION_FIELD_KEYS = {
+  MARKET_INDEX: keyFromString("MARKET_INDEX"),
+  COLLATERAL_AMOUNT: keyFromString("COLLATERAL_AMOUNT"),
+};
+
 interface AssetSeed {
   referencePriceUsd: number;
 }
@@ -181,6 +189,7 @@ interface OnchainMarketState {
   collateralVaultBalance: number;
   indexVaultBalance: number;
   poolCollateralAmount: number;
+  positionCollateralUsd: number;
   positionFeeFactorPct: number;
   constantPriceSpreadPct: number;
   positionImpactFactorPositive: number;
@@ -600,6 +609,10 @@ function marketAddressKey(baseKey: string, marketIndex: number, token: string): 
   return hashKey(["bytes32", "uint256", "address"], [baseKey, BigInt(marketIndex), getAddress(token)]);
 }
 
+function compositeBytes32Key(baseKey: string, subKey: string): string {
+  return hashKey(["bytes32", "bytes32"], [baseKey, subKey]);
+}
+
 function scopedUintKey(baseKey: string, value: bigint | number): string {
   return hashKey(["bytes32", "uint256"], [baseKey, BigInt(value)]);
 }
@@ -965,6 +978,10 @@ async function readBoolArray(provider: JsonRpcProvider, key: string): Promise<bo
   return dataStoreCall<boolean[]>(provider, "getBoolArray", [key]);
 }
 
+async function readBytes32ValuesAt(provider: JsonRpcProvider, key: string, start: number, end: number): Promise<string[]> {
+  return dataStoreCall<string[]>(provider, "getBytes32ValuesAt", [key, BigInt(start), BigInt(end)]);
+}
+
 async function loadLiveState(): Promise<LiveReadState> {
   const state: LiveReadState = {
     onchainMarkets: [],
@@ -1048,8 +1065,8 @@ async function loadLiveState(): Promise<LiveReadState> {
     const configuredMarketIndices = basefx100Sepolia0312.markets.map((market) => market.marketIndex);
     const marketIndices = Array.from(new Set([...marketIndicesFromList, ...configuredMarketIndices])).sort((a, b) => a - b);
 
-    const onchainMarkets = (await Promise.all(
-      marketIndices.map(async (marketIndex) => {
+    const onchainMarketsRaw: Array<OnchainMarketState | null> = await Promise.all(
+      marketIndices.map(async (marketIndex): Promise<OnchainMarketState | null> => {
         const [vault, indexToken, collateralToken] = await Promise.all([
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.VAULT)),
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.INDEX_TOKEN)),
@@ -1198,6 +1215,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           maxPositionImpactFactorNegativePct: factorToPercent(maxPositionImpactFactorNegativeRaw),
           priceImpactParameter: factorToRatio(priceImpactParameterRaw),
           poolCollateralAmount: round(Number(formatUnits(poolCollateralAmountRaw, collateralTokenDecimals)), 4),
+          positionCollateralUsd: 0,
           maxOpenInterestLongUsd: usdValue(maxOpenInterestLongRaw),
           maxOpenInterestShortUsd: usdValue(maxOpenInterestShortRaw),
           maxOpenInterestFactorLongPct: factorToPercent(maxOpenInterestFactorLongRaw),
@@ -1235,12 +1253,13 @@ async function loadLiveState(): Promise<LiveReadState> {
           shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
           shortPositiveFundingFeePerSizePct: factorToPercentSigned(shortPositiveFundingFeePerSizeRaw),
           oraclePriceUsd,
-          // OPEN_INTEREST_IN_TOKENS is stored as whole token counts, not token wei units.
+          // OPEN_INTEREST_IN_TOKENS is stored using token precision matching sizeInTokens.
           longOiTokens: Number(longOiTokensRaw),
           shortOiTokens: Number(shortOiTokensRaw),
         } satisfies OnchainMarketState;
       }),
-    )).filter((market): market is OnchainMarketState => market !== null);
+    );
+    const onchainMarkets = onchainMarketsRaw.filter((market): market is OnchainMarketState => market !== null);
 
     const lpVaultUsdcBalance = await erc20Balance(
       provider,
@@ -1432,6 +1451,35 @@ async function loadLiveState(): Promise<LiveReadState> {
       subaccountDisabled,
       gaslessDisabled,
     };
+    const positionCount = Number(await dataStoreCall<bigint>(provider, "getBytes32Count", [DATA_KEYS.POSITION_LIST]));
+    if (positionCount > 0) {
+      const positionKeys = await readBytes32ValuesAt(provider, DATA_KEYS.POSITION_LIST, 0, positionCount);
+      const collateralByMarket = new Map<number, number>();
+      const marketDecimals = new Map(onchainMarkets.map((market) => [market.marketIndex, market.collateralTokenDecimals] as const));
+      const positionStates = await Promise.all(positionKeys.map(async (positionKey) => {
+        const [marketIndexRaw, collateralAmountRaw] = await Promise.all([
+          readUint(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.MARKET_INDEX)),
+          readUint(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.COLLATERAL_AMOUNT)),
+        ]);
+        return {
+          marketIndex: Number(marketIndexRaw),
+          collateralAmountRaw,
+        };
+      }));
+      for (const positionState of positionStates) {
+        const decimals = marketDecimals.get(positionState.marketIndex);
+        if (decimals === undefined) continue;
+        const collateralUsd = Number(formatUnits(positionState.collateralAmountRaw, decimals));
+        collateralByMarket.set(
+          positionState.marketIndex,
+          round((collateralByMarket.get(positionState.marketIndex) ?? 0) + collateralUsd, 4),
+        );
+      }
+      for (const market of onchainMarkets) {
+        market.positionCollateralUsd = collateralByMarket.get(market.marketIndex) ?? 0;
+      }
+    }
+
     state.onchainMarkets = onchainMarkets;
     state.readStatus = onchainMarkets.length > 0 ? "mixed" : "live";
     return state;
@@ -1459,6 +1507,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         collateralVaultBalance: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
         indexVaultBalance: 0,
         poolCollateralAmount: round((market.askDepthUsd + market.bidDepthUsd) / 1000, 2),
+        positionCollateralUsd: 0,
         positionFeeFactorPct: round(market.positionFeeFactor * 100, 4),
         constantPriceSpreadPct: 0.01,
         positionImpactFactorPositive: 0.0002,
@@ -1669,6 +1718,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       collateralVaultBalance: marketState.collateralVaultBalance,
       indexVaultBalance: marketState.indexVaultBalance,
       poolCollateralAmount,
+      positionCollateralUsd: marketState.positionCollateralUsd,
       longOpenInterestUsd,
       shortOpenInterestUsd,
       openInterestCapacityUsd,
@@ -1708,6 +1758,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
 
 function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): DashboardOverview {
   const totalOi = markets.reduce((sum, market) => sum + market.openInterestUsd, 0);
+  const totalMarketCollateral = markets.reduce((sum, market) => sum + market.positionCollateralUsd, 0);
   const uniqueVaultCollateral = new Map<string, number>();
   for (const market of markets) {
     if (!uniqueVaultCollateral.has(market.vault)) {
@@ -1744,6 +1795,12 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
         return `${round((totalOi / Math.max(totalPoolCollateral, 1)) * 100, 1)}% OI-to-pool`;
       })(),
       tone: markets.some((market) => market.poolUtilizationPct > 80) ? "critical" : "good",
+    },
+    {
+      label: "Total Market Collateral",
+      value: formatCurrency(totalMarketCollateral),
+      delta: markets.length > 0 ? `${markets.filter((market) => market.positionCollateralUsd > 0).length}/${markets.length} markets with open collateral` : "No active markets",
+      tone: totalMarketCollateral > 0 ? "good" : "neutral",
     },
     {
       label: "Funding Markets Above Venue",
