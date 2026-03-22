@@ -1044,9 +1044,11 @@ async function loadLiveState(): Promise<LiveReadState> {
       readUint(provider, DATA_KEYS.NATIVE_TOKEN_TRANSFER_GAS_LIMIT),
     ]);
     const count = Number(await dataStoreCall<bigint>(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
-    const marketIndices = count > 0 ? ((await dataStoreCall<bigint[]>(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value))) : [];
+    const marketIndicesFromList = count > 0 ? ((await dataStoreCall<bigint[]>(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value))) : [];
+    const configuredMarketIndices = basefx100Sepolia0312.markets.map((market) => market.marketIndex);
+    const marketIndices = Array.from(new Set([...marketIndicesFromList, ...configuredMarketIndices])).sort((a, b) => a - b);
 
-    const onchainMarkets = await Promise.all(
+    const onchainMarkets = (await Promise.all(
       marketIndices.map(async (marketIndex) => {
         const [vault, indexToken, collateralToken] = await Promise.all([
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.VAULT)),
@@ -1054,7 +1056,12 @@ async function loadLiveState(): Promise<LiveReadState> {
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.COLLATERAL_TOKEN)),
         ]);
 
-        const symbol = symbolFromMarket(indexToken, marketIndex);
+        if (vault === ZeroAddress || indexToken === ZeroAddress || collateralToken === ZeroAddress) {
+          return null;
+        }
+
+        const configuredMarket = basefx100Sepolia0312.markets.find((market) => market.marketIndex === marketIndex);
+        const symbol = configuredMarket?.symbol ?? symbolFromMarket(indexToken, marketIndex);
         const displayName = displayFromSymbol(symbol);
         const collateralTokenDecimals = inferTokenDecimals(symbol, collateralToken);
         const indexTokenDecimals = inferTokenDecimals(symbol, indexToken);
@@ -1233,7 +1240,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           shortOiTokens: Number(shortOiTokensRaw),
         } satisfies OnchainMarketState;
       }),
-    );
+    )).filter((market): market is OnchainMarketState => market !== null);
 
     const lpVaultUsdcBalance = await erc20Balance(
       provider,

@@ -21455,15 +21455,21 @@ async function loadLiveState() {
       readUint(provider, DATA_KEYS.NATIVE_TOKEN_TRANSFER_GAS_LIMIT)
     ]);
     const count = Number(await dataStoreCall(provider, "getUintCount", [DATA_KEYS.MARKET_LIST]));
-    const marketIndices = count > 0 ? (await dataStoreCall(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value)) : [];
-    const onchainMarkets = await Promise.all(
+    const marketIndicesFromList = count > 0 ? (await dataStoreCall(provider, "getUintValuesAt", [DATA_KEYS.MARKET_LIST, BigInt(0), BigInt(count)])).map((value) => Number(value)) : [];
+    const configuredMarketIndices = basefx100Sepolia0312.markets.map((market) => market.marketIndex);
+    const marketIndices = Array.from(/* @__PURE__ */ new Set([...marketIndicesFromList, ...configuredMarketIndices])).sort((a, b2) => a - b2);
+    const onchainMarkets = (await Promise.all(
       marketIndices.map(async (marketIndex) => {
         const [vault, indexToken, collateralToken] = await Promise.all([
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.VAULT)),
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.INDEX_TOKEN)),
           readAddress(provider, marketPropKey(marketIndex, MARKET_PROP_KEYS.COLLATERAL_TOKEN))
         ]);
-        const symbol = symbolFromMarket(indexToken, marketIndex);
+        if (vault === ZeroAddress || indexToken === ZeroAddress || collateralToken === ZeroAddress) {
+          return null;
+        }
+        const configuredMarket = basefx100Sepolia0312.markets.find((market) => market.marketIndex === marketIndex);
+        const symbol = configuredMarket?.symbol ?? symbolFromMarket(indexToken, marketIndex);
         const displayName = displayFromSymbol(symbol);
         const collateralTokenDecimals = inferTokenDecimals(symbol, collateralToken);
         const indexTokenDecimals = inferTokenDecimals(symbol, indexToken);
@@ -21639,7 +21645,7 @@ async function loadLiveState() {
           shortOiTokens: Number(shortOiTokensRaw)
         };
       })
-    );
+    )).filter((market) => market !== null);
     const lpVaultUsdcBalance = await erc20Balance(
       provider,
       basefx100Sepolia0312.tokens.CORE_USDC,
