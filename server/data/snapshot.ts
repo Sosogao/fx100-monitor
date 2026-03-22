@@ -1708,7 +1708,13 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
 
 function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): DashboardOverview {
   const totalOi = markets.reduce((sum, market) => sum + market.openInterestUsd, 0);
-  const weightedFunding = totalOi > 0 ? markets.reduce((sum, market) => sum + market.fundingAprPct * market.openInterestUsd, 0) / totalOi : 0;
+  const uniqueVaultCollateral = new Map<string, number>();
+  for (const market of markets) {
+    if (!uniqueVaultCollateral.has(market.vault)) {
+      uniqueVaultCollateral.set(market.vault, market.poolCollateralAmount);
+    }
+  }
+  const totalPoolCollateral = Array.from(uniqueVaultCollateral.values()).reduce((sum, value) => sum + value, 0);
   const avgOiChange = markets.length > 0 ? markets.reduce((sum, market) => sum + market.oiChange24hPct, 0) / markets.length : 0;
   const activeAlerts = markets.filter((market) => market.alertLevel !== "normal").length;
   const criticalAlerts = markets.filter((market) => market.alertLevel === "l3").length;
@@ -1732,13 +1738,10 @@ function buildDashboard(markets: MarketSnapshot[], liveState: LiveReadState): Da
     },
     {
       label: "Market Pool Collateral",
-      value: formatCurrency(markets.reduce((sum, market) => sum + market.poolCollateralAmount, 0)),
+      value: formatCurrency(totalPoolCollateral),
       delta: (() => {
-        const liveOiMarkets = markets.filter((market) => market.poolUtilizationPct > 0);
-        if (liveOiMarkets.length === 0) return "live pool balance; OI utilization unavailable";
-        const liveOi = liveOiMarkets.reduce((sum, market) => sum + market.openInterestUsd, 0);
-        const livePool = liveOiMarkets.reduce((sum, market) => sum + market.poolCollateralAmount, 0);
-        return `${round((liveOi / Math.max(livePool, 1)) * 100, 1)}% OI-to-pool`;
+        if (totalPoolCollateral <= 0) return "live pool balance unavailable";
+        return `${round((totalOi / Math.max(totalPoolCollateral, 1)) * 100, 1)}% OI-to-pool`;
       })(),
       tone: markets.some((market) => market.poolUtilizationPct > 80) ? "critical" : "good",
     },
