@@ -755,3 +755,10 @@ Reason:
 - Added `Total Market Collateral` to the dashboard and per-market `Position Collateral` to market breakdown.
 - Current implementation enumerates `POSITION_LIST` onchain and sums `COLLATERAL_AMOUNT` per market. This is acceptable for early testing on small forks.
 - For production-scale monitoring with large position counts, this should be replaced by an event-driven offchain indexer / materialized state pipeline instead of full onchain enumeration on each snapshot.
+
+
+## Step 44: added leverage and LP cap metrics
+- Added global leverage metrics to the dashboard: gross leverage, long leverage, and short leverage based on live position collateral.
+- Added `Total Market Collateral` directional breakdown and per-market average leverage.
+- Added LP utilization as `Total Open Interest / Total Pool Collateral` and per-market LP cap usage using reserve-factor based caps.
+- This LP cap view is a monitor heuristic over current reserve-factor inputs. It is useful for early operator testing, but longer-term monitoring should rely on a dedicated event-driven state pipeline and explicit protocol-cap outputs where available.

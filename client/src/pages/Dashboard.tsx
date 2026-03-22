@@ -78,12 +78,25 @@ export default function Dashboard() {
     const totalShortOi = markets.reduce((sum, market) => sum + market.shortOpenInterestUsd, 0);
     const totalPoolCollateral = Array.from(new Map(markets.map((market) => [market.vault, market.poolCollateralAmount])).values()).reduce((sum, value) => sum + value, 0);
     const totalMarketCollateral = markets.reduce((sum, market) => sum + market.positionCollateralUsd, 0);
+    const totalLongCollateral = markets.reduce((sum, market) => sum + market.longPositionCollateralUsd, 0);
+    const totalShortCollateral = markets.reduce((sum, market) => sum + market.shortPositionCollateralUsd, 0);
+    const grossLeverage = totalMarketCollateral > 0 ? totalOi / totalMarketCollateral : 0;
+    const longLeverage = totalLongCollateral > 0 ? totalLongOi / totalLongCollateral : 0;
+    const shortLeverage = totalShortCollateral > 0 ? totalShortOi / totalShortCollateral : 0;
+    const lpUtilizationPct = totalPoolCollateral > 0 ? (totalOi / totalPoolCollateral) * 100 : 0;
     const netSkewUsd = totalLongOi - totalShortOi;
     const netSkewPct = totalOi > 0 ? (netSkewUsd / totalOi) * 100 : 0;
     const fundingStress = markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length;
     const oracleStress = markets.filter((market) => market.externalPriceSource.startsWith("live-") && market.externalPriceDeviationPct >= 5).length;
     const activeAlerts = snapshot?.alerts.length ?? 0;
-    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
+    const worstLpCapUsagePct = markets.reduce((worst, market) => {
+      const longCapUsd = market.poolCollateralAmount * (market.reserveFactorLongPct / 100);
+      const shortCapUsd = market.poolCollateralAmount * (market.reserveFactorShortPct / 100);
+      const longUsage = longCapUsd > 0 ? (market.longOpenInterestUsd / longCapUsd) * 100 : 0;
+      const shortUsage = shortCapUsd > 0 ? (market.shortOpenInterestUsd / shortCapUsd) * 100 : 0;
+      return Math.max(worst, longUsage, shortUsage);
+    }, 0);
+    return { totalOi, totalLongOi, totalShortOi, totalPoolCollateral, totalMarketCollateral, totalLongCollateral, totalShortCollateral, grossLeverage, longLeverage, shortLeverage, lpUtilizationPct, worstLpCapUsagePct, netSkewUsd, netSkewPct, fundingStress, oracleStress, activeAlerts };
   }, [snapshot]);
   const marketBreakdown = useMemo(() => (snapshot?.markets ?? []).map((market) => ({
     symbol: market.symbol,
@@ -101,6 +114,11 @@ export default function Dashboard() {
     riskScore: market.riskScore,
     watchStatus: market.watchStatus,
     positionCollateralUsd: market.positionCollateralUsd,
+    longPositionCollateralUsd: market.longPositionCollateralUsd,
+    shortPositionCollateralUsd: market.shortPositionCollateralUsd,
+    reserveFactorLongPct: market.reserveFactorLongPct,
+    reserveFactorShortPct: market.reserveFactorShortPct,
+    poolCollateralAmount: market.poolCollateralAmount,
   })), [snapshot]);
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
@@ -235,7 +253,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
         <Card className="bg-card/50 border-primary/20 tech-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Open Interest</CardTitle>
@@ -256,11 +274,11 @@ export default function Dashboard() {
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Net Skew</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Leverage</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${aggregate.netSkewUsd >= 0 ? "text-primary" : "text-destructive"}`}>${Intl.NumberFormat("en-US").format(Math.round(Math.abs(aggregate.netSkewUsd)))} {aggregate.netSkewUsd >= 0 ? "net long" : "net short"}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{aggregate.totalOi > 0 ? `${aggregate.netSkewPct >= 0 ? "+" : ""}${aggregate.netSkewPct.toFixed(1)}% of total OI` : "No live OI yet."}</p>
+            <div className="text-2xl font-bold text-primary">{aggregate.grossLeverage.toFixed(2)}x</div>
+            <p className="mt-1 text-xs text-muted-foreground">Long {aggregate.longLeverage.toFixed(2)}x · Short {aggregate.shortLeverage.toFixed(2)}x based on live position collateral.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
@@ -269,7 +287,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalPoolCollateral))}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Aggregated pool collateral across all monitored markets.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Deduplicated LP vault collateral across shared market vaults.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
@@ -278,7 +296,16 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalMarketCollateral))}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Sum of all open position collateral across every monitored market.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Long ${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalLongCollateral))} · Short ${Intl.NumberFormat("en-US").format(Math.round(aggregate.totalShortCollateral))}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-primary/20 tech-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">LP Utilization</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{aggregate.lpUtilizationPct.toFixed(1)}%</div>
+            <p className="mt-1 text-xs text-muted-foreground">Total Open Interest / Total Pool Collateral. Worst market cap usage {aggregate.worstLpCapUsagePct.toFixed(1)}%.</p>
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-primary/20 tech-border">
@@ -287,16 +314,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${aggregate.fundingStress > 0 ? "text-yellow-500" : "text-primary"}`}>{aggregate.fundingStress}/{snapshot.markets.length}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Markets where protocol funding is more stressed than the external venue reference.</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/50 border-primary/20 tech-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Alerts / Oracle Stress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{aggregate.activeAlerts} / {aggregate.oracleStress}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Active alerts and markets above the live venue oracle divergence threshold.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Active alerts {aggregate.activeAlerts} · Oracle stress {aggregate.oracleStress}.</p>
           </CardContent>
         </Card>
       </div>
@@ -411,6 +429,10 @@ export default function Dashboard() {
                   <div className="mt-1 font-semibold text-foreground">{market.longSharePct.toFixed(1)}% / {market.shortSharePct.toFixed(1)}%</div>
                 </div>
                 <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Avg Leverage</div>
+                  <div className="mt-1 font-semibold text-foreground">{(market.positionCollateralUsd > 0 ? market.openInterestUsd / market.positionCollateralUsd : 0).toFixed(2)}x</div>
+                </div>
+                <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Skew</div>
                   <div className={`mt-1 font-semibold ${metricTone(market.skewPct).replace("warning", "text-yellow-500").replace("critical", "text-destructive").replace("good", "text-primary")}`}>{market.skewPct >= 0 ? "+" : ""}{market.skewPct.toFixed(2)}%</div>
                 </div>
@@ -425,6 +447,10 @@ export default function Dashboard() {
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Short Funding</div>
                   <div className={`mt-1 font-semibold ${market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary"}`}>{market.shortFundingAprPct.toFixed(2)}%</div>
+                </div>
+                <div className="rounded border border-border p-3">
+                  <div className="text-xs text-muted-foreground">LP Cap Usage</div>
+                  <div className="mt-1 font-semibold text-foreground">L {((market.reserveFactorLongPct > 0 && market.poolCollateralAmount > 0) ? (market.longOpenInterestUsd / (market.poolCollateralAmount * (market.reserveFactorLongPct / 100))) * 100 : 0).toFixed(1)}% · S {((market.reserveFactorShortPct > 0 && market.poolCollateralAmount > 0) ? (market.shortOpenInterestUsd / (market.poolCollateralAmount * (market.reserveFactorShortPct / 100))) * 100 : 0).toFixed(1)}%</div>
                 </div>
               </div>
               <div className="mt-3 text-xs text-muted-foreground">

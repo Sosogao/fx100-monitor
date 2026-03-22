@@ -72,6 +72,8 @@ export interface MarketSnapshot {
   indexVaultBalance: number;
   poolCollateralAmount: number;
   positionCollateralUsd: number;
+  longPositionCollateralUsd: number;
+  shortPositionCollateralUsd: number;
   longOpenInterestUsd: number;
   shortOpenInterestUsd: number;
   openInterestCapacityUsd: number;
@@ -81,6 +83,8 @@ export interface MarketSnapshot {
   priceImpactParameter: number;
   bidDepthUsd: number;
   askDepthUsd: number;
+  reserveFactorLongPct: number;
+  reserveFactorShortPct: number;
   minCollateralFactorPct: number;
   minCollateralFactorForLiquidationPct: number;
   maxPositionSizeUsd: number;

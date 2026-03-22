@@ -20793,7 +20793,8 @@ var MARKET_PROP_KEYS = {
 };
 var POSITION_FIELD_KEYS = {
   MARKET_INDEX: keyFromString("MARKET_INDEX"),
-  COLLATERAL_AMOUNT: keyFromString("COLLATERAL_AMOUNT")
+  COLLATERAL_AMOUNT: keyFromString("COLLATERAL_AMOUNT"),
+  IS_LONG: keyFromString("IS_LONG")
 };
 var assetSeeds = {
   ETH: { referencePriceUsd: 4425 },
@@ -21619,6 +21620,8 @@ async function loadLiveState() {
           priceImpactParameter: factorToRatio(priceImpactParameterRaw),
           poolCollateralAmount: round(Number(formatUnits(poolCollateralAmountRaw, collateralTokenDecimals)), 4),
           positionCollateralUsd: 0,
+          longPositionCollateralUsd: 0,
+          shortPositionCollateralUsd: 0,
           maxOpenInterestLongUsd: usdValue(maxOpenInterestLongRaw),
           maxOpenInterestShortUsd: usdValue(maxOpenInterestShortRaw),
           maxOpenInterestFactorLongPct: factorToPercent(maxOpenInterestFactorLongRaw),
@@ -21850,15 +21853,19 @@ async function loadLiveState() {
     if (positionCount > 0) {
       const positionKeys = await readBytes32ValuesAt(provider, DATA_KEYS.POSITION_LIST, 0, positionCount);
       const collateralByMarket = /* @__PURE__ */ new Map();
+      const longCollateralByMarket = /* @__PURE__ */ new Map();
+      const shortCollateralByMarket = /* @__PURE__ */ new Map();
       const marketDecimals = new Map(onchainMarkets.map((market) => [market.marketIndex, market.collateralTokenDecimals]));
       const positionStates = await Promise.all(positionKeys.map(async (positionKey) => {
-        const [marketIndexRaw, collateralAmountRaw] = await Promise.all([
+        const [marketIndexRaw, collateralAmountRaw, isLong] = await Promise.all([
           readUint(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.MARKET_INDEX)),
-          readUint(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.COLLATERAL_AMOUNT))
+          readUint(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.COLLATERAL_AMOUNT)),
+          readBool(provider, compositeBytes32Key(positionKey, POSITION_FIELD_KEYS.IS_LONG))
         ]);
         return {
           marketIndex: Number(marketIndexRaw),
-          collateralAmountRaw
+          collateralAmountRaw,
+          isLong
         };
       }));
       for (const positionState of positionStates) {
@@ -21869,9 +21876,16 @@ async function loadLiveState() {
           positionState.marketIndex,
           round((collateralByMarket.get(positionState.marketIndex) ?? 0) + collateralUsd, 4)
         );
+        const sidedMap = positionState.isLong ? longCollateralByMarket : shortCollateralByMarket;
+        sidedMap.set(
+          positionState.marketIndex,
+          round((sidedMap.get(positionState.marketIndex) ?? 0) + collateralUsd, 4)
+        );
       }
       for (const market of onchainMarkets) {
         market.positionCollateralUsd = collateralByMarket.get(market.marketIndex) ?? 0;
+        market.longPositionCollateralUsd = longCollateralByMarket.get(market.marketIndex) ?? 0;
+        market.shortPositionCollateralUsd = shortCollateralByMarket.get(market.marketIndex) ?? 0;
       }
     }
     state.onchainMarkets = onchainMarkets;
@@ -21899,6 +21913,8 @@ function buildMarkets(liveState) {
     indexVaultBalance: 0,
     poolCollateralAmount: round((market.askDepthUsd + market.bidDepthUsd) / 1e3, 2),
     positionCollateralUsd: 0,
+    longPositionCollateralUsd: 0,
+    shortPositionCollateralUsd: 0,
     positionFeeFactorPct: round(market.positionFeeFactor * 100, 4),
     constantPriceSpreadPct: 0.01,
     positionImpactFactorPositive: 2e-4,
@@ -22069,6 +22085,8 @@ function buildMarkets(liveState) {
       indexVaultBalance: marketState.indexVaultBalance,
       poolCollateralAmount,
       positionCollateralUsd: marketState.positionCollateralUsd,
+      longPositionCollateralUsd: marketState.longPositionCollateralUsd,
+      shortPositionCollateralUsd: marketState.shortPositionCollateralUsd,
       longOpenInterestUsd,
       shortOpenInterestUsd,
       openInterestCapacityUsd,
@@ -22078,6 +22096,8 @@ function buildMarkets(liveState) {
       priceImpactParameter,
       bidDepthUsd,
       askDepthUsd,
+      reserveFactorLongPct: marketState.reserveFactorLongPct,
+      reserveFactorShortPct: marketState.reserveFactorShortPct,
       minCollateralFactorPct,
       minCollateralFactorForLiquidationPct,
       maxPositionSizeUsd,
