@@ -104,7 +104,7 @@ function buildDiagnostics(selected: {
       label: "Venue",
       value: selected.externalPriceSource,
       tone: selected.externalPriceSource === "live-aggregate" ? "good" : selected.externalPriceSource.startsWith("live-") ? "warning" : "critical",
-      detail: selected.externalVenueName + " funding " + selected.externalFundingAprPct.toFixed(2) + "%",
+      detail: selected.externalVenueName + " funding " + num(selected.externalFundingAprPct).toFixed(2) + "%",
     },
   ] as const;
 }
@@ -273,7 +273,7 @@ export default function MonitoringEnhanced() {
                         <Badge variant="outline" className="border-primary/30 text-primary">{market.tier}</Badge>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} ({market.oiSource === "live-position-counters" ? "live counters" : market.oiCounterStatus}) · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
+                        OI {Intl.NumberFormat("en-US").format(market.openInterestUsd)} ({market.oiSource === "live-position-counters" ? "live counters" : market.oiCounterStatus}) · funding {market.fundingAprPct.toFixed(1)}% vs {market.externalVenueName} {num(market.externalFundingAprPct).toFixed(1)}% · var99.9 {market.var99_9Pct.toFixed(2)}% ({market.analyticsSource === "runtime-derived" ? "runtime" : "fallback"})
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -470,13 +470,13 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long Funding APR</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${selected.longFundingAprPct.toFixed(2)}%` : "n/a"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the long side." : `Benchmark fallback ${selected.externalFundingAprPct.toFixed(2)}%.`}</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${num(selected.longFundingAprPct).toFixed(2)}%` : "n/a"}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the long side." : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Short Funding APR</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${selected.shortFundingAprPct.toFixed(2)}%` : "n/a"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the short side." : `Benchmark fallback ${selected.externalFundingAprPct.toFixed(2)}%.`}</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${num(selected.shortFundingAprPct).toFixed(2)}%` : "n/a"}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the short side." : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Venue Price Gap</div>

@@ -472,13 +472,13 @@ export default function Dashboard() {
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Long Funding</div>
-                  <div className={`mt-1 font-semibold ${market.fundingSignalSource === "reader-next-funding" ? (market.longFundingAprPct >= 0 ? "text-yellow-500" : "text-primary") : "text-muted-foreground"}`}>{market.fundingSignalSource === "reader-next-funding" ? `${market.longFundingAprPct.toFixed(2)}%` : "n/a"}</div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">{market.fundingSignalSource === "reader-next-funding" ? "reader nextFunding" : `benchmark ${market.externalFundingAprPct.toFixed(2)}%`}</div>
+                  <div className={`mt-1 font-semibold ${market.fundingSignalSource === "reader-next-funding" ? (market.longFundingAprPct >= 0 ? "text-yellow-500" : "text-primary") : "text-muted-foreground"}`}>{market.fundingSignalSource === "reader-next-funding" ? `${num(market.longFundingAprPct).toFixed(2)}%` : "n/a"}</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">{market.fundingSignalSource === "reader-next-funding" ? "reader nextFunding" : `benchmark ${num(market.externalFundingAprPct).toFixed(2)}%`}</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Short Funding</div>
-                  <div className={`mt-1 font-semibold ${market.fundingSignalSource === "reader-next-funding" ? (market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary") : "text-muted-foreground"}`}>{market.fundingSignalSource === "reader-next-funding" ? `${market.shortFundingAprPct.toFixed(2)}%` : "n/a"}</div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">{market.fundingSignalSource === "reader-next-funding" ? "reader nextFunding" : `benchmark ${market.externalFundingAprPct.toFixed(2)}%`}</div>
+                  <div className={`mt-1 font-semibold ${market.fundingSignalSource === "reader-next-funding" ? (market.shortFundingAprPct >= 0 ? "text-yellow-500" : "text-primary") : "text-muted-foreground"}`}>{market.fundingSignalSource === "reader-next-funding" ? `${num(market.shortFundingAprPct).toFixed(2)}%` : "n/a"}</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">{market.fundingSignalSource === "reader-next-funding" ? "reader nextFunding" : `benchmark ${num(market.externalFundingAprPct).toFixed(2)}%`}</div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Max OI Cap</div>
@@ -670,7 +670,7 @@ export default function Dashboard() {
                   <div>
                     <div className="font-semibold">{market.displayName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {market.tier} · {market.fundingSignalSource === "reader-next-funding" ? `funding long ${market.longFundingAprPct.toFixed(1)}% / short ${market.shortFundingAprPct.toFixed(1)}%` : `funding benchmark ${market.externalFundingAprPct.toFixed(1)}%`} vs {market.externalVenueName} {market.externalFundingAprPct.toFixed(1)}% · skew {market.skewPct.toFixed(1)}%
+                      {market.tier} · {market.fundingSignalSource === "reader-next-funding" ? `funding long ${num(market.longFundingAprPct).toFixed(1)}% / short ${num(market.shortFundingAprPct).toFixed(1)}%` : `funding benchmark ${num(market.externalFundingAprPct).toFixed(1)}%`} vs {market.externalVenueName} {num(market.externalFundingAprPct).toFixed(1)}% · skew {market.skewPct.toFixed(1)}%
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
