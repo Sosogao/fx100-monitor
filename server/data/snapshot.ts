@@ -1675,10 +1675,17 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0
       ? round(((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd)) * 100, 2)
       : 0;
+    const hasReaderFundingSignal = marketState.readerFundingAvailable
+      && ((marketState.fundingUpdatedAt ?? 0) > 0 || Math.abs(fundingSkewEmaPct) > 0);
+    const shouldSuppressFallbackRiskSignals = !hasUsableLiveOi && !hasRealPositionCollateral && !hasReaderFundingSignal;
     const effectiveSkewPct = hasUsableLiveOi
       ? skewPct
-      : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct);
-    const fundingSignalSkewPct = Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : effectiveSkewPct;
+      : shouldSuppressFallbackRiskSignals
+        ? 0
+        : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct);
+    const fundingSignalSkewPct = shouldSuppressFallbackRiskSignals
+      ? 0
+      : (Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : effectiveSkewPct);
     const longOpenInterestTokens = tokenAmountToDisplay(marketState.longOiTokens);
     const shortOpenInterestTokens = tokenAmountToDisplay(marketState.shortOiTokens);
     const totalOpenInterestTokens = tokenAmountToDisplay(totalOiTokens);
@@ -1724,7 +1731,9 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       )), 2);
     const openInterestUtilizationPct = openInterestCapacityUsd > 0 ? round((openInterestUsd / openInterestCapacityUsd) * 100, 2) : 0;
     const poolUtilizationPct = poolCollateralAmount > 0 ? round((openInterestUsd / poolCollateralAmount) * 100, 2) : 0;
-    const fundingBenchmarkAprPct = deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
+    const fundingBenchmarkAprPct = shouldSuppressFallbackRiskSignals
+      ? 0
+      : deriveFundingBenchmarkAprPct(fundingBaseAprPct, fundingFloorAprPct, minFundingAprPct, maxFundingAprPct, fundingSignalSkewPct, openInterestUtilizationPct);
     const directLongFundingAprPct = marketState.longFundingAprPct ?? fundingBenchmarkAprPct;
     const directShortFundingAprPct = marketState.shortFundingAprPct ?? fundingBenchmarkAprPct;
     const externalVenue = liveState.externalVenueMarkets[marketState.symbol];
