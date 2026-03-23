@@ -29,6 +29,35 @@ function diagnosticsBadge(tone: "good" | "warning" | "critical" | "neutral") {
   return "bg-muted/20 text-muted-foreground border-border";
 }
 
+
+function fundingFormulaDetails(market: {
+  fundingFloorAprPct: number;
+  fundingBaseAprPct: number;
+  fundingSkewEmaPct: number;
+  minFundingAprPct: number;
+  maxFundingAprPct: number;
+  longFundingAprPct: number;
+  shortFundingAprPct: number;
+  fundingSignalSource: string;
+}) {
+  const ema = market.fundingSkewEmaPct / 100;
+  const rawLong = market.fundingFloorAprPct + market.fundingBaseAprPct * ema;
+  const rawShort = -market.fundingBaseAprPct * ema;
+  const clampedLong = Math.max(market.minFundingAprPct, Math.min(market.maxFundingAprPct, rawLong));
+  const clampedShort = Math.max(market.minFundingAprPct, Math.min(market.maxFundingAprPct, rawShort));
+  const longClamped = Math.abs(clampedLong - rawLong) > 0.005;
+  const shortClamped = Math.abs(clampedShort - rawShort) > 0.005;
+  return {
+    rawLong,
+    rawShort,
+    clampedLong,
+    clampedShort,
+    longClamped,
+    shortClamped,
+    isDirect: market.fundingSignalSource === "reader-next-funding",
+  };
+}
+
 function explainSource(label: string, detail?: string) {
   const map: Record<string, string> = {
     "live-position-counters": "Protocol OPEN_INTEREST_IN_TOKENS counters are populated and used directly.",
@@ -153,6 +182,8 @@ export default function MonitoringEnhanced() {
     liveOi: markets.filter((market) => market.oiSource === "live-position-counters").length,
     liveFunding: markets.filter((market) => market.fundingSignalSource === "reader-next-funding").length,
   }), [markets]);
+
+  const fundingMath = useMemo(() => fundingFormulaDetails(selected), [selected]);
 
   const togglePin = (symbol: string) => {
     setPins((current) => (current.includes(symbol) ? current.filter((value) => value !== symbol) : [...current, symbol]));
@@ -471,12 +502,12 @@ export default function MonitoringEnhanced() {
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long Funding APR</div>
                     <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${num(selected.longFundingAprPct).toFixed(2)}%` : "n/a"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the long side." : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? `raw ${num(fundingMath.rawLong).toFixed(2)}%${fundingMath.longClamped ? ` -> clamped ${num(fundingMath.clampedLong).toFixed(2)}%` : ""}` : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Short Funding APR</div>
                     <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${num(selected.shortFundingAprPct).toFixed(2)}%` : "n/a"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the short side." : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? `raw ${num(fundingMath.rawShort).toFixed(2)}%${fundingMath.shortClamped ? ` -> clamped ${num(fundingMath.clampedShort).toFixed(2)}%` : ""}` : `Benchmark fallback ${num(selected.externalFundingAprPct).toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Venue Price Gap</div>
@@ -485,6 +516,13 @@ export default function MonitoringEnhanced() {
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Funding Source</div>
                     <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? "protocol Reader nextFunding" : "runtime benchmark fallback"}</div>
+                  </div>
+                  <div className="rounded border border-border bg-background/40 p-3 col-span-2">
+                    <div className="text-xs text-muted-foreground">Funding Formula</div>
+                    <div className="mt-1 text-sm font-semibold">long = clamp(floor + base × skewEMA, min, max) · short = clamp(-base × skewEMA, min, max)</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      floor {num(selected.fundingFloorAprPct).toFixed(2)}% · base {num(selected.fundingBaseAprPct).toFixed(2)}% · skewEMA {num(selected.fundingSkewEmaPct).toFixed(2)}% · min {num(selected.minFundingAprPct).toFixed(2)}% · max {num(selected.maxFundingAprPct).toFixed(2)}%
+                    </div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Source</div>
