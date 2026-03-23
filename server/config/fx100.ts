@@ -67,9 +67,9 @@ export interface LiveEnvironmentConfig {
 }
 
 export const basefx100Sepolia0312: LiveEnvironmentConfig = {
-  name: "fx100Base2",
+  name: "fx100Base3",
   network: "Tenderly Virtual TestNet (Base fork)",
-  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/57d381a9-4eeb-4a10-84e0-f8476c92af14",
+  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/6b7108d1-d988-4cd3-977a-817bbde660f8",
   wssUrl: "",
   externalVenue: {
     name: "Binance Futures",
@@ -83,7 +83,7 @@ export const basefx100Sepolia0312: LiveEnvironmentConfig = {
     DATA_STORE: "0xE825D76E50254906499F257b80f92DF75Cd85a6C",
     EVENT_EMITTER: "0x59f6f1Aa4A088bEFD83b425fBDbc5180AB54B627",
     ORACLE: "0x50769e53c4F265c17e7Dc41ac72f0861095D6Fb2",
-    READER: "0xf0F9b58721D440Fcc326643BA6c128D60911E48a",
+    READER: "0xa3019A24EEeC55cBFd21056b7351e9365f15F9b6",
     ORDER_HANDLER: "0x08B98cD8b1aeaA5763520399f6C7852f28C0d1Fc",
     CONFIG: "0x9a9e5cE336abFcF1fBc61A98C1D7246446e9f924",
     MARKET_FACTORY: "0x4aBEE607da8c3f0D460FaFe33A8Ecb4BFE62d48A",
