@@ -22255,9 +22255,21 @@ function buildDashboard(markets, liveState) {
     },
     {
       label: "Funding Markets Above Venue",
-      value: `${markets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length}/${markets.length}`,
-      delta: markets.length > 0 ? `Long ${round(Math.max(...markets.map((market) => market.longFundingAprPct)), 2)}% \xB7 Short ${round(Math.max(...markets.map((market) => market.shortFundingAprPct)), 2)}% max` : `No active markets`,
-      tone: markets.some((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct) ? "warning" : "good"
+      value: (() => {
+        const directFundingMarkets = markets.filter((market) => market.fundingSignalSource === "reader-next-funding");
+        if (directFundingMarkets.length === 0) return `0/0`;
+        return `${directFundingMarkets.filter((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct).length}/${directFundingMarkets.length}`;
+      })(),
+      delta: (() => {
+        const directFundingMarkets = markets.filter((market) => market.fundingSignalSource === "reader-next-funding");
+        if (directFundingMarkets.length === 0) return `No direct reader funding`;
+        return `Long ${round(Math.max(...directFundingMarkets.map((market) => market.longFundingAprPct)), 2)}% \xB7 Short ${round(Math.max(...directFundingMarkets.map((market) => market.shortFundingAprPct)), 2)}% max`;
+      })(),
+      tone: (() => {
+        const directFundingMarkets = markets.filter((market) => market.fundingSignalSource === "reader-next-funding");
+        if (directFundingMarkets.length === 0) return "good";
+        return directFundingMarkets.some((market) => Math.max(market.longFundingAprPct, market.shortFundingAprPct) > market.externalFundingAprPct) ? "warning" : "good";
+      })()
     },
     {
       label: "Oracle Divergence",

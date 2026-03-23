@@ -470,13 +470,13 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Long Funding APR</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.longFundingAprPct.toFixed(2)}%</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Direct Reader next funding for the long side.</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${selected.longFundingAprPct.toFixed(2)}%` : "n/a"}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the long side." : `Benchmark fallback ${selected.externalFundingAprPct.toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Short Funding APR</div>
-                    <div className="mt-1 text-lg font-semibold">{selected.shortFundingAprPct.toFixed(2)}%</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Direct Reader next funding for the short side.</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? `${selected.shortFundingAprPct.toFixed(2)}%` : "n/a"}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{selected.fundingSignalSource === "reader-next-funding" ? "Direct Reader next funding for the short side." : `Benchmark fallback ${selected.externalFundingAprPct.toFixed(2)}%.`}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Venue Price Gap</div>
@@ -484,7 +484,7 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Funding Source</div>
-                    <div className="mt-1 text-lg font-semibold">protocol Reader nextFunding</div>
+                    <div className="mt-1 text-lg font-semibold">{selected.fundingSignalSource === "reader-next-funding" ? "protocol Reader nextFunding" : "runtime benchmark fallback"}</div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Source</div>
