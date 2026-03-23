@@ -53,7 +53,7 @@ export interface MarketSnapshot {
   fundingAprPct: number;
   longFundingAprPct: number;
   shortFundingAprPct: number;
-  fundingSignalSource: "live-funding-state" | "runtime-benchmark";
+  fundingSignalSource: "reader-next-funding" | "runtime-benchmark";
   externalFundingAprPct: number;
   externalFundingSource: ExternalFundingSource;
   skewPct: number;

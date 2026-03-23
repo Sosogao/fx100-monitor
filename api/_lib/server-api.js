@@ -21586,6 +21586,7 @@ async function loadLiveState() {
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
         let longFundingAprPct;
         let shortFundingAprPct;
+        let readerFundingAvailable = false;
         let readerPoolUsdWithoutPnl;
         let readerReservedUsdLong;
         let readerReservedUsdShort;
@@ -21607,6 +21608,7 @@ async function loadLiveState() {
           const shortRaw = BigInt(marketInfo.nextFunding.shortFundingFactorPerSecond);
           longFundingAprPct = annualizedFactorPercent(longRaw);
           shortFundingAprPct = annualizedFactorPercent(shortRaw);
+          readerFundingAvailable = true;
           readerPoolUsdWithoutPnl = usdValue(BigInt(marketInfo.poolUsdWithoutPnl));
           readerReservedUsdLong = usdValue(BigInt(marketInfo.reservedUsdLong));
           readerReservedUsdShort = usdValue(BigInt(marketInfo.reservedUsdShort));
@@ -21680,6 +21682,7 @@ async function loadLiveState() {
           fundingUpdatedAgoMinutes: block?.timestamp && Number(fundingUpdatedAtRaw) > 0 ? round((block.timestamp - Number(fundingUpdatedAtRaw)) / 60, 2) : void 0,
           longFundingAprPct,
           shortFundingAprPct,
+          readerFundingAvailable,
           longNegativeFundingFeePerSizePct: factorToPercentSigned(longNegativeFundingFeePerSizeRaw),
           longPositiveFundingFeePerSizePct: factorToPercentSigned(longPositiveFundingFeePerSizeRaw),
           shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
@@ -21989,6 +21992,7 @@ function buildMarkets(liveState) {
     fundingUpdatedAgoMinutes: void 0,
     longFundingAprPct: void 0,
     shortFundingAprPct: void 0,
+    readerFundingAvailable: false,
     longNegativeFundingFeePerSizePct: 0,
     longPositiveFundingFeePerSizePct: 0,
     shortNegativeFundingFeePerSizePct: 0,
@@ -22123,7 +22127,7 @@ function buildMarkets(liveState) {
       fundingAprPct,
       longFundingAprPct: directLongFundingAprPct,
       shortFundingAprPct: directShortFundingAprPct,
-      fundingSignalSource: hasLiveFundingState ? "live-funding-state" : "runtime-benchmark",
+      fundingSignalSource: marketState.readerFundingAvailable ? "reader-next-funding" : "runtime-benchmark",
       externalFundingAprPct,
       externalFundingSource,
       skewPct: effectiveSkewPct,
@@ -22352,7 +22356,7 @@ function buildAlerts(markets) {
         actionSummary: oracleLevel === "l3" ? "Freeze or constrain market, verify oracle source, and inspect price pipeline immediately" : "Validate oracle source, compare index composition, and confirm whether the test environment uses synthetic pricing"
       });
     }
-    if (market.fundingSignalSource === "live-funding-state" && market.fundingUpdatedAgoMinutes !== void 0 && market.fundingUpdatedAgoMinutes >= 120) {
+    if (market.fundingSignalSource === "reader-next-funding" && market.fundingUpdatedAgoMinutes !== void 0 && market.fundingUpdatedAgoMinutes >= 120) {
       const staleLevel = market.fundingUpdatedAgoMinutes >= 720 ? "l3" : market.fundingUpdatedAgoMinutes >= 240 ? "l2" : "l1";
       extraAlerts.push({
         id: `alert-${market.symbol.toLowerCase()}-funding-stale`,

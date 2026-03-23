@@ -33,7 +33,7 @@ function explainSource(label: string, detail?: string) {
   const map: Record<string, string> = {
     "live-position-counters": "Protocol OPEN_INTEREST_IN_TOKENS counters are populated and used directly.",
     "pool-depth-inferred": "Direct OI counters were not sufficient for this snapshot, so OI is inferred from pool/depth state.",
-    "live-funding-state": "Funding values come from live protocol funding state in DataStore.",
+    "reader-next-funding": "Funding values come directly from Reader nextFunding long/short factors.",
     "runtime-benchmark": "Funding comparison value is derived from live runtime conditions rather than a direct venue funding feed.",
     "live-aggregate": "External reference price uses an aggregate of available live venue signals.",
     "live-index": "External reference price comes from a live venue index price.",
@@ -64,7 +64,7 @@ function buildDiagnostics(selected: {
 }) {
   const oracleTone = selected.externalPriceDeviationPct >= 50 ? "critical" : selected.externalPriceDeviationPct >= 5 ? "warning" : "good";
   const fundingAge = selected.fundingUpdatedAgoMinutes ?? 0;
-  const fundingTone = selected.fundingSignalSource === "live-funding-state"
+  const fundingTone = selected.fundingSignalSource === "reader-next-funding"
     ? (fundingAge >= 720 ? "critical" : fundingAge >= 120 ? "warning" : "good")
     : "warning";
   const oiTone = selected.oiSource === "live-position-counters"
@@ -88,7 +88,7 @@ function buildDiagnostics(selected: {
     },
     {
       label: "Funding",
-      value: selected.fundingSignalSource === "live-funding-state" ? "protocol live" : "runtime benchmark",
+      value: selected.fundingSignalSource === "reader-next-funding" ? "reader direct" : "runtime benchmark",
       tone: fundingTone,
       detail: selected.fundingUpdatedAgoMinutes !== undefined
         ? "updated " + selected.fundingUpdatedAgoMinutes.toFixed(1) + " min ago"
@@ -151,7 +151,7 @@ export default function MonitoringEnhanced() {
   const sourceSummary = useMemo(() => ({
     runtimeRisk: markets.filter((market) => market.analyticsSource === "runtime-derived").length,
     liveOi: markets.filter((market) => market.oiSource === "live-position-counters").length,
-    liveFunding: markets.filter((market) => market.fundingSignalSource === "live-funding-state").length,
+    liveFunding: markets.filter((market) => market.fundingSignalSource === "reader-next-funding").length,
   }), [markets]);
 
   const togglePin = (symbol: string) => {

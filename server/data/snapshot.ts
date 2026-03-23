@@ -240,6 +240,7 @@ interface OnchainMarketState {
   fundingUpdatedAgoMinutes?: number;
   longFundingAprPct?: number;
   shortFundingAprPct?: number;
+  readerFundingAvailable?: boolean;
   longNegativeFundingFeePerSizePct: number;
   longPositiveFundingFeePerSizePct: number;
   shortNegativeFundingFeePerSizePct: number;
@@ -1194,6 +1195,7 @@ async function loadLiveState(): Promise<LiveReadState> {
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
         let longFundingAprPct: number | undefined;
         let shortFundingAprPct: number | undefined;
+        let readerFundingAvailable = false;
         let readerPoolUsdWithoutPnl: number | undefined;
         let readerReservedUsdLong: number | undefined;
         let readerReservedUsdShort: number | undefined;
@@ -1215,6 +1217,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           const shortRaw = BigInt(marketInfo.nextFunding.shortFundingFactorPerSecond);
           longFundingAprPct = annualizedFactorPercent(longRaw);
           shortFundingAprPct = annualizedFactorPercent(shortRaw);
+          readerFundingAvailable = true;
           readerPoolUsdWithoutPnl = usdValue(BigInt(marketInfo.poolUsdWithoutPnl));
           readerReservedUsdLong = usdValue(BigInt(marketInfo.reservedUsdLong));
           readerReservedUsdShort = usdValue(BigInt(marketInfo.reservedUsdShort));
@@ -1290,6 +1293,7 @@ async function loadLiveState(): Promise<LiveReadState> {
             : undefined,
           longFundingAprPct,
           shortFundingAprPct,
+          readerFundingAvailable,
           longNegativeFundingFeePerSizePct: factorToPercentSigned(longNegativeFundingFeePerSizeRaw),
           longPositiveFundingFeePerSizePct: factorToPercentSigned(longPositiveFundingFeePerSizeRaw),
           shortNegativeFundingFeePerSizePct: factorToPercentSigned(shortNegativeFundingFeePerSizeRaw),
@@ -1609,6 +1613,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
         fundingUpdatedAgoMinutes: undefined,
         longFundingAprPct: undefined,
         shortFundingAprPct: undefined,
+        readerFundingAvailable: false,
         longNegativeFundingFeePerSizePct: 0,
         longPositiveFundingFeePerSizePct: 0,
         shortNegativeFundingFeePerSizePct: 0,
@@ -1790,7 +1795,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
       fundingAprPct,
       longFundingAprPct: directLongFundingAprPct,
       shortFundingAprPct: directShortFundingAprPct,
-      fundingSignalSource: hasLiveFundingState ? "live-funding-state" : "runtime-benchmark",
+      fundingSignalSource: marketState.readerFundingAvailable ? "reader-next-funding" : "runtime-benchmark",
       externalFundingAprPct,
       externalFundingSource,
       skewPct: effectiveSkewPct,
@@ -2045,7 +2050,7 @@ function buildAlerts(markets: MarketSnapshot[]): { alerts: AlertRecord[]; action
       });
     }
 
-    if (market.fundingSignalSource === "live-funding-state" && market.fundingUpdatedAgoMinutes !== undefined && market.fundingUpdatedAgoMinutes >= 120) {
+    if (market.fundingSignalSource === "reader-next-funding" && market.fundingUpdatedAgoMinutes !== undefined && market.fundingUpdatedAgoMinutes >= 120) {
       const staleLevel: AlertLevel = market.fundingUpdatedAgoMinutes >= 720 ? "l3" : market.fundingUpdatedAgoMinutes >= 240 ? "l2" : "l1";
       extraAlerts.push({
         id: `alert-${market.symbol.toLowerCase()}-funding-stale`,

@@ -146,7 +146,7 @@ export default function Dashboard() {
     liveOi: snapshot?.markets.filter((market) => market.oiSource === "live-position-counters").length ?? 0,
     dustOi: snapshot?.markets.filter((market) => market.oiCounterStatus === "dust").length ?? 0,
     missingOi: snapshot?.markets.filter((market) => market.oiCounterStatus === "missing").length ?? 0,
-    liveFunding: snapshot?.markets.filter((market) => market.fundingSignalSource === "live-funding-state").length ?? 0,
+    liveFunding: snapshot?.markets.filter((market) => market.fundingSignalSource === "reader-next-funding").length ?? 0,
     total: snapshot?.markets.length ?? 0,
   }), [snapshot]);
   const confidenceMatrix = useMemo(() => snapshot?.markets.map((market) => ({
@@ -164,8 +164,8 @@ export default function Dashboard() {
       },
       {
         label: "Funding",
-        value: market.fundingSignalSource === "live-funding-state" ? "protocol live" : "benchmark",
-        tone: market.fundingSignalSource === "live-funding-state" ? "good" : "warning",
+        value: market.fundingSignalSource === "reader-next-funding" ? "reader direct" : "benchmark",
+        tone: market.fundingSignalSource === "reader-next-funding" ? "good" : "warning",
       },
       {
         label: "Oracle",
