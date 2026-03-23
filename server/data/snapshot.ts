@@ -938,11 +938,16 @@ function decodeFundingSkewEma(raw: string, blockTimestamp?: number): { sampleInt
 }
 
 async function readOracleMidPrice(provider: JsonRpcProvider, token: string): Promise<number | undefined> {
+  const raw = await readOracleMidPriceRaw(provider, token);
+  return raw !== undefined ? usdValue(raw) : undefined;
+}
+
+async function readOracleMidPriceRaw(provider: JsonRpcProvider, token: string): Promise<bigint | undefined> {
   try {
     const oracle = new Contract(basefx100Sepolia0312.contracts.ORACLE, ORACLE_ABI, provider);
     const price = await oracle.getPrimaryPrice(token) as { min: bigint; max: bigint };
     if (!price || price.min === BigInt(0) || price.max === BigInt(0)) return undefined;
-    return usdValue((price.min + price.max) / BigInt(2));
+    return (price.min + price.max) / BigInt(2);
   } catch {
     return undefined;
   }
@@ -1144,6 +1149,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           longOiTokensRaw,
           shortOiTokensRaw,
           oraclePriceUsd,
+          oraclePriceRaw,
         ] = await Promise.all([
           vault !== ZeroAddress ? erc20Balance(provider, collateralToken, vault, collateralTokenDecimals) : Promise.resolve(0),
           vault !== ZeroAddress ? erc20Balance(provider, indexToken, vault, indexTokenDecimals) : Promise.resolve(0),
@@ -1191,6 +1197,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, false)),
           readOracleMidPrice(provider, indexToken),
+          readOracleMidPriceRaw(provider, indexToken),
         ]);
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
         let longFundingAprPct: number | undefined;
@@ -1208,7 +1215,7 @@ async function loadLiveState(): Promise<LiveReadState> {
           const marketInfo = await reader.getMarketInfo(
             basefx100Sepolia0312.contracts.DATA_STORE,
             {
-              indexTokenPrice: { min: oraclePriceUsd, max: oraclePriceUsd },
+              indexTokenPrice: { min: oraclePriceRaw ?? BigInt(0), max: oraclePriceRaw ?? BigInt(0) },
               collateralTokenPrice: { min: BigInt("1000000000000000000000000000000"), max: BigInt("1000000000000000000000000000000") },
             },
             BigInt(marketIndex),

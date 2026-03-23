@@ -21346,11 +21346,15 @@ function decodeFundingSkewEma(raw, blockTimestamp) {
   };
 }
 async function readOracleMidPrice(provider, token) {
+  const raw = await readOracleMidPriceRaw(provider, token);
+  return raw !== void 0 ? usdValue(raw) : void 0;
+}
+async function readOracleMidPriceRaw(provider, token) {
   try {
     const oracle = new Contract(basefx100Sepolia0312.contracts.ORACLE, ORACLE_ABI, provider);
     const price = await oracle.getPrimaryPrice(token);
     if (!price || price.min === BigInt(0) || price.max === BigInt(0)) return void 0;
-    return usdValue((price.min + price.max) / BigInt(2));
+    return (price.min + price.max) / BigInt(2);
   } catch {
     return void 0;
   }
@@ -21534,7 +21538,8 @@ async function loadLiveState() {
           shortPositiveFundingFeePerSizeRaw,
           longOiTokensRaw,
           shortOiTokensRaw,
-          oraclePriceUsd
+          oraclePriceUsd,
+          oraclePriceRaw
         ] = await Promise.all([
           vault !== ZeroAddress ? erc20Balance(provider, collateralToken, vault, collateralTokenDecimals) : Promise.resolve(0),
           vault !== ZeroAddress ? erc20Balance(provider, indexToken, vault, indexTokenDecimals) : Promise.resolve(0),
@@ -21581,7 +21586,8 @@ async function loadLiveState() {
           readUint(provider, marketBoolKey(DATA_KEYS.POSITIVE_FUNDING_FEE_PER_SIZE, marketIndex, false)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, true)),
           readUint(provider, marketBoolKey(DATA_KEYS.OPEN_INTEREST_IN_TOKENS, marketIndex, false)),
-          readOracleMidPrice(provider, indexToken)
+          readOracleMidPrice(provider, indexToken),
+          readOracleMidPriceRaw(provider, indexToken)
         ]);
         const skewEma = decodeFundingSkewEma(fundingSkewEmaRaw, block?.timestamp);
         let longFundingAprPct;
@@ -21599,7 +21605,7 @@ async function loadLiveState() {
           const marketInfo = await reader.getMarketInfo(
             basefx100Sepolia0312.contracts.DATA_STORE,
             {
-              indexTokenPrice: { min: oraclePriceUsd, max: oraclePriceUsd },
+              indexTokenPrice: { min: oraclePriceRaw ?? BigInt(0), max: oraclePriceRaw ?? BigInt(0) },
               collateralTokenPrice: { min: BigInt("1000000000000000000000000000000"), max: BigInt("1000000000000000000000000000000") }
             },
             BigInt(marketIndex)
