@@ -22043,7 +22043,9 @@ function buildMarkets(liveState) {
     const longReservedUsd = marketState.longReservedUsd > 0 ? marketState.longReservedUsd : longOpenInterestUsd;
     const shortReservedUsd = marketState.shortReservedUsd > 0 ? marketState.shortReservedUsd : marketState.shortCumulativeOpenCostsUsd;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
-    const fallbackOpenInterestUsd = poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
+    const hasRealPositionCollateral = marketState.longPositionCollateralUsd + marketState.shortPositionCollateralUsd > 0;
+    const shouldSuppressFallbackOi = !hasUsableLiveOi && !hasRealPositionCollateral;
+    const fallbackOpenInterestUsd = shouldSuppressFallbackOi ? 0 : poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
     const openInterestUsd = hasUsableLiveOi ? round(tokenAmountToUsd(totalOiTokens, oraclePrice), 2) : fallbackOpenInterestUsd;
     const openInterestCapacityUsd = marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd > 0 ? marketState.maxOpenInterestLongUsd + marketState.maxOpenInterestShortUsd : maxPositionSizeUsd * 2;
     const longSoftCapUsd = round(poolCollateralAmount * (marketState.maxOpenInterestFactorLongPct / 100), 2);
