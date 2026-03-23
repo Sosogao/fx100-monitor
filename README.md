@@ -12,6 +12,19 @@ The system is intentionally read-only. It is designed to answer three questions 
 
 This keeps the UI usable while the live reader layer is still being expanded.
 
+## Local parameter editing
+
+For localhost-only parameter editing on `/parameters`, start the monitor with a writer key that already has `CONFIG_KEEPER_ROLE` on the target fork.
+
+```bash
+cd /Users/vicky/Documents/GitHub/fx100-monitor
+FX100_MONITOR_WRITE_PRIVATE_KEY=0xYOUR_PRIVATE_KEY_HERE pnpm dev
+```
+
+Then open `http://localhost:5173/parameters` and confirm `Write path: enabled`.
+
+A minimal template is provided in `.env.example`.
+
 ## Docs index
 
 
