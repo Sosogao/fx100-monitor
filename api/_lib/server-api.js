@@ -21600,12 +21600,14 @@ async function loadLiveState() {
         let readerShortPnlToPoolFactor;
         let readerAvailableLongUsd;
         let readerAvailableShortUsd;
+        const readerFallbackPriceUsd = oraclePriceUsd || configuredMarket?.referencePriceUsd || 0;
+        const readerIndexPriceRaw = oraclePriceRaw ?? (readerFallbackPriceUsd > 0 ? parseUnits(String(readerFallbackPriceUsd), USD_DECIMALS2) : BigInt(0));
         try {
           const reader = new Contract(basefx100Sepolia0312.contracts.READER, READER_ABI, provider);
           const marketInfo = await reader.getMarketInfo(
             basefx100Sepolia0312.contracts.DATA_STORE,
             {
-              indexTokenPrice: { min: oraclePriceRaw ?? BigInt(0), max: oraclePriceRaw ?? BigInt(0) },
+              indexTokenPrice: { min: readerIndexPriceRaw, max: readerIndexPriceRaw },
               collateralTokenPrice: { min: BigInt("1000000000000000000000000000000"), max: BigInt("1000000000000000000000000000000") }
             },
             BigInt(marketIndex)
@@ -22039,6 +22041,7 @@ function buildMarkets(liveState) {
     const longSharePct = hasUsableLiveOi ? round(marketState.longOiTokens / totalOiTokens * 100, 1) : 50;
     const skewPct = hasUsableLiveOi ? round(longSharePct - (100 - longSharePct), 2) : 0;
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0 ? round((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd) * 100, 2) : 0;
+    const hasRealPositionCollateral = marketState.longPositionCollateralUsd + marketState.shortPositionCollateralUsd > 0;
     const hasReaderFundingSignal = marketState.readerFundingAvailable && ((marketState.fundingUpdatedAt ?? 0) > 0 || Math.abs(fundingSkewEmaPct) > 0);
     const shouldSuppressFallbackRiskSignals = !hasUsableLiveOi && !hasRealPositionCollateral && !hasReaderFundingSignal;
     const effectiveSkewPct = hasUsableLiveOi ? skewPct : shouldSuppressFallbackRiskSignals ? 0 : Math.abs(fundingSkewEmaPct) > 0 ? fundingSkewEmaPct : inferredSkewPct;
@@ -22051,7 +22054,6 @@ function buildMarkets(liveState) {
     const longReservedUsd = marketState.longReservedUsd > 0 ? marketState.longReservedUsd : longOpenInterestUsd;
     const shortReservedUsd = marketState.shortReservedUsd > 0 ? marketState.shortReservedUsd : marketState.shortCumulativeOpenCostsUsd;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
-    const hasRealPositionCollateral = marketState.longPositionCollateralUsd + marketState.shortPositionCollateralUsd > 0;
     const shouldSuppressFallbackOi = !hasUsableLiveOi && !hasRealPositionCollateral;
     const fallbackOpenInterestUsd = shouldSuppressFallbackOi ? 0 : poolCollateralAmount > 0 ? round(Math.min(inferredOpenInterestUsd, poolCollateralAmount * 0.65), 2) : 0;
     const openInterestUsd = hasUsableLiveOi ? round(tokenAmountToUsd(totalOiTokens, oraclePrice), 2) : fallbackOpenInterestUsd;

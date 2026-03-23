@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { AbiCoder, Contract, Interface, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, keccak256, toBeHex } from "ethers";
+import { AbiCoder, Contract, Interface, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, keccak256, parseUnits, toBeHex } from "ethers";
 import type {
   ActionRecord,
   AlertLevel,
@@ -1210,12 +1210,14 @@ async function loadLiveState(): Promise<LiveReadState> {
         let readerShortPnlToPoolFactor: number | undefined;
         let readerAvailableLongUsd: number | undefined;
         let readerAvailableShortUsd: number | undefined;
+        const readerFallbackPriceUsd = oraclePriceUsd || configuredMarket?.referencePriceUsd || 0;
+        const readerIndexPriceRaw = oraclePriceRaw ?? (readerFallbackPriceUsd > 0 ? parseUnits(String(readerFallbackPriceUsd), USD_DECIMALS) : BigInt(0));
         try {
           const reader = new Contract(basefx100Sepolia0312.contracts.READER, READER_ABI, provider);
           const marketInfo = await reader.getMarketInfo(
             basefx100Sepolia0312.contracts.DATA_STORE,
             {
-              indexTokenPrice: { min: oraclePriceRaw ?? BigInt(0), max: oraclePriceRaw ?? BigInt(0) },
+              indexTokenPrice: { min: readerIndexPriceRaw, max: readerIndexPriceRaw },
               collateralTokenPrice: { min: BigInt("1000000000000000000000000000000"), max: BigInt("1000000000000000000000000000000") },
             },
             BigInt(marketIndex),
@@ -1682,6 +1684,7 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const inferredSkewPct = askDepthUsd + bidDepthUsd > 0
       ? round(((askDepthUsd - bidDepthUsd) / (askDepthUsd + bidDepthUsd)) * 100, 2)
       : 0;
+    const hasRealPositionCollateral = (marketState.longPositionCollateralUsd + marketState.shortPositionCollateralUsd) > 0;
     const hasReaderFundingSignal = marketState.readerFundingAvailable
       && ((marketState.fundingUpdatedAt ?? 0) > 0 || Math.abs(fundingSkewEmaPct) > 0);
     const shouldSuppressFallbackRiskSignals = !hasUsableLiveOi && !hasRealPositionCollateral && !hasReaderFundingSignal;
@@ -1701,7 +1704,6 @@ function buildMarkets(liveState: LiveReadState): { markets: MarketSnapshot[]; ma
     const longReservedUsd = marketState.longReservedUsd > 0 ? marketState.longReservedUsd : longOpenInterestUsd;
     const shortReservedUsd = marketState.shortReservedUsd > 0 ? marketState.shortReservedUsd : marketState.shortCumulativeOpenCostsUsd;
     const inferredOpenInterestUsd = round(Math.min(maxPositionSizeUsd * 0.58, askDepthUsd * 0.52 + bidDepthUsd * 0.48), 0);
-    const hasRealPositionCollateral = (marketState.longPositionCollateralUsd + marketState.shortPositionCollateralUsd) > 0;
     const shouldSuppressFallbackOi = !hasUsableLiveOi && !hasRealPositionCollateral;
     const fallbackOpenInterestUsd = shouldSuppressFallbackOi
       ? 0
