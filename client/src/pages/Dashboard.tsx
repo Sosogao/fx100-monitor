@@ -115,6 +115,8 @@ export default function Dashboard() {
     shortOpenInterestUsd: market.shortOpenInterestUsd,
     longFundingAprPct: market.longFundingAprPct,
     shortFundingAprPct: market.shortFundingAprPct,
+    fundingSignalSource: market.fundingSignalSource,
+    externalFundingAprPct: market.externalFundingAprPct,
     longSharePct: market.longSharePct,
     shortSharePct: market.shortSharePct,
     skewPct: market.skewPct,
