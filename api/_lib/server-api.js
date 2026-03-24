@@ -19903,9 +19903,9 @@ var Wallet = class _Wallet extends BaseWallet {
 
 // server/config/fx100.ts
 var basefx100Sepolia0312 = {
-  name: "fx100Base4",
+  name: "fx100Base6",
   network: "Tenderly Virtual TestNet (Base fork)",
-  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/11183603-1053-41f8-a4f1-b358d76d9f9e",
+  rpcUrl: "https://virtual.base.eu.rpc.tenderly.co/024c8a3b-18e2-48ce-8c6a-26b36eed6e33",
   wssUrl: "",
   externalVenue: {
     name: "Binance Futures",

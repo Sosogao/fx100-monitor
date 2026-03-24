@@ -501,7 +501,7 @@ Reason:
 ### Step 23: validate live OI on fresh Base fork with isolated traders
 
 - aligned protocol testing and monitor assumptions to the same fresh Base fork environment:
-  - `https://virtual.base.eu.rpc.tenderly.co/11183603-1053-41f8-a4f1-b358d76d9f9e`
+  - `https://virtual.base.eu.rpc.tenderly.co/024c8a3b-18e2-48ce-8c6a-26b36eed6e33`
 - validated protocol-side live OI using isolated trader flows instead of reusing the deployer account
 - confirmed ETH market path:
   - isolated open succeeds
