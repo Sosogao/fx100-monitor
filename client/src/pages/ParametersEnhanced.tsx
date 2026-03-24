@@ -67,7 +67,7 @@ function docHrefForParameter(fieldKey: string) {
   if (fieldKey.startsWith("positionImpact")) return `${base}#group-1-position-impact-controls`;
   if (["constantSpread", "priceImpactNormal", "maxPriceImpactSpread", "orderbookDepthLong", "orderbookDepthShort"].includes(fieldKey)) return `${base}#group-2-spread--depth-price-impact-controls`;
   if (["skewImpactFactor", "skewClampLiveMin", "skewClampLiveMax"].includes(fieldKey)) return `${base}#group-3-skew-and-open-interest-state`;
-  if (["maxOpenInterestFactorLong", "maxOpenInterestFactorShort", "reserveFactorLong", "reserveFactorShort", "oiReserveFactorLong", "oiReserveFactorShort", "minCollateralFactorForOIMultiplierLong", "minCollateralFactorForOIMultiplierShort"].includes(fieldKey)) return `${base}#group-4-capacity-and-reserve-constraints`;
+  if (["maxOpenInterestFactorLong", "maxOpenInterestFactorShort", "maxOpenInterestCapLongUsd", "maxOpenInterestCapShortUsd", "reserveFactor", "reserveFactorLong", "reserveFactorShort", "oiReserveFactorLong", "oiReserveFactorShort", "minCollateralFactorForOIMultiplierLong", "minCollateralFactorForOIMultiplierShort"].includes(fieldKey)) return `${base}#group-4-capacity-and-reserve-constraints`;
   if (["minPosUsd", "minCollateralUsd", "singlePosCapUsd", "minCollateralFactor"].includes(fieldKey)) return `${base}#group-5-collateral-and-position-size-guards`;
   if (["fundingFloorApr", "fundingBaseApr", "fundingEmergencyApr", "minFundingRate", "maxFundingRate", "skewEmaMinutes"].includes(fieldKey)) return `${base}#group-6-funding-curve-and-funding-state`;
   if (["openFeeRatio", "closeFeeRatio", "liquidationFeeFactor"].includes(fieldKey)) return `${base}#group-9-trading-fees-rebates-ui-fees-and-fee-distribution`;
