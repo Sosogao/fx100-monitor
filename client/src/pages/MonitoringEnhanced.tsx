@@ -156,6 +156,10 @@ export default function MonitoringEnhanced() {
     const symbol = selectedSymbol ?? fallback;
     return markets.find((market) => market.symbol === symbol) ?? null;
   }, [markets, selectedSymbol]);
+  const reserveCapsOverlap = selected
+    ? num(selected.reserveFactorLongPct) === num(selected.openInterestReserveFactorLongPct) &&
+      num(selected.reserveFactorShortPct) === num(selected.openInterestReserveFactorShortPct)
+    : false;
 
   const selectedSeries = useMemo(
     () => snapshot?.marketSeries.find((series) => series.symbol === selected?.symbol) ?? null,
@@ -462,26 +466,42 @@ export default function MonitoringEnhanced() {
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
-                    <div className="mt-1 text-lg font-semibold">L {num(selected.openInterestReserveFactorLongPct).toFixed(1)}% · S {num(selected.openInterestReserveFactorShortPct).toFixed(1)}%</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Directional OI-reserve cap factors from protocol config.</div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {reserveCapsOverlap
+                        ? "same as Reserve Factor"
+                        : `L ${num(selected.openInterestReserveFactorLongPct).toFixed(1)}% · S ${num(selected.openInterestReserveFactorShortPct).toFixed(1)}%`}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {reserveCapsOverlap
+                        ? "Current config matches Reserve Factor, so this is a second threshold on the same reserve ratio."
+                        : "Directional OI-reserve cap factors from protocol config."}
+                    </div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Usage</div>
                     <div className="mt-1 text-lg font-semibold">
-                      L {((num(selected.openInterestReserveFactorLongPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.longReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}%
-                      {" · "}
-                      S {((num(selected.openInterestReserveFactorShortPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.shortReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%
+                      {reserveCapsOverlap
+                        ? "same as LP Cap Usage"
+                        : `L ${((num(selected.openInterestReserveFactorLongPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.longReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S ${((num(selected.openInterestReserveFactorShortPct) > 0 && num(selected.poolUsdWithoutPnl) > 0) ? (num(selected.shortReservedUsd) / (num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%`}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">Reserved USD divided by the OI reserve cap for each side.</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {reserveCapsOverlap
+                        ? "Same reserve ratio as LP Cap Usage under the current parameter set."
+                        : "Reserved USD divided by the OI reserve cap for each side."}
+                    </div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">OI Reserve Remaining</div>
                     <div className="mt-1 text-lg font-semibold">
-                      L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100) - num(selected.longReservedUsd))))}
-                      {" · "}
-                      S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100) - num(selected.shortReservedUsd))))}
+                      {reserveCapsOverlap
+                        ? "same as Available Liquidity"
+                        : `L $${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorLongPct) / 100) - num(selected.longReservedUsd))))} · S $${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(selected.poolUsdWithoutPnl) * (num(selected.openInterestReserveFactorShortPct) / 100) - num(selected.shortReservedUsd))))}`}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">Remaining headroom implied only by OI reserve factor, before other caps are considered.</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {reserveCapsOverlap
+                        ? "Same remaining headroom as Available Liquidity under the current parameter set."
+                        : "Remaining headroom implied only by OI reserve factor, before other caps are considered."}
+                    </div>
                   </div>
                   <div className="rounded border border-border bg-background/40 p-3">
                     <div className="text-xs text-muted-foreground">Pool USD Without PnL</div>

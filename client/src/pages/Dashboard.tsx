@@ -142,6 +142,9 @@ export default function Dashboard() {
     availableShortUsd: market.availableShortUsd,
     longPnlToPoolFactor: market.longPnlToPoolFactor,
     shortPnlToPoolFactor: market.shortPnlToPoolFactor,
+    reserveCapsOverlap:
+      num(market.reserveFactorLongPct) === num(market.openInterestReserveFactorLongPct) &&
+      num(market.reserveFactorShortPct) === num(market.openInterestReserveFactorShortPct),
   })), [snapshot]);
   const sourceCoverage = useMemo(() => ({
     runtimeRisk: snapshot?.markets.filter((market) => market.analyticsSource === "runtime-derived").length ?? 0,
@@ -512,7 +515,11 @@ export default function Dashboard() {
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Factor</div>
-                  <div className="mt-1 font-semibold text-foreground">L {num(market.openInterestReserveFactorLongPct).toFixed(1)}% · S {num(market.openInterestReserveFactorShortPct).toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {market.reserveCapsOverlap
+                      ? "same as Reserve Factor"
+                      : `L ${num(market.openInterestReserveFactorLongPct).toFixed(1)}% · S ${num(market.openInterestReserveFactorShortPct).toFixed(1)}%`}
+                  </div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">LP Cap Usage</div>
@@ -520,11 +527,19 @@ export default function Dashboard() {
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Usage</div>
-                  <div className="mt-1 font-semibold text-foreground">L {((num(market.openInterestReserveFactorLongPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.longReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S {((num(market.openInterestReserveFactorShortPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.shortReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {market.reserveCapsOverlap
+                      ? "same as LP Cap Usage"
+                      : `L ${((num(market.openInterestReserveFactorLongPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.longReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100))) * 100 : 0).toFixed(1)}% · S ${((num(market.openInterestReserveFactorShortPct) > 0 && num(market.poolUsdWithoutPnl) > 0) ? (num(market.shortReservedUsd) / (num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100))) * 100 : 0).toFixed(1)}%`}
+                  </div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">OI Reserve Remaining</div>
-                  <div className="mt-1 font-semibold text-foreground">L ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100) - num(market.longReservedUsd))))} · S ${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100) - num(market.shortReservedUsd))))}</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {market.reserveCapsOverlap
+                      ? "same as Available Liquidity"
+                      : `L $${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorLongPct) / 100) - num(market.longReservedUsd))))} · S $${Intl.NumberFormat("en-US").format(Math.round(Math.max(0, num(market.poolUsdWithoutPnl) * (num(market.openInterestReserveFactorShortPct) / 100) - num(market.shortReservedUsd))))}`}
+                  </div>
                 </div>
                 <div className="rounded border border-border p-3">
                   <div className="text-xs text-muted-foreground">Available Liquidity</div>
