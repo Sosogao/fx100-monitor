@@ -73,7 +73,11 @@ const MONITOR_REPO_ROOT = process.cwd();
 const CONTRACTS_REPO_ROOT = path.resolve(MONITOR_REPO_ROOT, "../fx100-contracts_fork");
 const MONITOR_ENV_LOCAL_PATH = path.join(MONITOR_REPO_ROOT, ".env.local");
 const TRADING_ENV_LOCAL_PATH = path.join(CONTRACTS_REPO_ROOT, "docs", "test-website", ".env.local");
-const DEFAULT_PROFILE = "scripts/deploy/base-fork/envs/fx100Base8.env";
+const LOCAL_PROFILE = "scripts/local/envs/fx100Local.env";
+const LOCAL_PROFILE_PATH = path.join(CONTRACTS_REPO_ROOT, LOCAL_PROFILE);
+const DEFAULT_PROFILE = fs.existsSync(LOCAL_PROFILE_PATH)
+  ? LOCAL_PROFILE
+  : "scripts/deploy/base-fork/envs/fx100Base8.env";
 
 function readEnvFile(filePath: string): Record<string, string> {
   if (!fs.existsSync(filePath)) return {};
