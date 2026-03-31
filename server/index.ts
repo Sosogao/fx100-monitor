@@ -61,11 +61,6 @@ async function startServer() {
     res.status(500).json({ ok: false, error: "internal_server_error" });
   });
 
-  await getSnapshotPayload(true);
-  setInterval(() => {
-    void getSnapshotPayload(true).catch((error) => console.error("snapshot refresh failed", error));
-  }, 30_000);
-
   const port = Number(process.env.PORT || 3000);
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

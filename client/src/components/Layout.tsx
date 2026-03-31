@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertTriangle, Settings, Activity, ShieldAlert, SlidersHorizontal, Network } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Settings, Activity, ShieldAlert, SlidersHorizontal, Network, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useMonitoring } from "@/contexts/MonitoringContext";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { snapshot } = useMonitoring();
+  const { snapshot, refresh, loading } = useMonitoring();
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -23,12 +24,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground font-mono flex flex-col md:flex-row">
       <aside className="w-full md:w-64 border-r border-border bg-card/50 backdrop-blur-md flex flex-col">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <ShieldAlert className="w-8 h-8 text-primary animate-pulse" />
-          <div>
-            <h1 className="font-bold text-lg tracking-wider">FX100</h1>
-            <p className="text-xs text-muted-foreground">RISK SENTINEL</p>
+        <div className="p-6 border-b border-border space-y-4">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-8 h-8 text-primary animate-pulse" />
+            <div>
+              <h1 className="font-bold text-lg tracking-wider">FX100</h1>
+              <p className="text-xs text-muted-foreground">RISK SENTINEL</p>
+            </div>
           </div>
+          <Button variant="outline" className="w-full justify-center" onClick={() => void refresh()} disabled={loading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", loading ? "animate-spin" : "")} />
+            刷新快照
+          </Button>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
